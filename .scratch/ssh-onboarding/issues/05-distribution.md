@@ -1,6 +1,7 @@
 # 05: インストール・更新・アンインストール・6対象リリースビルド
 
-Status: ready-for-human
+Status: ready-for-agent
+Resolution: completed
 Blocked by: None (can start immediately)
 
 ## What to build
