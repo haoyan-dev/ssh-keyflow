@@ -18,8 +18,8 @@
 | 管理対象外の発見 | 鍵と再帰Include、循環、読取不可、Match exec非実行 | ticket01のListDiscoversRecursiveIncludesWithoutExecutingOrChangingThemテスト成功 |
 | 管理対象外の保護 | 元ファイルと管理JSONへの自動取り込みがない | ticket01の一覧・取り込み境界テストで元設定保持と明示承認を確認 |
 | 取り込み | 鍵ペア照合、公開鍵のみ、元パス保持、承認 | ticket01のImportValidatesPair、MismatchedPair、PublicOnlyImport、ImportRequiresExplicitConfirmationテスト成功。Windows実鍵でも確認 |
-| 鍵生成 | Ed25519、自動名、衝突回避、端末入力、再開 | 未確認 |
-| 接続先追加 | アドレス・別名・ユーザー・ポート・OS、鍵の再利用 | 未確認 |
+| 鍵生成 | Ed25519、自動名、衝突回避、端末入力、再開 | ticket02の生成・中断復旧・衝突保護のCLIテスト成功。Windows標準OpenSSHと実PTYによる本体からの生成・照合・一覧も成功 |
+| 接続先追加 | アドレス・別名・ユーザー・ポート・OS、鍵の再利用 | ticket02のTailscale名・IPv6・Unicode・ポート・OS選択・既存鍵再利用・再開のCLIテスト成功 |
 | 手動案内 | 3 OSのSSH有効化・登録・解除のコピペ内容 | 未確認 |
 | 自動登録 | 標準登録先確認、冪等、他の行保持、Windows共有範囲 | 未確認 |
 | 接続の検証 | 指定鍵のみ、ホスト鍵確認、変更時停止 | 未確認 |
@@ -30,12 +30,14 @@
 | 秘密値保護 | JSON・出力・コマンド引数にパスワードを残さない | 未確認 |
 | インストーラー | 最新・指定版、OS/CPU、更新・削除、PATH所有権 | ticket05のローカルHTTP配布物・一時ホームによる24テスト成功。Windows実バイナリのインストール・更新・削除・SSHデータ保持も成功 |
 | 配布 | 6対象のクロスビルド、CIとリリース定義 | ticket05で6対象のビルド・9配布物の作成と8件のチェックサムを確認。CI・リリース定義あり。本体完成後に再ビルドする |
-| 実コマンド | 一時ホームでWindowsのOpenSSH鍵取り込み・生成確認 | Windows標準OpenSSHで検証用鍵生成、公開鍵のみの取り込み、PTYでの鍵ペア照合・取り込みと一覧表示が成功。本体からの鍵生成は未確認 |
+| 実コマンド | 一時ホームでWindowsのOpenSSH鍵取り込み・生成確認 | Windows標準OpenSSHで検証用鍵生成、公開鍵のみの取り込み、PTYでの鍵ペア照合・取り込みと一覧表示、本体からの鍵生成が成功 |
 | レビュー | main初期コミットを基点にStandardsとSpecの独立レビュー | 未確認 |
 
 ## 外部環境を必要とする確認
 
 ticket01の統合コミットは `3fba832`。統合後の `go test ./...` と `go vet ./...` は成功。後続チケットによる変更は最終検証で再確認する。
+
+ticket02の統合コミットは `b29e530`。統合後の `go test ./...` と `go vet ./...` は成功。追加14件のCLIテスト、生成POSIX登録スクリプトのGit Bash実行、Windows標準アカウントのNTFS登録・冪等性fixtureが成功。SSH有効化と登録の手動案内は3 OS分を検証済み。解除案内はticket04で確認する。Windows共有管理者ファイルの昇格実行、macOS実機、実SSHサーバーへの操作は未確認。
 
 ticket05の統合コミットは `331c2fe`。`python scripts/test_installers.py -v` は24件成功（68.079秒）。`python scripts/package_release.py --version v0.0.0-ticket05 --output .tmp/distribution-release-v0.0.0-ticket05` は6対象成功。実Windows amd64配布物の `--version` は `SSH KeyFlow v0.0.0-ticket05`。公開先とGitHub Actionsでの実行は未設定・未確認。
 
