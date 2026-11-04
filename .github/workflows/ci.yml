@@ -1,0 +1,50 @@
+name: Verify
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - run: go test ./...
+      - run: python scripts/test_installers.py -v
+  crossbuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - run: python scripts/package_release.py --version v0.0.0-ci
+      - shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/keyflow-version"
+          tar -xzf dist/ssh-keyflow_v0.0.0-ci_linux_amd64.tar.gz -C "$RUNNER_TEMP/keyflow-version"
+          "$RUNNER_TEMP/keyflow-version/ssh-keyflow" --version | grep -F v0.0.0-ci
