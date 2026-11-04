@@ -12,12 +12,12 @@
 
 | 対象 | 必要な証拠 | 結果 |
 | --- | --- | --- |
-| 起動と依存確認 | 不足コマンド、導入案内、再チェック、書込確認のCLIテスト | 未確認 |
-| JSONの整合性 | 破損、未対応version、固定ID、参照のCLIテスト | 未確認 |
-| 永続化 | バックアップ、排他、書込失敗で正常状態保持 | 未確認 |
-| 管理対象外の発見 | 鍵と再帰Include、循環、読取不可、Match exec非実行 | 未確認 |
-| 管理対象外の保護 | 元ファイルと管理JSONへの自動取り込みがない | 未確認 |
-| 取り込み | 鍵ペア照合、公開鍵のみ、元パス保持、承認 | 未確認 |
+| 起動と依存確認 | 不足コマンド、導入案内、再チェック、書込確認のCLIテスト | ticket01のStartup、MissingDependency、UnwritableStorageテスト成功 |
+| JSONの整合性 | 破損、未対応version、固定ID、参照のCLIテスト | ticket01のInvalidState、StateRelationships、StateValidatesIDs、PublicOnlyImportテスト成功 |
+| 永続化 | バックアップ、排他、書込失敗で正常状態保持 | ticket01のSuccessfulUpdate、LockedOrUnwritableUpdate、MutationLockCoversExternalValidationテスト成功 |
+| 管理対象外の発見 | 鍵と再帰Include、循環、読取不可、Match exec非実行 | ticket01のListDiscoversRecursiveIncludesWithoutExecutingOrChangingThemテスト成功 |
+| 管理対象外の保護 | 元ファイルと管理JSONへの自動取り込みがない | ticket01の一覧・取り込み境界テストで元設定保持と明示承認を確認 |
+| 取り込み | 鍵ペア照合、公開鍵のみ、元パス保持、承認 | ticket01のImportValidatesPair、MismatchedPair、PublicOnlyImport、ImportRequiresExplicitConfirmationテスト成功。Windows実鍵でも確認 |
 | 鍵生成 | Ed25519、自動名、衝突回避、端末入力、再開 | 未確認 |
 | 接続先追加 | アドレス・別名・ユーザー・ポート・OS、鍵の再利用 | 未確認 |
 | 手動案内 | 3 OSのSSH有効化・登録・解除のコピペ内容 | 未確認 |
@@ -34,6 +34,8 @@
 | レビュー | main初期コミットを基点にStandardsとSpecの独立レビュー | 未確認 |
 
 ## 外部環境を必要とする確認
+
+ticket01の統合コミットは `3fba832`。統合後の `go test ./...` と `go vet ./...` は成功。後続チケットによる変更は最終検証で再確認する。
 
 - 実際のGitHub Releasesからの取得：公開先とリリースの設定後に確認する。
 - Linux/macOS/Windowsの実SSHサーバーへの登録・接続・解除：ユーザーが検証対象を指定した後に確認する。
