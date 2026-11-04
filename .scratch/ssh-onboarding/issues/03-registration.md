@@ -1,6 +1,6 @@
 # 03: 自動登録・指定鍵の接続確認・SSH別名設定
 
-Status: ready-for-human
+Status: ready-for-agent
 Resolution: completed
 Blocked by: 02
 
