@@ -7,15 +7,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type Key struct {
 	Origin          string `json:"origin"`
 	ImportedAt      string `json:"imported_at"`
+	CreatedAt       string `json:"created_at,omitempty"`
 	ID              string `json:"id"`
 	Name            string `json:"name"`
 	Fingerprint     string `json:"fingerprint"`
@@ -26,12 +29,31 @@ type Key struct {
 }
 
 type Host struct {
-	ID       string `json:"id"`
-	Alias    string `json:"alias"`
-	Hostname string `json:"hostname"`
-	User     string `json:"user"`
-	Port     int    `json:"port"`
-	OS       string `json:"os"`
+	ID             string `json:"id"`
+	Alias          string `json:"alias"`
+	Hostname       string `json:"hostname"`
+	User           string `json:"user"`
+	Port           int    `json:"port"`
+	OS             string `json:"os"`
+	WindowsAccount string `json:"windows_account,omitempty"`
+}
+
+func (host Host) Validate() error {
+	validText := func(value, punctuation string) bool {
+		if !clean(value) || strings.HasPrefix(value, "-") || strings.TrimSpace(value) != value {
+			return false
+		}
+		for _, character := range value {
+			if !unicode.IsLetter(character) && !unicode.IsNumber(character) && !unicode.IsMark(character) && !strings.ContainsRune(punctuation, character) {
+				return false
+			}
+		}
+		return true
+	}
+	if !validText(host.Alias, "._-") || (!validText(host.Hostname, ".-_") && net.ParseIP(host.Hostname) == nil) || !validText(host.User, "._-\\$ ") || host.Port < 1 || host.Port > 65535 || !oneOf(host.OS, "unknown", "windows", "linux", "macos") || (host.WindowsAccount != "" && (host.OS != "windows" || !oneOf(host.WindowsAccount, "standard", "administrator"))) {
+		return fmt.Errorf("invalid destination fields")
+	}
+	return nil
 }
 
 type Registration struct {
@@ -49,6 +71,29 @@ type State struct {
 	Keys          []Key          `json:"keys"`
 	Hosts         []Host         `json:"hosts"`
 	Registrations []Registration `json:"registrations"`
+	Creations     []Creation     `json:"creations,omitempty"`
+	Onboardings   []Onboarding   `json:"onboardings,omitempty"`
+}
+
+type Onboarding struct {
+	ID         string `json:"id"`
+	HostID     string `json:"host_id"`
+	KeyID      string `json:"key_id"`
+	CreationID string `json:"creation_id,omitempty"`
+	Stage      string `json:"stage"`
+	CreatedAt  string `json:"created_at"`
+}
+
+type Creation struct {
+	ID            string `json:"id"`
+	KeyID         string `json:"key_id"`
+	Name          string `json:"name"`
+	PrivatePath   string `json:"private_path"`
+	PublicPath    string `json:"public_path"`
+	CreatedAt     string `json:"created_at"`
+	Stage         string `json:"stage"`
+	PrivateSHA256 string `json:"private_sha256,omitempty"`
+	Fingerprint   string `json:"fingerprint,omitempty"`
 }
 
 func Directory(home string) string { return filepath.Join(home, ".ssh", "ssh-keyflow") }
@@ -131,8 +176,12 @@ func (document State) Validate() error {
 	}
 	keys, hosts, aliases, fingerprints, pairs, paths := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
 	for _, key := range document.Keys {
-		importedAt, timeErr := time.Parse(time.RFC3339Nano, key.ImportedAt)
-		if key.Origin != "imported" || timeErr != nil || importedAt.IsZero() {
+		provenanceTime := key.ImportedAt
+		if key.Origin == "created" {
+			provenanceTime = key.CreatedAt
+		}
+		parsedTime, timeErr := time.Parse(time.RFC3339Nano, provenanceTime)
+		if !oneOf(key.Origin, "imported", "created") || timeErr != nil || parsedTime.IsZero() || (key.Origin == "imported" && key.CreatedAt != "") || (key.Origin == "created" && (key.ImportedAt != "" || key.PrivatePath == "")) {
 			return fmt.Errorf("invalid key provenance %q", key.ID)
 		}
 		digest, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(key.Fingerprint, "SHA256:"))
@@ -153,10 +202,10 @@ func (document State) Validate() error {
 		}
 	}
 	for _, host := range document.Hosts {
-		if !claim(host.ID) || !clean(host.Alias) || strings.ContainsAny(host.Alias, " *?!\\") || aliases[host.Alias] || !clean(host.Hostname) || !clean(host.User) || host.Port < 1 || host.Port > 65535 || !oneOf(host.OS, "unknown", "windows", "linux", "macos") {
+		if !claim(host.ID) || host.Validate() != nil || aliases[strings.ToLower(host.Alias)] {
 			return fmt.Errorf("invalid or duplicate host %q", host.ID)
 		}
-		hosts[host.ID], aliases[host.Alias] = true, true
+		hosts[host.ID], aliases[strings.ToLower(host.Alias)] = true, true
 	}
 	for _, registration := range document.Registrations {
 		pair := registration.KeyID + "/" + registration.HostID
@@ -164,6 +213,67 @@ func (document State) Validate() error {
 			return fmt.Errorf("invalid registration or relationship %q", registration.ID)
 		}
 		pairs[pair] = true
+	}
+	creationKeys := map[string]bool{}
+	for _, creation := range document.Creations {
+		createdAt, timeErr := time.Parse(time.RFC3339Nano, creation.CreatedAt)
+		if !claim(creation.ID) || !clean(creation.KeyID) || creationKeys[creation.KeyID] || !clean(creation.Name) || !filepath.IsAbs(creation.PrivatePath) || creation.PublicPath != creation.PrivatePath+".pub" || timeErr != nil || createdAt.IsZero() || !oneOf(creation.Stage, "planned", "pending", "complete") {
+			return fmt.Errorf("invalid creation intent %q", creation.ID)
+		}
+		creationKeys[creation.KeyID] = true
+		if creation.Stage == "complete" {
+			matched := false
+			for _, key := range document.Keys {
+				if key.ID == creation.KeyID && key.Origin == "created" && key.PrivatePath == creation.PrivatePath && key.PublicPath == creation.PublicPath && key.CreatedAt == creation.CreatedAt && key.PrivateSHA256 == creation.PrivateSHA256 && key.Fingerprint == creation.Fingerprint {
+					matched = true
+				}
+			}
+			if !matched {
+				return fmt.Errorf("creation result missing or inconsistent %q", creation.ID)
+			}
+		} else {
+			if !claim(creation.KeyID) || paths[filepath.Clean(creation.PrivatePath)] || paths[filepath.Clean(creation.PublicPath)] {
+				return fmt.Errorf("creation identity/path conflict %q", creation.ID)
+			}
+			paths[filepath.Clean(creation.PrivatePath)], paths[filepath.Clean(creation.PublicPath)] = true, true
+		}
+		if creation.PrivateSHA256 != "" {
+			digest, err := hex.DecodeString(creation.PrivateSHA256)
+			if err != nil || len(digest) != 32 {
+				return fmt.Errorf("invalid creation digest %q", creation.ID)
+			}
+		}
+		if creation.Fingerprint != "" {
+			digest, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(creation.Fingerprint, "SHA256:"))
+			if !strings.HasPrefix(creation.Fingerprint, "SHA256:") || err != nil || len(digest) != 32 {
+				return fmt.Errorf("invalid creation fingerprint %q", creation.ID)
+			}
+		}
+	}
+	onboardingHosts := map[string]bool{}
+	for _, onboarding := range document.Onboardings {
+		createdAt, timeErr := time.Parse(time.RFC3339Nano, onboarding.CreatedAt)
+		if !claim(onboarding.ID) || !hosts[onboarding.HostID] || onboardingHosts[onboarding.HostID] || !oneOf(onboarding.Stage, "key_pending", "planned", "manual") || timeErr != nil || createdAt.IsZero() {
+			return fmt.Errorf("invalid onboarding %q", onboarding.ID)
+		}
+		onboardingHosts[onboarding.HostID] = true
+		if onboarding.CreationID != "" {
+			found := false
+			for _, creation := range document.Creations {
+				if creation.ID == onboarding.CreationID && creation.KeyID == onboarding.KeyID {
+					found = true
+				}
+			}
+			if !found {
+				return fmt.Errorf("invalid onboarding creation %q", onboarding.ID)
+			}
+		}
+		if !keys[onboarding.KeyID] && !(onboarding.Stage == "key_pending" && creationKeys[onboarding.KeyID] && onboarding.CreationID != "") {
+			return fmt.Errorf("invalid onboarding key %q", onboarding.ID)
+		}
+		if onboarding.Stage == "manual" && !pairs[onboarding.KeyID+"/"+onboarding.HostID] {
+			return fmt.Errorf("missing onboarding registration %q", onboarding.ID)
+		}
 	}
 	return nil
 }

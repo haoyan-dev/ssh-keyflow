@@ -40,12 +40,53 @@ func fingerprint(data []byte) (string, error) {
 }
 
 func importKey(ctx context.Context, options Options) error {
-	mode, err := prompt(options, "i: Import existing key; c: Create (not implemented yet); 0: Back")
+	mode, err := prompt(options, "i: Import existing key; c: Create Ed25519 key; r: Resume creation; 0: Back")
 	if err != nil {
 		return err
 	}
+	if mode == "r" {
+		return state.WithLock(options.Home, func(store *state.LockedStore) error {
+			document, err := store.Load()
+			if err != nil {
+				return err
+			}
+			if err := integrity(document); err != nil {
+				return err
+			}
+			creationIndex, err := selectCreation(options, document)
+			if err != nil {
+				return err
+			}
+			answer, err := prompt(options, "Type yes to resume this recorded path; existing files are preserved:")
+			if err != nil {
+				return err
+			}
+			if answer != "yes" {
+				return nil
+			}
+			_, err = finishCreation(ctx, options, store, &document, creationIndex)
+			return err
+		})
+	}
+	if mode == "c" {
+		return state.WithLock(options.Home, func(store *state.LockedStore) error {
+			document, err := store.Load()
+			if err != nil {
+				return err
+			}
+			if err := integrity(document); err != nil {
+				return err
+			}
+			name, err := prompt(options, "Management name:")
+			if err != nil {
+				return err
+			}
+			_, err = createKey(ctx, options, store, &document, name, "")
+			return err
+		})
+	}
 	if mode != "i" {
-		fmt.Fprintln(options.Output, "No changes made; key creation is not implemented in this build")
+		fmt.Fprintln(options.Output, "No changes made")
 		return nil
 	}
 	return state.WithLock(options.Home, func(store *state.LockedStore) error { return importLocked(ctx, options, store) })

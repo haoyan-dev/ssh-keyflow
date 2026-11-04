@@ -13,15 +13,28 @@ import (
 
 func list(options Options, document state.State) {
 	for _, key := range document.Keys {
-		fmt.Fprintf(options.Output, "managed key %s [%s] %s %s connection=%s origin=%s imported_at=%s\n", key.Name, key.ID, key.PublicPath, key.Fingerprint, key.ConnectionCheck, key.Origin, key.ImportedAt)
+		fmt.Fprintf(options.Output, "managed key %s [%s] %s %s connection=%s origin=%s imported_at=%s created_at=%s\n", key.Name, key.ID, key.PublicPath, key.Fingerprint, key.ConnectionCheck, key.Origin, key.ImportedAt, key.CreatedAt)
 	}
 	for _, host := range document.Hosts {
+		for _, job := range document.Onboardings {
+			if job.HostID == host.ID {
+				fmt.Fprintf(options.Output, "onboarding %s host=%s key=%s stage=%s; use 1/r to resume guidance\n", job.ID, host.Alias, job.KeyID, job.Stage)
+			}
+		}
 		fmt.Fprintf(options.Output, "managed host %s [%s] %s@%s:%d\n", host.Alias, host.ID, host.User, host.Hostname, host.Port)
 	}
 	for _, registration := range document.Registrations {
 		fmt.Fprintf(options.Output, "registration %s key=%s host=%s status=%s connection=%s operation=%s stage=%s (recorded history)\n", registration.ID, registration.KeyID, registration.HostID, registration.Status, registration.ConnectionCheck, registration.Operation, registration.Stage)
 	}
+	for _, creation := range document.Creations {
+		if creation.Stage != "complete" {
+			fmt.Fprintf(options.Output, "creation %s [%s] %s stage=%s; use 5/r to resume\n", creation.Name, creation.ID, creation.PrivatePath, creation.Stage)
+		}
+	}
 	managed := map[string]bool{}
+	for _, creation := range document.Creations {
+		managed[filepath.Clean(creation.PrivatePath)], managed[filepath.Clean(creation.PublicPath)] = true, true
+	}
 	for _, key := range document.Keys {
 		managed[filepath.Clean(key.PublicPath)] = true
 		if key.PrivatePath != "" {

@@ -101,6 +101,10 @@ func Run(ctx context.Context, options Options) error {
 			return err
 		}
 		switch choice {
+		case "1":
+			if err := onboard(ctx, options); err != nil {
+				fmt.Fprintln(options.Output, "Onboarding stopped:", err)
+			}
 		case "2":
 			document, err := state.Load(options.Home)
 			if err != nil {
