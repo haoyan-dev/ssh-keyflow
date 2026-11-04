@@ -10,6 +10,14 @@ import (
 )
 
 func checkAlias(options Options, alias string) error {
+	return checkAliasExcept(options, alias, "")
+}
+
+func checkAliasExcept(options Options, alias, ownedPath string) error {
+	return inspectAliases(options, alias, ownedPath, nil)
+}
+
+func inspectAliases(options Options, alias, ownedPath string, included func()) error {
 	home := options.Home
 	root := filepath.Join(home, ".ssh")
 	active := map[string]bool{}
@@ -20,8 +28,14 @@ func checkAlias(options Options, alias string) error {
 		if err != nil {
 			return fmt.Errorf("requires review: cannot inspect existing aliases: %w", err)
 		}
-		if active[canonical] {
+		if ownedPath != "" && filepath.Clean(canonical) == filepath.Clean(ownedPath) {
+			if included != nil {
+				included()
+			}
 			return nil
+		}
+		if active[canonical] {
+			return fmt.Errorf("requires review: Include cycle at %s", filename)
 		}
 		if depth > 64 || visited >= 4096 {
 			return fmt.Errorf("requires review: configuration discovery limit")

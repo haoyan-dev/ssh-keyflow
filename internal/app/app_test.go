@@ -407,8 +407,8 @@ func TestStartupReportsUnwritableStorage(testingContext *testing.T) {
 
 func TestUnsupportedMenuActionsReportNoChanges(testingContext *testing.T) {
 	home := testingContext.TempDir()
-	output, err := runCLI(testingContext, home, "3\n4\n6\n0\n", runner{})
-	if err != nil || strings.Count(output, "Not implemented in this build") != 3 {
+	output, err := runCLI(testingContext, home, "4\n6\n0\n", runner{})
+	if err != nil || strings.Count(output, "Not implemented in this build") != 2 {
 		testingContext.Fatalf("unimplemented choices: %v %s", err, output)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".ssh/ssh-keyflow/state.json")); !os.IsNotExist(err) {

@@ -29,6 +29,7 @@ type Key struct {
 }
 
 type Host struct {
+	ConfigKeyID    string `json:"config_key_id,omitempty"`
 	ID             string `json:"id"`
 	Alias          string `json:"alias"`
 	Hostname       string `json:"hostname"`
@@ -67,12 +68,37 @@ type Registration struct {
 }
 
 type State struct {
-	Version       int            `json:"version"`
-	Keys          []Key          `json:"keys"`
-	Hosts         []Host         `json:"hosts"`
-	Registrations []Registration `json:"registrations"`
-	Creations     []Creation     `json:"creations,omitempty"`
-	Onboardings   []Onboarding   `json:"onboardings,omitempty"`
+	Version       int                 `json:"version"`
+	Keys          []Key               `json:"keys"`
+	Hosts         []Host              `json:"hosts"`
+	Registrations []Registration      `json:"registrations"`
+	Creations     []Creation          `json:"creations,omitempty"`
+	Onboardings   []Onboarding        `json:"onboardings,omitempty"`
+	History       []RegistrationEvent `json:"history,omitempty"`
+	Configs       []Config            `json:"configs,omitempty"`
+	ConfigEdits   []ConfigEdit        `json:"config_edits,omitempty"`
+}
+
+type ConfigEdit struct {
+	Path         string `json:"path"`
+	BeforeSHA256 string `json:"before_sha256"`
+	AfterSHA256  string `json:"after_sha256"`
+	BackupPath   string `json:"backup_path,omitempty"`
+	Complete     bool   `json:"complete"`
+}
+
+type RegistrationEvent struct {
+	RegistrationID  string `json:"registration_id"`
+	At              string `json:"at"`
+	Status          string `json:"status"`
+	ConnectionCheck string `json:"connection_check"`
+	Stage           string `json:"stage"`
+}
+
+type Config struct {
+	Path          string `json:"path"`
+	SHA256        string `json:"sha256,omitempty"`
+	PendingSHA256 string `json:"pending_sha256,omitempty"`
 }
 
 type Onboarding struct {
@@ -213,6 +239,39 @@ func (document State) Validate() error {
 			return fmt.Errorf("invalid registration or relationship %q", registration.ID)
 		}
 		pairs[pair] = true
+	}
+	for _, host := range document.Hosts {
+		if host.ConfigKeyID != "" && (!keys[host.ConfigKeyID] || !pairs[host.ConfigKeyID+"/"+host.ID]) {
+			return fmt.Errorf("invalid configuration key for %q", host.ID)
+		}
+	}
+	for _, event := range document.History {
+		matched := false
+		for _, registration := range document.Registrations {
+			if registration.ID == event.RegistrationID {
+				matched = true
+			}
+		}
+		observedAt, err := time.Parse(time.RFC3339Nano, event.At)
+		if !matched || err != nil || observedAt.IsZero() || !oneOf(event.Status, "pending", "registered", "removed", "unknown", "failed") || !oneOf(event.ConnectionCheck, "unverified", "verified", "failed", "unknown") || !oneOf(event.Stage, "planned", "pending", "complete", "unknown", "failed") {
+			return fmt.Errorf("invalid registration history")
+		}
+	}
+	validDigest := func(value string) bool {
+		decoded, err := hex.DecodeString(value)
+		return err == nil && len(decoded) == 32
+	}
+	configPaths := map[string]bool{}
+	for _, config := range document.Configs {
+		if !filepath.IsAbs(config.Path) || configPaths[config.Path] || (config.SHA256 == "" && config.PendingSHA256 == "") || (config.SHA256 != "" && !validDigest(config.SHA256)) || (config.PendingSHA256 != "" && !validDigest(config.PendingSHA256)) {
+			return fmt.Errorf("invalid configuration ownership")
+		}
+		configPaths[config.Path] = true
+	}
+	for _, edit := range document.ConfigEdits {
+		if !filepath.IsAbs(edit.Path) || !validDigest(edit.BeforeSHA256) || !validDigest(edit.AfterSHA256) || (edit.BackupPath != "" && (!filepath.IsAbs(edit.BackupPath) || filepath.Dir(edit.BackupPath) != filepath.Dir(edit.Path) || edit.BackupPath == edit.Path)) {
+			return fmt.Errorf("invalid configuration edit intent")
+		}
 	}
 	creationKeys := map[string]bool{}
 	for _, creation := range document.Creations {

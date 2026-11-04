@@ -21,11 +21,11 @@ func onboard(ctx context.Context, options Options) error {
 		if err := integrity(document); err != nil {
 			return err
 		}
-		mode, err := prompt(options, "n: New destination; r: Resume onboarding/manual guidance; 0: Back")
+		mode, err := prompt(options, "n: New destination; r: Resume onboarding/manual guidance; a: Automatic registration of saved destination; 0: Back")
 		if err != nil {
 			return err
 		}
-		if mode == "r" {
+		if mode == "r" || mode == "a" {
 			for jobIndex, job := range document.Onboardings {
 				fmt.Fprintf(options.Output, "%d: %s host=%s stage=%s\n", jobIndex+1, job.ID, job.HostID, job.Stage)
 			}
@@ -43,6 +43,10 @@ func onboard(ctx context.Context, options Options) error {
 			}
 			if answer != "yes" {
 				return nil
+			}
+			if mode == "a" {
+				job := document.Onboardings[selected-1]
+				return registerSaved(ctx, options, store, &document, job.HostID, job.KeyID)
 			}
 			return finishOnboarding(ctx, options, store, &document, selected-1)
 		}

@@ -114,6 +114,10 @@ func Run(ctx context.Context, options Options) error {
 				fmt.Fprintln(options.Output, err, "(updates stopped)")
 			}
 			list(options, document)
+		case "3":
+			if err := registerAnother(ctx, options); err != nil {
+				fmt.Fprintln(options.Output, "Registration stopped:", err)
+			}
 		case "5":
 			if err := importKey(ctx, options); err != nil {
 				fmt.Fprintln(options.Output, "Import stopped:", err)
