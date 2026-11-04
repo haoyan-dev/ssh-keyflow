@@ -1,7 +1,7 @@
 # 05: インストール・更新・アンインストール・6対象リリースビルド
 
 Status: ready-for-agent
-Blocked by: 01
+Blocked by: None (can start immediately)
 
 ## What to build
 
@@ -19,3 +19,5 @@ Blocked by: 01
 ## Comments
 
 2026-11-04: 前回提案した5チケットの分割に従い公開。
+
+2026-11-04: 配布スクリプトとローカル配布物のテストは本体実装から独立しているため、01への依存を解除して並行実装する。本体のクロスビルド確認は統合後に行う。
