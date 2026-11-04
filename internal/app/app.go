@@ -118,6 +118,14 @@ func Run(ctx context.Context, options Options) error {
 			if err := registerAnother(ctx, options); err != nil {
 				fmt.Fprintln(options.Output, "Registration stopped:", err)
 			}
+		case "4":
+			if err := unregister(ctx, options); err != nil {
+				fmt.Fprintln(options.Output, "Revocation stopped:", err)
+			}
+		case "6":
+			if err := deleteLocal(options); err != nil {
+				fmt.Fprintln(options.Output, "Local deletion stopped:", err)
+			}
 		case "5":
 			if err := importKey(ctx, options); err != nil {
 				fmt.Fprintln(options.Output, "Import stopped:", err)

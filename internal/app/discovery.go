@@ -12,6 +12,14 @@ import (
 )
 
 func list(options Options, document state.State) {
+	for _, deleted := range document.DeletedKeys {
+		fmt.Fprintf(options.Output, "deleted key %s [%s] %s deleted_at=%s; tombstone and registration history retained\n", deleted.Key.Name, deleted.Key.ID, deleted.Key.Fingerprint, deleted.DeletedAt)
+	}
+	for _, deletion := range document.Deletions {
+		if deletion.Stage != "complete" {
+			fmt.Fprintf(options.Output, "local deletion %s key=%s stage=%s; use 6 to reconcile/resume\n", deletion.ID, deletion.KeyID, deletion.Stage)
+		}
+	}
 	for _, key := range document.Keys {
 		fmt.Fprintf(options.Output, "managed key %s [%s] %s %s connection=%s origin=%s imported_at=%s created_at=%s\n", key.Name, key.ID, key.PublicPath, key.Fingerprint, key.ConnectionCheck, key.Origin, key.ImportedAt, key.CreatedAt)
 	}

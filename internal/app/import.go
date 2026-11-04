@@ -203,6 +203,11 @@ func importLocked(ctx context.Context, options Options, store *state.LockedStore
 }
 
 func integrity(document state.State) error {
+	for _, deletion := range document.Deletions {
+		if deletion.Stage != "complete" {
+			return fmt.Errorf("requires review: unfinished local deletion %s; use menu 6 to reconcile/resume", deletion.ID)
+		}
+	}
 	for _, key := range document.Keys {
 		data, err := os.ReadFile(key.PublicPath)
 		if err != nil {

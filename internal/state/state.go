@@ -68,6 +68,8 @@ type Registration struct {
 }
 
 type State struct {
+	DeletedKeys   []DeletedKey        `json:"deleted_keys,omitempty"`
+	Deletions     []LocalDeletion     `json:"deletions,omitempty"`
 	Version       int                 `json:"version"`
 	Keys          []Key               `json:"keys"`
 	Hosts         []Host              `json:"hosts"`
@@ -79,6 +81,23 @@ type State struct {
 	ConfigEdits   []ConfigEdit        `json:"config_edits,omitempty"`
 }
 
+type DeletedKey struct {
+	Key        Key    `json:"key"`
+	DeletedAt  string `json:"deleted_at"`
+	DeletionID string `json:"deletion_id"`
+}
+
+type LocalDeletion struct {
+	ID             string `json:"id"`
+	KeyID          string `json:"key_id"`
+	CreatedAt      string `json:"created_at"`
+	Stage          string `json:"stage"`
+	PublicSHA256   string `json:"public_sha256"`
+	PrivateSHA256  string `json:"private_sha256,omitempty"`
+	PublicRemoved  bool   `json:"public_removed"`
+	PrivateRemoved bool   `json:"private_removed"`
+}
+
 type ConfigEdit struct {
 	Path         string `json:"path"`
 	BeforeSHA256 string `json:"before_sha256"`
@@ -88,6 +107,7 @@ type ConfigEdit struct {
 }
 
 type RegistrationEvent struct {
+	Operation       string `json:"operation,omitempty"`
 	RegistrationID  string `json:"registration_id"`
 	At              string `json:"at"`
 	Status          string `json:"status"`
@@ -201,7 +221,21 @@ func (document State) Validate() error {
 		return true
 	}
 	keys, hosts, aliases, fingerprints, pairs, paths := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
+	allKeys := append([]Key{}, document.Keys...)
+	retired := map[string]DeletedKey{}
+	activeKeys := map[string]bool{}
 	for _, key := range document.Keys {
+		activeKeys[key.ID] = true
+	}
+	for _, deleted := range document.DeletedKeys {
+		deletedAt, err := time.Parse(time.RFC3339Nano, deleted.DeletedAt)
+		if err != nil || deletedAt.IsZero() || !clean(deleted.DeletionID) || retired[deleted.Key.ID].Key.ID != "" || activeKeys[deleted.Key.ID] {
+			return fmt.Errorf("invalid deleted key tombstone")
+		}
+		retired[deleted.Key.ID] = deleted
+		allKeys = append(allKeys, deleted.Key)
+	}
+	for _, key := range allKeys {
 		provenanceTime := key.ImportedAt
 		if key.Origin == "created" {
 			provenanceTime = key.CreatedAt
@@ -241,7 +275,7 @@ func (document State) Validate() error {
 		pairs[pair] = true
 	}
 	for _, host := range document.Hosts {
-		if host.ConfigKeyID != "" && (!keys[host.ConfigKeyID] || !pairs[host.ConfigKeyID+"/"+host.ID]) {
+		if host.ConfigKeyID != "" && (!activeKeys[host.ConfigKeyID] || !pairs[host.ConfigKeyID+"/"+host.ID]) {
 			return fmt.Errorf("invalid configuration key for %q", host.ID)
 		}
 	}
@@ -253,13 +287,42 @@ func (document State) Validate() error {
 			}
 		}
 		observedAt, err := time.Parse(time.RFC3339Nano, event.At)
-		if !matched || err != nil || observedAt.IsZero() || !oneOf(event.Status, "pending", "registered", "removed", "unknown", "failed") || !oneOf(event.ConnectionCheck, "unverified", "verified", "failed", "unknown") || !oneOf(event.Stage, "planned", "pending", "complete", "unknown", "failed") {
+		if !matched || err != nil || observedAt.IsZero() || !oneOf(event.Operation, "", "register", "unregister") || !oneOf(event.Status, "pending", "registered", "removed", "unknown", "failed") || !oneOf(event.ConnectionCheck, "unverified", "verified", "failed", "unknown") || !oneOf(event.Stage, "planned", "pending", "complete", "unknown", "failed") {
 			return fmt.Errorf("invalid registration history")
 		}
 	}
 	validDigest := func(value string) bool {
 		decoded, err := hex.DecodeString(value)
 		return err == nil && len(decoded) == 32
+	}
+	deletionKeys := map[string]bool{}
+	for _, deletion := range document.Deletions {
+		createdAt, err := time.Parse(time.RFC3339Nano, deletion.CreatedAt)
+		if !claim(deletion.ID) || !keys[deletion.KeyID] || deletionKeys[deletion.KeyID] || err != nil || createdAt.IsZero() || !oneOf(deletion.Stage, "pending", "complete") || !validDigest(deletion.PublicSHA256) {
+			return fmt.Errorf("invalid local deletion intent")
+		}
+		deletionKeys[deletion.KeyID] = true
+		for _, key := range allKeys {
+			if key.ID == deletion.KeyID && (deletion.PrivateSHA256 != key.PrivateSHA256 || (key.PrivatePath == "" && !deletion.PrivateRemoved)) {
+				return fmt.Errorf("inconsistent deletion fingerprint/digest")
+			}
+		}
+		if deletion.Stage == "complete" && (!deletion.PublicRemoved || !deletion.PrivateRemoved || retired[deletion.KeyID].DeletionID != deletion.ID) {
+			return fmt.Errorf("incomplete deletion tombstone")
+		}
+		if deletion.Stage == "pending" && !activeKeys[deletion.KeyID] {
+			return fmt.Errorf("pending deletion without managed key")
+		}
+		for _, registration := range document.Registrations {
+			if registration.KeyID == deletion.KeyID && (registration.Status != "removed" || registration.Stage != "complete" || registration.Operation != "unregister") {
+				return fmt.Errorf("deletion with outstanding recorded registration")
+			}
+		}
+	}
+	for keyID := range retired {
+		if !deletionKeys[keyID] {
+			return fmt.Errorf("tombstone missing deletion history")
+		}
 	}
 	configPaths := map[string]bool{}
 	for _, config := range document.Configs {
@@ -282,7 +345,7 @@ func (document State) Validate() error {
 		creationKeys[creation.KeyID] = true
 		if creation.Stage == "complete" {
 			matched := false
-			for _, key := range document.Keys {
+			for _, key := range allKeys {
 				if key.ID == creation.KeyID && key.Origin == "created" && key.PrivatePath == creation.PrivatePath && key.PublicPath == creation.PublicPath && key.CreatedAt == creation.CreatedAt && key.PrivateSHA256 == creation.PrivateSHA256 && key.Fingerprint == creation.Fingerprint {
 					matched = true
 				}

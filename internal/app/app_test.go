@@ -405,9 +405,9 @@ func TestStartupReportsUnwritableStorage(testingContext *testing.T) {
 	}
 }
 
-func TestUnsupportedMenuActionsReportNoChanges(testingContext *testing.T) {
+func TestUnknownMenuActionsReportNoChanges(testingContext *testing.T) {
 	home := testingContext.TempDir()
-	output, err := runCLI(testingContext, home, "4\n6\n0\n", runner{})
+	output, err := runCLI(testingContext, home, "7\ninvalid\n0\n", runner{})
 	if err != nil || strings.Count(output, "Not implemented in this build") != 2 {
 		testingContext.Fatalf("unimplemented choices: %v %s", err, output)
 	}

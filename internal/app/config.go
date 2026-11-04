@@ -102,29 +102,10 @@ func configureRegistration(options Options, store *state.LockedStore, document *
 			document.Hosts[index].ConfigKeyID = key.ID
 		}
 	}
-	var generated strings.Builder
-	for _, destination := range document.Hosts {
-		if destination.ConfigKeyID == "" {
-			continue
-		}
-		var identity state.Key
-		for _, candidate := range document.Keys {
-			if candidate.ID == destination.ConfigKeyID {
-				identity = candidate
-			}
-		}
-		if identity.PrivatePath == "" {
-			continue
-		}
-		for _, field := range []string{destination.Alias, destination.Hostname, destination.User, identity.PrivatePath} {
-			if strings.ContainsAny(field, "\r\n\x00\"%$") {
-				return fmt.Errorf("requires review: unsupported SSH config expansion/quoting")
-			}
-		}
-		fmt.Fprintf(&generated, "Host %s\n  HostName %s\n  User %s\n  Port %d\n  IdentityFile %s\n  IdentitiesOnly yes\n  IdentityAgent none\n  CertificateFile none\n\n", destination.Alias, destination.Hostname, strconv.Quote(destination.User), destination.Port, strconv.Quote(filepath.ToSlash(identity.PrivatePath)))
+	data, err := managedConfiguration(*document)
+	if err != nil {
+		return err
 	}
-	generated.WriteString("Host *\n")
-	data := []byte(generated.String())
 	fmt.Fprintf(options.Output, "Managed configuration preview %s:\n%s", path, data)
 	if configIndex < 0 {
 		document.Configs = append(document.Configs, state.Config{Path: path})
@@ -143,6 +124,68 @@ func configureRegistration(options Options, store *state.LockedStore, document *
 		return err
 	}
 	return includeConfig(options, store, document)
+}
+
+func managedConfiguration(document state.State) ([]byte, error) {
+	var generated strings.Builder
+	for _, destination := range document.Hosts {
+		if destination.ConfigKeyID == "" {
+			continue
+		}
+		var identity state.Key
+		for _, candidate := range document.Keys {
+			if candidate.ID == destination.ConfigKeyID {
+				identity = candidate
+			}
+		}
+		if identity.PrivatePath == "" {
+			return nil, fmt.Errorf("requires review: configured private key unavailable")
+		}
+		for _, field := range []string{destination.Alias, destination.Hostname, destination.User, identity.PrivatePath} {
+			if strings.ContainsAny(field, "\r\n\x00\"%$") {
+				return nil, fmt.Errorf("requires review: unsupported SSH config expansion/quoting")
+			}
+		}
+		fmt.Fprintf(&generated, "Host %s\n  HostName %s\n  User %s\n  Port %d\n  IdentityFile %s\n  IdentitiesOnly yes\n  IdentityAgent none\n  CertificateFile none\n\n", destination.Alias, destination.Hostname, strconv.Quote(destination.User), destination.Port, strconv.Quote(filepath.ToSlash(identity.PrivatePath)))
+	}
+	generated.WriteString("Host *\n")
+	return []byte(generated.String()), nil
+}
+
+func removeKeyConfiguration(options Options, store *state.LockedStore, document *state.State, keyID, hostID string) error {
+	previous, configIndex, err := ownedConfig(options, document)
+	if err != nil {
+		return err
+	}
+	if configIndex < 0 {
+		for _, host := range document.Hosts {
+			if host.ConfigKeyID != "" {
+				return fmt.Errorf("requires review: missing configuration ownership record")
+			}
+		}
+		if len(document.Configs) != 0 {
+			return fmt.Errorf("requires review: configuration ownership path mismatch")
+		}
+		return nil
+	}
+	for index := range document.Hosts {
+		if document.Hosts[index].ConfigKeyID == keyID && (hostID == "" || document.Hosts[index].ID == hostID) {
+			document.Hosts[index].ConfigKeyID = ""
+		}
+	}
+	data, err := managedConfiguration(*document)
+	if err != nil {
+		return err
+	}
+	document.Configs[configIndex].PendingSHA256 = configDigest(data)
+	if err := store.Save(*document); err != nil {
+		return err
+	}
+	if err := replaceConfig(document.Configs[configIndex].Path, previous, data); err != nil {
+		return err
+	}
+	document.Configs[configIndex].SHA256, document.Configs[configIndex].PendingSHA256 = configDigest(data), ""
+	return store.Save(*document)
 }
 
 func replaceConfig(path string, before, after []byte) error {

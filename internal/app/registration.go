@@ -213,7 +213,7 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 
 func recordRegistration(store *state.LockedStore, document *state.State, index int) error {
 	registration := document.Registrations[index]
-	document.History = append(document.History, state.RegistrationEvent{RegistrationID: registration.ID, At: time.Now().UTC().Format(time.RFC3339Nano), Status: registration.Status, ConnectionCheck: registration.ConnectionCheck, Stage: registration.Stage})
+	document.History = append(document.History, state.RegistrationEvent{RegistrationID: registration.ID, At: time.Now().UTC().Format(time.RFC3339Nano), Status: registration.Status, ConnectionCheck: registration.ConnectionCheck, Stage: registration.Stage, Operation: registration.Operation})
 	return store.Save(*document)
 }
 
