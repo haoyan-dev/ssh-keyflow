@@ -28,14 +28,16 @@
 | 登録解除 | 別認証の新規接続、最終承認、対象鍵だけ除去、冪等 | 未確認 |
 | ローカル削除 | 登録残存・不一致・到達不能で停止、削除前確認 | 未確認 |
 | 秘密値保護 | JSON・出力・コマンド引数にパスワードを残さない | 未確認 |
-| インストーラー | 最新・指定版、OS/CPU、更新・削除、PATH所有権 | 未確認 |
-| 配布 | 6対象のクロスビルド、CIとリリース定義 | 未確認 |
+| インストーラー | 最新・指定版、OS/CPU、更新・削除、PATH所有権 | ticket05のローカルHTTP配布物・一時ホームによる24テスト成功。Windows実バイナリのインストール・更新・削除・SSHデータ保持も成功 |
+| 配布 | 6対象のクロスビルド、CIとリリース定義 | ticket05で6対象のビルド・9配布物の作成と8件のチェックサムを確認。CI・リリース定義あり。本体完成後に再ビルドする |
 | 実コマンド | 一時ホームでWindowsのOpenSSH鍵取り込み・生成確認 | Windows標準OpenSSHで検証用鍵生成、公開鍵のみの取り込み、PTYでの鍵ペア照合・取り込みと一覧表示が成功。本体からの鍵生成は未確認 |
 | レビュー | main初期コミットを基点にStandardsとSpecの独立レビュー | 未確認 |
 
 ## 外部環境を必要とする確認
 
 ticket01の統合コミットは `3fba832`。統合後の `go test ./...` と `go vet ./...` は成功。後続チケットによる変更は最終検証で再確認する。
+
+ticket05の統合コミットは `331c2fe`。`python scripts/test_installers.py -v` は24件成功（68.079秒）。`python scripts/package_release.py --version v0.0.0-ticket05 --output .tmp/distribution-release-v0.0.0-ticket05` は6対象成功。実Windows amd64配布物の `--version` は `SSH KeyFlow v0.0.0-ticket05`。公開先とGitHub Actionsでの実行は未設定・未確認。
 
 - 実際のGitHub Releasesからの取得：公開先とリリースの設定後に確認する。
 - Linux/macOS/Windowsの実SSHサーバーへの登録・接続・解除：ユーザーが検証対象を指定した後に確認する。
