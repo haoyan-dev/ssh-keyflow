@@ -14,6 +14,27 @@ import (
 const revokedPublic = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKcOMg3TlE6eZ28nRHSdnnwEJYEiHoCGkcLIsbHa1IH2"
 const retainedPublic = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBcOMg3TlE6eZ28nRHSdnnwEJYEiHoCGkcLIsbHa1IH2"
 
+func TestWindowsLargeRemoteCommandPreservesExecutionAndErrors(testingContext *testing.T) {
+	if runtime.GOOS != "windows" {
+		testingContext.Skip("requires native Windows PowerShell")
+	}
+	for _, failure := range []bool{false, true} {
+		script := strings.Repeat("$null='日本語'\n", 1500) + "[Console]::WriteLine('payload executed')"
+		if failure {
+			script += "\nthrow 'payload failure'"
+		}
+		payload := ssh.RemoteCommand("windows", script)
+		if len(payload) >= 30000 {
+			testingContext.Fatal("payload exceeds Windows command-line budget", len(payload))
+		}
+		arguments := strings.Fields(payload)
+		output, err := exec.Command(arguments[0], arguments[1:]...).CombinedOutput()
+		if (err != nil) != failure || !strings.Contains(string(output), "payload executed") || (failure && !strings.Contains(string(output), "payload failure")) {
+			testingContext.Fatal("remote payload behavior changed", failure, err, string(output))
+		}
+	}
+}
+
 func TestPOSIXRevocationRemovesExactIdentityAndPreservesOtherBytes(testingContext *testing.T) {
 	plan, err := ssh.StandardRevocation("linux", "", []byte(revokedPublic+" ignored comment"))
 	if err != nil {
@@ -90,6 +111,28 @@ func TestPOSIXRevocationRefusesSecondaryAuthorizationSource(testingContext *test
 	}
 }
 
+func TestPOSIXRevocationWriteFailurePreservesUnrelatedAuthorization(testingContext *testing.T) {
+	fixture := testingContext.TempDir()
+	initial := revokedPublic + "\n" + strings.Repeat("# retain unrelated bytes\r\n", 256) + retainedPublic + "\n"
+	authorized := writeRevocationFixture(testingContext, fixture, ".ssh/authorized_keys", initial)
+	writeRevocationFixture(testingContext, fixture, "sshd_config", "AuthorizedKeysFile .ssh/authorized_keys\n")
+	plan, err := ssh.StandardRevocation("linux", "", []byte(revokedPublic))
+	if err != nil {
+		testingContext.Fatal(err)
+	}
+	stream := "$stream"
+	if strings.Contains(plan.Script, "print {$staged} $retained") {
+		stream = "$staged"
+	}
+	write := "print {" + stream + "} $retained"
+	fault := "print {" + stream + "} substr($retained, 0, 1); " + stream + "->flush(); die \"fixture partial write\\n\";\n" + write
+	output, runErr := runPOSIXRevocation(testingContext, fixture, strings.Replace(plan.Script, write, fault, 1))
+	after, readErr := os.ReadFile(authorized)
+	if runErr == nil || readErr != nil || string(after) != initial {
+		testingContext.Fatal("failed remote write damaged authorization", runErr, readErr, output)
+	}
+}
+
 func TestPOSIXRevocationKeepsAnExistingOperationLock(testingContext *testing.T) {
 	fixture := testingContext.TempDir()
 	authorized := writeRevocationFixture(testingContext, fixture, ".ssh/authorized_keys", revokedPublic+"\n")
@@ -107,6 +150,49 @@ func TestPOSIXRevocationKeepsAnExistingOperationLock(testingContext *testing.T) 
 	_, lockErr := os.Stat(lock)
 	if runErr == nil || readErr != nil || lockErr != nil || string(after) != revokedPublic+"\n" {
 		testingContext.Fatalf("existing operation lock or file changed: %v %v %v %s", runErr, readErr, lockErr, output)
+	}
+}
+
+func TestPOSIXRevocationInterruptionAndTargetRaceKeepRecoverableBytes(testingContext *testing.T) {
+	for _, scenario := range []string{"before replacement", "after replacement", "target changed"} {
+		testingContext.Run(scenario, func(testingContext *testing.T) {
+			fixture := testingContext.TempDir()
+			retained := "\xef\xbb\xbf# unrelated 日本語\r\n" + retainedPublic + "\r\n# final"
+			initial := revokedPublic + "\n" + retained
+			authorized := writeRevocationFixture(testingContext, fixture, ".ssh/authorized_keys", initial)
+			writeRevocationFixture(testingContext, fixture, "sshd_config", "")
+			plan, err := ssh.StandardRevocation("linux", "", []byte(revokedPublic))
+			if err != nil {
+				testingContext.Fatal(err)
+			}
+			anchor := "my @current = lstat($authorized);"
+			injection := "kill 9, $$;\n"
+			expected := initial
+			if scenario == "after replacement" {
+				anchor = "$directory_stream->sync() or die \"Cannot sync replacement directory; backup retained; result unknown\\n\";"
+				expected = retained
+			}
+			if scenario == "target changed" {
+				injection = "open(my $changed, '>>', $authorized) or die $!; print {$changed} \"# external change\\n\"; close($changed);\n"
+				expected += "# external change\n"
+			}
+			if strings.Count(plan.Script, anchor) != 1 {
+				testingContext.Fatal("fault injection boundary missing", anchor)
+			}
+			output, runErr := runPOSIXRevocation(testingContext, fixture, strings.Replace(plan.Script, anchor, injection+anchor, 1))
+			after, readErr := os.ReadFile(authorized)
+			if runErr == nil || readErr != nil || string(after) != expected {
+				testingContext.Fatal("interruption or race damaged authorization", runErr, readErr, output, string(after))
+			}
+			backups, err := filepath.Glob(filepath.Join(fixture, ".ssh/authorized_keys.keyflow-backup-*"))
+			if err != nil || len(backups) != 1 {
+				testingContext.Fatal("durable backup missing", err, backups)
+			}
+			backup, err := os.ReadFile(backups[0])
+			if err != nil || string(backup) != initial {
+				testingContext.Fatal("original authorization is not recoverable", err)
+			}
+		})
 	}
 }
 
@@ -206,7 +292,7 @@ func TestWindowsRevocationSafetyAndReadOnlyFixtures(testingContext *testing.T) {
 	if runtime.GOOS != "windows" {
 		testingContext.Skip("requires native Windows PowerShell and NTFS")
 	}
-	for _, scenario := range []string{"inspect", "Include", "hardlink", "quote", "encoding", "ACL", "administrator"} {
+	for _, scenario := range []string{"inspect", "Include", "hardlink", "quote", "encoding", "ACL", "administrator", "lock"} {
 		testingContext.Run(scenario, func(testingContext *testing.T) {
 			fixture := testingContext.TempDir()
 			initial := revokedPublic + "\r\n"
@@ -226,6 +312,9 @@ func TestWindowsRevocationSafetyAndReadOnlyFixtures(testingContext *testing.T) {
 				if err := os.Link(authorized, filepath.Join(fixture, "unrelated")); err != nil {
 					testingContext.Fatal(err)
 				}
+			}
+			if scenario == "lock" {
+				writeRevocationFixture(testingContext, fixture, "home/.ssh/ssh-keyflow-revocation.lock", "existing operation")
 			}
 			account := "standard"
 			if scenario == "administrator" {
@@ -260,6 +349,71 @@ func TestWindowsRevocationSafetyAndReadOnlyFixtures(testingContext *testing.T) {
 				}
 			} else if runErr == nil {
 				testingContext.Fatal("unsafe revocation accepted", string(output))
+			}
+		})
+	}
+}
+
+func TestWindowsRevocationFaultsKeepBackupBytesAndACL(testingContext *testing.T) {
+	if runtime.GOOS != "windows" {
+		testingContext.Skip("requires native Windows PowerShell and NTFS")
+	}
+	for _, scenario := range []string{"partial write", "interrupted", "target changed"} {
+		testingContext.Run(scenario, func(testingContext *testing.T) {
+			fixture := testingContext.TempDir()
+			initial := "\xef\xbb\xbf# retain 日本語\r\n" + revokedPublic + "\n" + retainedPublic + "\r\n# final"
+			authorized := writeRevocationFixture(testingContext, fixture, "home/.ssh/authorized_keys", initial)
+			writeRevocationFixture(testingContext, fixture, "server/sshd_config", "AuthorizedKeysFile .ssh/authorized_keys\n")
+			plan, err := ssh.StandardRevocation("windows", "standard", []byte(revokedPublic))
+			if err != nil {
+				testingContext.Fatal(err)
+			}
+			anchor := "$staged.Write($replacement, 0, $replacement.Length)"
+			injection := "$staged.Write($replacement, 0, 1); $staged.Flush($true); throw 'fixture partial write'\n"
+			expected := initial
+			if scenario == "interrupted" {
+				anchor = "$staged.Flush($true)"
+				injection = "$staged.Flush($true); [Diagnostics.Process]::GetCurrentProcess().Kill()\n"
+			}
+			if scenario == "target changed" {
+				anchor = "$current = [IO.File]::Open($authorized, [IO.FileMode]::Open, [IO.FileAccess]::Read, $sharing)"
+				injection = "[IO.File]::Move($authorized, ($authorized + '.raced')); [IO.File]::WriteAllText($authorized, 'external authorization'); Set-Acl -LiteralPath $authorized -AclObject $originalACL\n"
+				expected = "external authorization"
+			}
+			if strings.Count(plan.Script, anchor) != 1 {
+				testingContext.Fatal("fault injection boundary missing", anchor)
+			}
+			script := strings.Replace(plan.Script, anchor, injection+anchor, 1)
+			scriptPath := writeRevocationFixture(testingContext, fixture, "revoke.ps1", script)
+			helper := strings.Replace(windowsRevocationFixture, "$beforeACL = (Get-Acl -LiteralPath $authorized).Sddl", "$beforeACL = (Get-Acl -LiteralPath $authorized).Sddl\n[IO.File]::WriteAllText((Join-Path $Fixture 'before-acl'), $beforeACL)", 1)
+			helperPath := writeRevocationFixture(testingContext, fixture, "fixture.ps1", helper)
+			command := exec.Command("powershell.exe", "-NoProfile", "-File", helperPath, scriptPath, fixture)
+			command.Env = append(os.Environ(), "PSModulePath="+filepath.Join(os.Getenv("WINDIR"), "System32/WindowsPowerShell/v1.0/Modules"))
+			output, runErr := command.CombinedOutput()
+			after, readErr := os.ReadFile(authorized)
+			if runErr == nil || readErr != nil || string(after) != expected {
+				testingContext.Fatal("failed revocation damaged authorization", runErr, readErr, string(output))
+			}
+			backups, err := filepath.Glob(filepath.Join(fixture, "home/.ssh/authorized_keys.keyflow-backup-*"))
+			if err != nil || len(backups) != 1 {
+				testingContext.Fatal("durable backup missing", err, backups)
+			}
+			backup, err := os.ReadFile(backups[0])
+			if err != nil || string(backup) != initial {
+				testingContext.Fatal("original authorization is not recoverable", err)
+			}
+			beforeACL, err := os.ReadFile(filepath.Join(fixture, "before-acl"))
+			if err != nil {
+				testingContext.Fatal(err)
+			}
+			for _, path := range []string{authorized, backups[0]} {
+				aclScript := "(Get-Acl -LiteralPath '" + strings.ReplaceAll(path, "'", "''") + "').Sddl"
+				aclCommand := exec.Command("powershell.exe", "-NoProfile", "-Command", aclScript)
+				aclCommand.Env = command.Env
+				acl, err := aclCommand.CombinedOutput()
+				if err != nil || strings.TrimSpace(string(acl)) != string(beforeACL) {
+					testingContext.Fatal("authorization ACL changed", err, string(acl))
+				}
 			}
 		})
 	}

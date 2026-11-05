@@ -438,6 +438,11 @@ func TestStateValidatesIDsRelationshipsAndLifecycleFields(testingContext *testin
 		testingContext.Fatalf("valid lifecycle/identity: %v %s", err, output)
 	}
 	mutations := map[string]func(map[string]any){
+		"normalized public and private path collision": func(document map[string]any) {
+			key := document["keys"].([]any)[0].(map[string]any)
+			key["private_path"] = filepath.Dir(path) + string(filepath.Separator) + "." + string(filepath.Separator) + filepath.Base(path)
+			key["private_sha256"] = strings.Repeat("a", 64)
+		},
 		"duplicate key ID": func(document map[string]any) {
 			keys := document["keys"].([]any)
 			document["keys"] = append(keys, keys[0])

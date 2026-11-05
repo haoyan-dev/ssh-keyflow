@@ -1,7 +1,6 @@
 package app
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -75,82 +74,37 @@ func list(options Options, document state.State) {
 			}
 		}
 	}
-	active := map[string]bool{}
-	visited := 0
-	var discover func(string, int)
-	discover = func(path string, depth int) {
-		canonical, err := filepath.EvalSymlinks(path)
-		if err != nil {
-			fmt.Fprintf(options.Output, "Include unreadable: %s: %v\n", path, err)
-			return
+	visit := func(filename string, fields []string) error {
+		switch strings.ToLower(fields[0]) {
+		case "host":
+			fmt.Fprintf(options.Output, "unmanaged Host %s (%s; patterns and conditional scopes require review)\n", strings.Join(fields[1:], " "), filename)
+		case "match":
+			fmt.Fprintf(options.Output, "Match %s (%s): discovery only; Match exec is never executed\n", strings.Join(fields[1:], " "), filename)
+		case "identityfile":
+			fmt.Fprintf(options.Output, "unmanaged IdentityFile %s (%s)\n", strings.Join(fields[1:], " "), filename)
 		}
-		if active[canonical] {
-			fmt.Fprintf(options.Output, "Include cycle: %s\n", path)
-			return
-		}
-		if depth > 64 || visited >= 4096 {
+		return nil
+	}
+	report := func(issue configIssue) error {
+		switch issue.kind {
+		case "cycle":
+			fmt.Fprintf(options.Output, "Include cycle: %s\n", issue.target)
+		case "limit":
 			fmt.Fprintln(options.Output, "Include discovery limit reached; review configuration manually")
-			return
+		case "unresolved":
+			fmt.Fprintf(options.Output, "Include unresolved token or home: %s\n", issue.target)
+		case "unmatched":
+			fmt.Fprintf(options.Output, "Include unreadable or unmatched: %s\n", issue.target)
+		case "parse":
+			fmt.Fprintf(options.Output, "configuration parse note %s: %v\n", issue.target, issue.err)
+		case "read":
+			fmt.Fprintf(options.Output, "configuration read note %s: %v\n", issue.target, issue.err)
+		default:
+			fmt.Fprintf(options.Output, "Include unreadable: %s: %v\n", issue.target, issue.err)
 		}
-		visited++
-		active[canonical] = true
-		defer delete(active, canonical)
-		file, err := os.Open(path)
-		if err != nil {
-			fmt.Fprintf(options.Output, "Include unreadable: %s: %v\n", path, err)
-			return
-		}
-		defer file.Close()
-		scanner := bufio.NewScanner(file)
-		scanner.Buffer(make([]byte, 4096), 1024*1024)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if position := strings.IndexAny(line, "= \t"); position >= 0 {
-				line = line[:position] + " " + strings.TrimLeft(line[position:], "= \t")
-			}
-			fields, err := configFields(line)
-			if err != nil {
-				fmt.Fprintf(options.Output, "configuration parse note %s: %v\n", path, err)
-				continue
-			}
-			if len(fields) == 0 {
-				continue
-			}
-			switch strings.ToLower(fields[0]) {
-			case "host":
-				fmt.Fprintf(options.Output, "unmanaged Host %s (%s; patterns and conditional scopes require review)\n", strings.Join(fields[1:], " "), path)
-			case "match":
-				fmt.Fprintf(options.Output, "Match %s (%s): discovery only; Match exec is never executed\n", strings.Join(fields[1:], " "), path)
-			case "identityfile":
-				fmt.Fprintf(options.Output, "unmanaged IdentityFile %s (%s)\n", strings.Join(fields[1:], " "), path)
-			case "include":
-				for _, pattern := range fields[1:] {
-					if strings.ContainsAny(pattern, "%$") || (strings.HasPrefix(pattern, "~") && !strings.HasPrefix(pattern, "~/") && !strings.HasPrefix(pattern, "~\\")) {
-						fmt.Fprintf(options.Output, "Include unresolved token or home: %s\n", pattern)
-						continue
-					}
-					pattern = expandPath(options.Home, pattern)
-					if !filepath.IsAbs(pattern) {
-						pattern = filepath.Join(root, pattern)
-					}
-					matches, err := filepath.Glob(pattern)
-					if err != nil || len(matches) == 0 {
-						fmt.Fprintf(options.Output, "Include unreadable or unmatched: %s\n", pattern)
-						continue
-					}
-					for _, match := range matches {
-						discover(match, depth+1)
-					}
-				}
-			}
-		}
-		if err := scanner.Err(); err != nil {
-			fmt.Fprintf(options.Output, "configuration read note %s: %v\n", path, err)
-		}
+		return nil
 	}
-	if _, err := os.Stat(filepath.Join(root, "config")); !os.IsNotExist(err) {
-		discover(filepath.Join(root, "config"), 0)
-	}
+	walkConfiguration(options.Home, nil, visit, report)
 }
 
 func expandPath(home, path string) string {

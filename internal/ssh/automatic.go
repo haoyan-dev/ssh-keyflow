@@ -1,6 +1,8 @@
 package ssh
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/base64"
 	"fmt"
 	"strings"
@@ -14,6 +16,13 @@ func RemoteCommand(system, script string) string {
 		return "sh -c " + Quote(script)
 	}
 	script = "$ErrorActionPreference='Stop'\ntry {\n& {\n" + script + "\n}\n} catch {\n[Console]::Error.WriteLine($_.Exception.Message)\nexit 1\n}\n"
+	if len(script) > 8000 {
+		var compressed bytes.Buffer
+		writer := gzip.NewWriter(&compressed)
+		_, _ = writer.Write([]byte(script))
+		_ = writer.Close()
+		script = "$keyflowCompressed='" + base64.StdEncoding.EncodeToString(compressed.Bytes()) + "'\n$compressedStream=New-Object IO.MemoryStream(,[Convert]::FromBase64String($keyflowCompressed))\n$gzipStream=New-Object IO.Compression.GzipStream($compressedStream,[IO.Compression.CompressionMode]::Decompress)\n$scriptReader=New-Object IO.StreamReader($gzipStream,[Text.Encoding]::UTF8)\ntry { & ([ScriptBlock]::Create($scriptReader.ReadToEnd())) } finally { $scriptReader.Dispose(); $gzipStream.Dispose(); $compressedStream.Dispose() }\n"
+	}
 	units := utf16.Encode([]rune(script))
 	data := make([]byte, len(units)*2)
 	for index, unit := range units {

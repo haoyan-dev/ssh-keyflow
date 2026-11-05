@@ -122,7 +122,9 @@ func TestRevocationExecutesGuardedPayloadInIsolatedPOSIXFixture(testingContext *
 					configuration = "/" + strings.ToLower(configuration[:1]) + configuration[2:]
 				}
 				payload = strings.ReplaceAll(payload, "/etc/ssh/sshd_config", configuration)
-				execute := exec.Command(shell, "-c", "PATH=\"$HOME/bin:/usr/bin:/bin\"; export PATH; "+payload)
+				body := strings.ReplaceAll(strings.TrimSuffix(strings.TrimPrefix(payload, "sh -c '"), "'"), "'\"'\"'", "'")
+				scriptPath := writeFixture(testingContext, remote, "execute.sh", "PATH=\"$HOME/bin:/usr/bin:/bin\"; export PATH; \n"+body)
+				execute := exec.Command(shell, filepath.ToSlash(scriptPath))
 				execute.Env = append(os.Environ(), "HOME="+filepath.ToSlash(remote), "SSH_CONNECTION=192.0.2.1 12345 192.0.2.2 22")
 				execute.Stdout, execute.Stderr = command.Stdout, command.Stderr
 				return execute.Run()
@@ -190,7 +192,8 @@ foreach ($path in $paths) {
 		script = strings.ReplaceAll(script, "$env:ProgramData", "$fixtureProgramData")
 		script = strings.ReplaceAll(script, `$sshd=Join-Path $env:WINDIR 'System32/OpenSSH/sshd.exe'`, "$sshd='"+daemon+"'")
 		script = "$fixtureHome='" + fixtureHome + "'\n$fixtureProgramData='" + remote + "'\n" + script
-		execution := exec.Command("powershell.exe", "-NoProfile", "-EncodedCommand", encodePowerShell(script))
+		scriptPath := writeFixture(testingContext, remote, "execute.ps1", script)
+		execution := exec.Command("powershell.exe", "-NoProfile", "-File", scriptPath)
 		execution.Env = append(os.Environ(), "SSH_CONNECTION=192.0.2.1 12345 192.0.2.2 22", "PSModulePath="+filepath.Join(os.Getenv("WINDIR"), "System32/WindowsPowerShell/v1.0/Modules"))
 		execution.Stdout, execution.Stderr = command.Stdout, command.Stderr
 		return execution.Run()

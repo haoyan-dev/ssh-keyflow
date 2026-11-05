@@ -1,10 +1,13 @@
 package app_test
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -145,7 +148,24 @@ func decodePowerShell(testingContext *testing.T, encoded string) string {
 	for index := range units {
 		units[index] = binary.LittleEndian.Uint16(data[index*2:])
 	}
-	return string(utf16.Decode(units))
+	script := string(utf16.Decode(units))
+	if strings.HasPrefix(script, "$keyflowCompressed='") {
+		compressed, err := base64.StdEncoding.DecodeString(strings.Split(script, "'")[1])
+		if err != nil {
+			testingContext.Fatal(err)
+		}
+		reader, err := gzip.NewReader(bytes.NewReader(compressed))
+		if err != nil {
+			testingContext.Fatal(err)
+		}
+		defer reader.Close()
+		contents, err := io.ReadAll(reader)
+		if err != nil {
+			testingContext.Fatal(err)
+		}
+		return string(contents)
+	}
+	return script
 }
 
 func TestWindowsAutomaticPayloadFailsClosed(testingContext *testing.T) {

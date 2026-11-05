@@ -36,6 +36,7 @@ use strict;
 use warnings;
 use Fcntl qw(:DEFAULT :flock :mode);
 use File::Basename qw(dirname);
+use File::Temp qw(tempfile);
 use Errno qw(ENOENT);
 use IO::Handle;
 my ($key_type, $key_blob, $operation_mode) = @ARGV;
@@ -121,7 +122,7 @@ if ($operation_mode ne 'inspect') {
     $lock_owned = 1;
 }
 END { rmdir($lock) if defined($lock_owned) && $lock_owned; }
-sysopen(my $stream, $authorized, ($operation_mode eq 'inspect' ? O_RDONLY : O_RDWR) | O_NONBLOCK) or die "Cannot open authorized_keys: $!\n";
+sysopen(my $stream, $authorized, O_RDONLY | O_NONBLOCK) or die "Cannot open authorized_keys: $!\n";
 flock($stream, ($operation_mode eq 'inspect' ? LOCK_SH : LOCK_EX) | LOCK_NB) or die "File locked\n";
 binmode($stream);
 my @opened = stat($stream);
@@ -129,6 +130,7 @@ die "File changed; review manually\n" unless $opened[0] == $before[0] && $opened
 local $/;
 my $bytes = <$stream>;
 $bytes = '' unless defined($bytes);
+my $original = $bytes;
 die "Unsupported encoding; unchanged\n" if $bytes =~ /\x00/ || $bytes =~ /^(?:\xff\xfe|\xfe\xff)/;
 my $bom = $bytes =~ s/^(\xef\xbb\xbf)// ? $1 : '';
 my $retained = $bom;
@@ -139,14 +141,39 @@ while ($bytes =~ /([^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+\z)/g) {
 }
 if (!$removed) { print "Already absent\n"; exit 0; }
 if ($operation_mode eq 'inspect') { print "Public key present\n"; exit 0; }
+my ($backup, $backup_path) = tempfile('authorized_keys.keyflow-backup-XXXXXXXX', DIR => $directory, UNLINK => 0);
+binmode($backup);
+system('cp', '-p', $authorized, $backup_path) == 0 or die "Cannot preserve authorization backup; unchanged\n";
+seek($backup, 0, 0) or die "Cannot inspect backup; unchanged\n";
+my $backup_bytes = <$backup>;
+die "Backup differs; unchanged\n" unless defined($backup_bytes) && $backup_bytes eq $original;
+$backup->sync() or die "Cannot sync backup; unchanged\n";
+close($backup) or die "Cannot close backup; unchanged\n";
+my ($staged, $staged_path) = tempfile('replacement-XXXXXXXX', DIR => $lock, UNLINK => 0);
+binmode($staged);
+system('cp', '-p', $backup_path, $staged_path) == 0 or die "Cannot preserve replacement metadata; unchanged\n";
+seek($staged, 0, 0) or die "Cannot rewind replacement; unchanged\n";
+print {$staged} $retained or die "Replacement write failed; unchanged\n";
+$staged->flush() or die "Replacement flush failed; unchanged\n";
+truncate($staged, length($retained)) or die "Replacement truncate failed; unchanged\n";
+$staged->sync() or die "Replacement sync failed; unchanged\n";
+my @staged_metadata = stat($staged);
+die "Replacement metadata differs; unchanged\n" unless $staged_metadata[2] == $opened[2] && $staged_metadata[3] == 1 && $staged_metadata[4] == $opened[4] && $staged_metadata[5] == $opened[5];
+sysopen(my $directory_stream, $directory, O_RDONLY) or die "Cannot open directory for durability; unchanged\n";
+$directory_stream->sync() or die "Cannot sync backup directory; unchanged\n";
 plain_path($authorized, 1);
 my @current = lstat($authorized);
-die "File changed; review manually\n" unless $current[0] == $opened[0] && $current[1] == $opened[1] && $current[2] == $opened[2] && $current[3] == 1 && $current[7] == $opened[7] && $current[9] == $opened[9] && $current[10] == $opened[10];
-seek($stream, 0, 0) or die "Cannot rewind\n";
-print {$stream} $retained or die "Write failed; result unknown\n";
-$stream->flush() or die "Flush failed; result unknown\n";
-truncate($stream, length($retained)) or die "Truncate failed; result unknown\n";
-$stream->sync() or die "Sync failed; result unknown\n";
+die "File changed; review manually\n" unless $current[0] == $opened[0] && $current[1] == $opened[1] && $current[2] == $opened[2] && $current[3] == 1 && $current[4] == $opened[4] && $current[5] == $opened[5] && $current[7] == $opened[7] && $current[9] == $opened[9] && $current[10] == $opened[10];
+seek($stream, 0, 0) or die "Cannot recheck original; unchanged\n";
+my $current_bytes = <$stream>;
+die "File content changed; review manually\n" unless defined($current_bytes) && $current_bytes eq $original;
+plain_path($staged_path, 1);
+my @staged_current = lstat($staged_path);
+die "Replacement changed; unchanged\n" unless $staged_current[0] == $staged_metadata[0] && $staged_current[1] == $staged_metadata[1] && $staged_current[3] == 1;
+close($staged) or die "Cannot close replacement; unchanged\n";
+rename($staged_path, $authorized) or die "Cannot replace authorization; backup retained\n";
+$directory_stream->sync() or die "Cannot sync replacement directory; backup retained; result unknown\n";
+close($directory_stream) or die "Cannot close directory; backup retained\n";
 close($stream) or die "Close failed; result unknown\n";
 print "Public key removed\n";
 SSH_KEYFLOW_REVOCATION
@@ -278,21 +305,35 @@ public static class SSHKeyFlowRevocationHandle {
     }
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out FileInformation information);
-    public static void AssertSingleLink(FileStream stream) {
+    public static FileInformation Inspect(FileStream stream) {
         FileInformation information;
         if (!GetFileInformationByHandle(stream.SafeFileHandle, out information) || information.Links != 1)
             throw new IOException("Hardlinked or unverifiable target requires manual review");
+        return information;
+    }
+    public static void AssertSame(FileInformation expected, FileStream stream) {
+        FileInformation current = Inspect(stream);
+        if (current.VolumeSerial != expected.VolumeSerial || current.IndexHigh != expected.IndexHigh || current.IndexLow != expected.IndexLow ||
+            current.SizeHigh != expected.SizeHigh || current.SizeLow != expected.SizeLow || current.Attributes != expected.Attributes ||
+            current.WriteTime.dwHighDateTime != expected.WriteTime.dwHighDateTime || current.WriteTime.dwLowDateTime != expected.WriteTime.dwLowDateTime)
+            throw new IOException("Authorization target changed; unchanged");
     }
 }
 '@
 }
-$access = [IO.FileAccess]::ReadWrite
-if ($readOnly) { $access = [IO.FileAccess]::Read }
-$stream = [IO.File]::Open($authorized, [IO.FileMode]::Open, $access, [IO.FileShare]::None)
+$sharing = [IO.FileShare]::Read -bor [IO.FileShare]::Delete
+$operationLock = $null
+$stream = $null
 try {
-    [SSHKeyFlowRevocationHandle]::AssertSingleLink($stream)
+    if (-not $readOnly) {
+        $lockPath = Join-Path $directory 'ssh-keyflow-revocation.lock'
+        $operationLock = [IO.FileStream]::new($lockPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None, 1, [IO.FileOptions]::DeleteOnClose)
+    }
+    $stream = [IO.File]::Open($authorized, [IO.FileMode]::Open, [IO.FileAccess]::Read, $sharing)
+    $opened = [SSHKeyFlowRevocationHandle]::Inspect($stream)
     Assert-RevocationPath $authorized
     Assert-RevocationACL $authorized
+    $originalACL = Get-Acl -LiteralPath $authorized
     $bytes = New-Object byte[] $stream.Length
     $offset = 0
     while ($offset -lt $bytes.Length) {
@@ -311,10 +352,41 @@ try {
     if ($removed -eq 0) { Write-Output 'Already absent'; return }
     if ($readOnly) { Write-Output 'Public key present'; return }
     $replacement = $utf8.GetBytes($retained.ToString())
-    $stream.Position = 0
-    $stream.Write($replacement, 0, $replacement.Length)
-    $stream.SetLength($replacement.Length)
-    $stream.Flush($true)
+    $backupPath = Join-Path $directory ('authorized_keys.keyflow-backup-' + [Guid]::NewGuid().ToString('N'))
+    $stagedPath = Join-Path $directory ('authorized_keys.keyflow-stage-' + [Guid]::NewGuid().ToString('N'))
+    $backup = [IO.File]::Open($backupPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try {
+        Set-Acl -LiteralPath $backupPath -AclObject $originalACL
+        $backup.Write($bytes, 0, $bytes.Length)
+        $backup.Flush($true)
+    } finally { $backup.Dispose() }
+    if ((Get-Acl -LiteralPath $backupPath).Sddl -cne $originalACL.Sddl) { throw 'Backup ACL differs; unchanged' }
+    $staged = [IO.File]::Open($stagedPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
+    try {
+        Set-Acl -LiteralPath $stagedPath -AclObject $originalACL
+        $staged.Write($replacement, 0, $replacement.Length)
+        $staged.Flush($true)
+    } finally { $staged.Dispose() }
+    Assert-RevocationPath $authorized
+    Assert-RevocationACL $authorized
+    if ((Get-Acl -LiteralPath $authorized).Sddl -cne $originalACL.Sddl -or (Get-Acl -LiteralPath $stagedPath).Sddl -cne $originalACL.Sddl) { throw 'Authorization ACL changed; unchanged' }
+    $current = [IO.File]::Open($authorized, [IO.FileMode]::Open, [IO.FileAccess]::Read, $sharing)
+    try {
+        [SSHKeyFlowRevocationHandle]::AssertSame($opened, $current)
+        $currentBytes = New-Object byte[] $current.Length
+        $offset = 0
+        while ($offset -lt $currentBytes.Length) {
+            $count = $current.Read($currentBytes, $offset, $currentBytes.Length - $offset)
+            if ($count -eq 0) { throw 'Incomplete file recheck; unchanged' }
+            $offset += $count
+        }
+        if ([Convert]::ToBase64String($bytes) -cne [Convert]::ToBase64String($currentBytes)) { throw 'Authorization content changed; unchanged' }
+        [IO.File]::Replace($stagedPath, $authorized, ($backupPath + '.replaced'), $false)
+    } finally { $current.Dispose() }
+    if ((Get-Acl -LiteralPath $authorized).Sddl -cne $originalACL.Sddl) { throw 'Replacement ACL differs; backup retained; review manually' }
     Write-Output 'Public key removed'
-} finally { $stream.Dispose() }
+} finally {
+    if ($null -ne $stream) { $stream.Dispose() }
+    if ($null -ne $operationLock) { $operationLock.Dispose() }
+}
 `

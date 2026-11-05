@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -124,7 +123,7 @@ func onboard(ctx context.Context, options Options) error {
 			key = document.Keys[selected-1]
 		}
 		fmt.Fprintf(options.Output, "Destination %s: %s@%s:%d OS=%s account=%s\nKey: %s %s\n", host.Alias, host.User, host.Hostname, host.Port, host.OS, host.WindowsAccount, key.Name, key.Fingerprint)
-		confirmation, err := prompt(options, "Type yes to save intent and prepare manual registration:")
+		confirmation, err := prompt(options, "Type yes to save intent and choose automatic or manual registration:")
 		if err != nil {
 			return err
 		}
@@ -188,14 +187,6 @@ func finishOnboarding(ctx context.Context, options Options, store *state.LockedS
 	if key.ID == "" {
 		return fmt.Errorf("requires review: onboarding key unavailable")
 	}
-	data, err := os.ReadFile(key.PublicPath)
-	if err != nil {
-		return err
-	}
-	guidance, err := manualGuidance(host, data)
-	if err != nil {
-		return err
-	}
 	found := false
 	for _, registration := range document.Registrations {
 		if registration.KeyID == key.ID && registration.HostID == host.ID {
@@ -209,12 +200,12 @@ func finishOnboarding(ctx context.Context, options Options, store *state.LockedS
 		}
 		document.Registrations = append(document.Registrations, state.Registration{ID: identifier, KeyID: key.ID, HostID: host.ID, Status: "unknown", ConnectionCheck: "unverified", Operation: "register", Stage: "pending"})
 	}
-	job.Stage = "manual"
+	job.Stage = "planned"
 	if err := store.Save(*document); err != nil {
 		return err
 	}
-	fmt.Fprintf(options.Output, "Manual registration for %s (%s@%s:%d), fingerprint %s\nIntent saved; recorded history is unknown, connection=unverified. Run enablement separately with required privileges, then copy registration into the destination login user's shell after confirming the standard configuration.\n%s\n", host.Alias, host.User, host.Hostname, host.Port, key.Fingerprint, guidance)
-	return nil
+	fmt.Fprintf(options.Output, "Intent saved for %s (%s@%s:%d), fingerprint %s; recorded history is unknown, connection=unverified.\n", host.Alias, host.User, host.Hostname, host.Port, key.Fingerprint)
+	return registerSaved(ctx, options, store, document, host.ID, key.ID)
 }
 
 func manualGuidance(host state.Host, public []byte) (string, error) {

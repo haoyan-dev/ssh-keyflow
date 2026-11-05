@@ -47,6 +47,14 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 		return err
 	}
 	fallback := func(cause error) error {
+		for index, job := range document.Onboardings {
+			if job.HostID == host.ID && job.KeyID == key.ID {
+				document.Onboardings[index].Stage = "manual"
+			}
+		}
+		if err := store.Save(*document); err != nil {
+			return err
+		}
 		guidance, guideErr := manualGuidance(host, public)
 		if guideErr != nil {
 			return guideErr
@@ -92,7 +100,7 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 		err := options.Runner.Run(ctx, Command{Name: "ssh", Args: arguments, Stdin: options.Input, Stdout: &output, Stderr: options.Output, Interactive: true})
 		return strings.TrimSpace(output.String()), err
 	}
-	observed, err := run(operationScript(host.OS, "KEYFLOW_PROBE", probe), false, true)
+	observed, err := run(sshops.OperationScript(host.OS, "KEYFLOW_PROBE", probe), false, true)
 	if err != nil {
 		return fallback(err)
 	}
@@ -137,14 +145,14 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 			uncertain = true
 		}
 	}
-	guarded := func(body string) string { return guardedRegistration(host.OS, probe, observed, body) }
+	guarded := func(body string) string { return sshops.GuardedRegistration(host.OS, probe, observed, body) }
 	present := false
 	if uncertain {
 		reader, err := sshops.RegistrationRead(host.OS, host.WindowsAccount, public)
 		if err != nil {
 			return err
 		}
-		result, err := run(operationScript(host.OS, "KEYFLOW_RECONCILE", guarded(reader)), false, false)
+		result, err := run(sshops.OperationScript(host.OS, "KEYFLOW_RECONCILE", guarded(reader)), false, false)
 		if err != nil || (result != "KEYFLOW_PRESENT" && result != "KEYFLOW_ABSENT") {
 			return fallback(fmt.Errorf("read-only reconciliation failed; no retry performed: %v", err))
 		}
@@ -169,13 +177,8 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 		if err := recordRegistration(store, document, registrationIndex); err != nil {
 			return err
 		}
-		body := plan.Script
-		if host.OS == "windows" {
-			body = "& {\n" + body + "\n}\nWrite-Output 'KEYFLOW_REGISTERED'"
-		} else {
-			body += "\nprintf '%s\\n' KEYFLOW_REGISTERED\n"
-		}
-		result, remoteErr := run(operationScript(host.OS, "KEYFLOW_REGISTER", guarded(body)), false, false)
+		body := sshops.ScriptWithSuccess(host.OS, plan.Script, "KEYFLOW_REGISTERED")
+		result, remoteErr := run(sshops.OperationScript(host.OS, "KEYFLOW_REGISTER", guarded(body)), false, false)
 		if remoteErr != nil || !strings.HasSuffix(result, "KEYFLOW_REGISTERED") {
 			registration.Status, registration.Stage = "unknown", "unknown"
 			if err := recordRegistration(store, document, registrationIndex); err != nil {
@@ -194,10 +197,7 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 			return err
 		}
 		identity = key.PrivatePath
-		verification := "printf '%s\\n' KEYFLOW_VERIFIED"
-		if host.OS == "windows" {
-			verification = "Write-Output 'KEYFLOW_VERIFIED'"
-		}
+		verification := sshops.ScriptWithSuccess(host.OS, "", "KEYFLOW_VERIFIED")
 		result, verifyErr := run(verification, true, false)
 		registration.ConnectionCheck = "failed"
 		if verifyErr == nil && result == "KEYFLOW_VERIFIED" {
@@ -271,18 +271,4 @@ func sshArguments(home string, host state.Host, identity, mode string, verify, f
 		arguments = append(arguments, "-o", "PubkeyAuthentication=no", "-o", "PreferredAuthentications=keyboard-interactive,password", "-o", "PasswordAuthentication=yes", "-o", "KbdInteractiveAuthentication=yes")
 	}
 	return append(arguments, "-p", strconv.Itoa(host.Port), "-l", host.User, "--", host.Hostname)
-}
-
-func operationScript(system, operation, script string) string {
-	if system == "windows" {
-		return "$operation='" + operation + "'\n" + script
-	}
-	return ": " + operation + "\n" + script
-}
-
-func guardedRegistration(system, probe, expected, body string) string {
-	if system == "windows" {
-		return "$observed=@(& {\n" + probe + "\n})\nif ($observed.Count -ne 1 -or $observed[0] -cne '" + strings.ReplaceAll(expected, "'", "''") + "') { throw 'Registration target changed' }\n" + body
-	}
-	return "keyflow_probe() {\n" + probe + "\n}\nobserved=$(keyflow_probe) || exit 1\n[ \"$observed\" = " + sshops.Quote(expected) + " ] || exit 1\n" + body
 }

@@ -111,7 +111,7 @@ func unregister(ctx context.Context, options Options) error {
 			}
 			arguments := sshArguments(options.Home, host, identity, mode, mode == "k", first)
 			arguments = append([]string{"-o", "GSSAPIAuthentication=no", "-o", "HostbasedAuthentication=no", "-o", "PKCS11Provider=none"}, arguments...)
-			arguments = append(arguments, sshops.RemoteCommand(host.OS, operationScript(host.OS, operation, body)))
+			arguments = append(arguments, sshops.RemoteCommand(host.OS, sshops.OperationScript(host.OS, operation, body)))
 			var output bytes.Buffer
 			err := options.Runner.Run(ctx, Command{Name: "ssh", Args: arguments, Stdin: options.Input, Stdout: &output, Stderr: options.Output, Interactive: true})
 			return strings.TrimSpace(output.String()), err
@@ -132,8 +132,8 @@ func unregister(ctx context.Context, options Options) error {
 		if answer != "yes" {
 			return fallback("effective daemon configuration not approved")
 		}
-		readBody := revocationReadBody(host.OS, plan.InspectScript)
-		presence, err := run("KEYFLOW_REVOCATION_READ", guardedRegistration(host.OS, probe, observed, readBody), false)
+		readBody := sshops.RevocationReadBody(host.OS, plan.InspectScript)
+		presence, err := run("KEYFLOW_REVOCATION_READ", sshops.GuardedRegistration(host.OS, probe, observed, readBody), false)
 		if err != nil || (presence != "KEYFLOW_PRESENT" && presence != "KEYFLOW_ABSENT") {
 			return fallback("read-only reconciliation failed; no remote mutation attempted")
 		}
@@ -168,11 +168,8 @@ func unregister(ctx context.Context, options Options) error {
 		if err := recordRegistration(store, &document, index); err != nil {
 			return err
 		}
-		body := plan.Script + "\nprintf '%s\\n' KEYFLOW_REMOVED\n"
-		if host.OS == "windows" {
-			body = "& {\n" + plan.Script + "\n}\nWrite-Output 'KEYFLOW_REMOVED'\n"
-		}
-		result, err := run("KEYFLOW_UNREGISTER", guardedRegistration(host.OS, probe, observed, body), false)
+		body := sshops.ScriptWithSuccess(host.OS, plan.Script, "KEYFLOW_REMOVED")
+		result, err := run("KEYFLOW_UNREGISTER", sshops.GuardedRegistration(host.OS, probe, observed, body), false)
 		if err != nil || (result != "KEYFLOW_REMOVED" && !strings.HasSuffix(result, "\nKEYFLOW_REMOVED")) {
 			return fallback("remote outcome unknown; retry starts with read-only reconciliation; local files preserved")
 		}
@@ -183,11 +180,4 @@ func unregister(ctx context.Context, options Options) error {
 		fmt.Fprintln(options.Output, "Public key removed; local files preserved; use separate menu 6 for guarded local deletion")
 		return removeKeyConfiguration(options, store, &document, key.ID, host.ID)
 	})
-}
-
-func revocationReadBody(system, script string) string {
-	if system == "windows" {
-		return "$inspection=@(& {\n" + script + "\n})\nif ($inspection[-1] -ceq 'Public key present') { 'KEYFLOW_PRESENT' } elseif ($inspection[-1] -ceq 'Already absent') { 'KEYFLOW_ABSENT' } else { throw 'Unrecognized inspection' }"
-	}
-	return "inspection=$(\n" + script + "\n) || exit 1\ncase \"$inspection\" in 'Public key present') printf '%s\\n' KEYFLOW_PRESENT ;; 'Already absent') printf '%s\\n' KEYFLOW_ABSENT ;; *) exit 1 ;; esac\n"
 }

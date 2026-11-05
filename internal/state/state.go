@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 	"unicode"
@@ -208,6 +209,17 @@ func uniqueJSON(decoder *json.Decoder) error {
 	return err
 }
 
+func pathIdentity(path string) string {
+	if path == "" {
+		return ""
+	}
+	cleaned := filepath.Clean(path)
+	if runtime.GOOS == "windows" {
+		return strings.ToLower(cleaned)
+	}
+	return cleaned
+}
+
 func (document State) Validate() error {
 	if document.Version != 1 || document.Keys == nil || document.Hosts == nil || document.Registrations == nil {
 		return fmt.Errorf("unsupported or incomplete schema/version")
@@ -245,10 +257,10 @@ func (document State) Validate() error {
 			return fmt.Errorf("invalid key provenance %q", key.ID)
 		}
 		digest, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(key.Fingerprint, "SHA256:"))
-		if !claim(key.ID) || !clean(key.Name) || !strings.HasPrefix(key.Fingerprint, "SHA256:") || err != nil || len(digest) != 32 || fingerprints[key.Fingerprint] || !filepath.IsAbs(key.PublicPath) || paths[filepath.Clean(key.PublicPath)] || !oneOf(key.ConnectionCheck, "unverified", "verified", "failed", "unknown") {
+		if !claim(key.ID) || !clean(key.Name) || !strings.HasPrefix(key.Fingerprint, "SHA256:") || err != nil || len(digest) != 32 || fingerprints[key.Fingerprint] || !filepath.IsAbs(key.PublicPath) || paths[pathIdentity(key.PublicPath)] || !oneOf(key.ConnectionCheck, "unverified", "verified", "failed", "unknown") {
 			return fmt.Errorf("invalid or duplicate key %q", key.ID)
 		}
-		if (key.PrivatePath == "") != (key.PrivateSHA256 == "") || (key.PrivatePath != "" && (!filepath.IsAbs(key.PrivatePath) || key.PrivatePath == key.PublicPath || paths[filepath.Clean(key.PrivatePath)] || len(key.PrivateSHA256) != 64)) {
+		if (key.PrivatePath == "") != (key.PrivateSHA256 == "") || (key.PrivatePath != "" && (!filepath.IsAbs(key.PrivatePath) || pathIdentity(key.PrivatePath) == pathIdentity(key.PublicPath) || paths[pathIdentity(key.PrivatePath)] || len(key.PrivateSHA256) != 64)) {
 			return fmt.Errorf("invalid private key metadata %q", key.ID)
 		}
 		if key.PrivateSHA256 != "" {
@@ -256,9 +268,9 @@ func (document State) Validate() error {
 				return fmt.Errorf("invalid private key digest %q", key.ID)
 			}
 		}
-		keys[key.ID], fingerprints[key.Fingerprint], paths[filepath.Clean(key.PublicPath)] = true, true, true
+		keys[key.ID], fingerprints[key.Fingerprint], paths[pathIdentity(key.PublicPath)] = true, true, true
 		if key.PrivatePath != "" {
-			paths[filepath.Clean(key.PrivatePath)] = true
+			paths[pathIdentity(key.PrivatePath)] = true
 		}
 	}
 	for _, host := range document.Hosts {
@@ -326,27 +338,27 @@ func (document State) Validate() error {
 	}
 	configPaths := map[string]bool{}
 	for _, config := range document.Configs {
-		if !filepath.IsAbs(config.Path) || configPaths[config.Path] || (config.SHA256 == "" && config.PendingSHA256 == "") || (config.SHA256 != "" && !validDigest(config.SHA256)) || (config.PendingSHA256 != "" && !validDigest(config.PendingSHA256)) {
+		if !filepath.IsAbs(config.Path) || configPaths[pathIdentity(config.Path)] || (config.SHA256 == "" && config.PendingSHA256 == "") || (config.SHA256 != "" && !validDigest(config.SHA256)) || (config.PendingSHA256 != "" && !validDigest(config.PendingSHA256)) {
 			return fmt.Errorf("invalid configuration ownership")
 		}
-		configPaths[config.Path] = true
+		configPaths[pathIdentity(config.Path)] = true
 	}
 	for _, edit := range document.ConfigEdits {
-		if !filepath.IsAbs(edit.Path) || !validDigest(edit.BeforeSHA256) || !validDigest(edit.AfterSHA256) || (edit.BackupPath != "" && (!filepath.IsAbs(edit.BackupPath) || filepath.Dir(edit.BackupPath) != filepath.Dir(edit.Path) || edit.BackupPath == edit.Path)) {
+		if !filepath.IsAbs(edit.Path) || !validDigest(edit.BeforeSHA256) || !validDigest(edit.AfterSHA256) || (edit.BackupPath != "" && (!filepath.IsAbs(edit.BackupPath) || pathIdentity(filepath.Dir(edit.BackupPath)) != pathIdentity(filepath.Dir(edit.Path)) || pathIdentity(edit.BackupPath) == pathIdentity(edit.Path))) {
 			return fmt.Errorf("invalid configuration edit intent")
 		}
 	}
 	creationKeys := map[string]bool{}
 	for _, creation := range document.Creations {
 		createdAt, timeErr := time.Parse(time.RFC3339Nano, creation.CreatedAt)
-		if !claim(creation.ID) || !clean(creation.KeyID) || creationKeys[creation.KeyID] || !clean(creation.Name) || !filepath.IsAbs(creation.PrivatePath) || creation.PublicPath != creation.PrivatePath+".pub" || timeErr != nil || createdAt.IsZero() || !oneOf(creation.Stage, "planned", "pending", "complete") {
+		if !claim(creation.ID) || !clean(creation.KeyID) || creationKeys[creation.KeyID] || !clean(creation.Name) || !filepath.IsAbs(creation.PrivatePath) || pathIdentity(creation.PublicPath) != pathIdentity(creation.PrivatePath+".pub") || timeErr != nil || createdAt.IsZero() || !oneOf(creation.Stage, "planned", "pending", "complete") {
 			return fmt.Errorf("invalid creation intent %q", creation.ID)
 		}
 		creationKeys[creation.KeyID] = true
 		if creation.Stage == "complete" {
 			matched := false
 			for _, key := range allKeys {
-				if key.ID == creation.KeyID && key.Origin == "created" && key.PrivatePath == creation.PrivatePath && key.PublicPath == creation.PublicPath && key.CreatedAt == creation.CreatedAt && key.PrivateSHA256 == creation.PrivateSHA256 && key.Fingerprint == creation.Fingerprint {
+				if key.ID == creation.KeyID && key.Origin == "created" && pathIdentity(key.PrivatePath) == pathIdentity(creation.PrivatePath) && pathIdentity(key.PublicPath) == pathIdentity(creation.PublicPath) && key.CreatedAt == creation.CreatedAt && key.PrivateSHA256 == creation.PrivateSHA256 && key.Fingerprint == creation.Fingerprint {
 					matched = true
 				}
 			}
@@ -354,10 +366,10 @@ func (document State) Validate() error {
 				return fmt.Errorf("creation result missing or inconsistent %q", creation.ID)
 			}
 		} else {
-			if !claim(creation.KeyID) || paths[filepath.Clean(creation.PrivatePath)] || paths[filepath.Clean(creation.PublicPath)] {
+			if !claim(creation.KeyID) || paths[pathIdentity(creation.PrivatePath)] || paths[pathIdentity(creation.PublicPath)] {
 				return fmt.Errorf("creation identity/path conflict %q", creation.ID)
 			}
-			paths[filepath.Clean(creation.PrivatePath)], paths[filepath.Clean(creation.PublicPath)] = true, true
+			paths[pathIdentity(creation.PrivatePath)], paths[pathIdentity(creation.PublicPath)] = true, true
 		}
 		if creation.PrivateSHA256 != "" {
 			digest, err := hex.DecodeString(creation.PrivateSHA256)

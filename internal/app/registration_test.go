@@ -13,6 +13,19 @@ import (
 	"ssh-keyflow/internal/state"
 )
 
+func TestNewDestinationContinuesDirectlyThroughRegistrationAndVerification(testingContext *testing.T) {
+	home := testingContext.TempDir()
+	public := writeFixture(testingContext, home, "key.pub", publicKey)
+	private := writeFixture(testingContext, home, "key", "private fixture")
+	external := registrationRunner{testingContext: testingContext, home: home}
+	input := "5\ni\n" + public + "\n" + private + "\nfixture\nyes\n1\nn\ndirect\nserver.example\nme\n\nlinux\n1\nyes\np\nyes\nno\n0\n"
+	output, err := runCLI(testingContext, home, input, external)
+	document, loadErr := state.Load(home)
+	if err != nil || loadErr != nil || len(document.Registrations) != 1 || document.Registrations[0].Status != "registered" || document.Registrations[0].ConnectionCheck != "verified" || !strings.Contains(output, "Verified linux login me") || !strings.Contains(output, "Generate SSH alias configuration?") {
+		testingContext.Fatal("new destination did not continue into registration", err, loadErr, document.Registrations, output)
+	}
+}
+
 func TestBootstrapKeyUsesOriginalInputAndVerificationFailureRetainsRegistration(testingContext *testing.T) {
 	home, external := prepareRegistration(testingContext, true)
 	bootstrap := writeFixture(testingContext, home, "bootstrap key", "existing private fixture")

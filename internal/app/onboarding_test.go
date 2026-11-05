@@ -126,7 +126,7 @@ func TestDestinationReusesImportedPublicKeyAndPersistsManualHistory(testingConte
 		testingContext.Fatalf("import: %v %s", err, output)
 	}
 	before, _ := os.ReadFile(publicPath)
-	output, err := runCLI(testingContext, home, "1\nn\n自分のVPS\nserver.tailnet.ts.net\n利用者\n2222\nunknown\nlinux\n1\nyes\n2\n0\n", onboardingRunner{testingContext: testingContext, home: home, generate: func(command app.Command, path string) error {
+	output, err := runCLI(testingContext, home, "1\nn\n自分のVPS\nserver.tailnet.ts.net\n利用者\n2222\nunknown\nlinux\n1\nyes\n0\n2\n0\n", onboardingRunner{testingContext: testingContext, home: home, generate: func(command app.Command, path string) error {
 		testingContext.Fatal("reuse generated another key")
 		return nil
 	}})
@@ -249,7 +249,7 @@ func TestNewDestinationResumesSameKeyAfterInterruption(testingContext *testing.T
 	if err != nil || !strings.Contains(output, "interrupted") {
 		testingContext.Fatalf("interruption: %v %s", err, output)
 	}
-	output, err = runCLI(testingContext, home, "1\nr\n1\nyes\n2\n0\n", onboardingRunner{testingContext: testingContext, home: home, generate: func(command app.Command, path string) error {
+	output, err = runCLI(testingContext, home, "1\nr\n1\nyes\n0\n2\n0\n", onboardingRunner{testingContext: testingContext, home: home, generate: func(command app.Command, path string) error {
 		testingContext.Fatal("recovery generated another pair")
 		return nil
 	}})
