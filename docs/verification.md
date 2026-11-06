@@ -68,6 +68,16 @@ ticket04の統合コミットは `cda1cb8`。統合後の `go test ./... -count=
 
 ticket05の統合コミットは `331c2fe`。`python scripts/test_installers.py -v` は24件成功（68.079秒）。`python scripts/package_release.py --version v0.0.0-ticket05 --output .tmp/distribution-release-v0.0.0-ticket05` は6対象成功。実Windows amd64配布物の `--version` は `SSH KeyFlow v0.0.0-ticket05`。公開先とGitHub Actionsでの実行は未設定・未確認。
 
-- 実際のGitHub Releasesからの取得：公開先とリリースの設定後に確認する。
+## 初回公開リリースの検証（2026-11-06）
+
+正式版 [v0.1.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.1.0) を公開した。タグは `ee3a00f4f86171ab3860fbc5f09b0fdf8462040f` を指し、最新正式リリースとして取得できることを確認した。
+
+- [mainのCI](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42153679151) と [リリースワークフロー](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42154035210) が成功。Linux・macOS・WindowsのGoテスト、インストーラー25項目（OS固有のskipを含む）、6対象のクロスビルドを実行した。
+- 公開された全9配布物をGitHub Releasesから取得し、manifest全8件のSHA256、各アーカイブの単一実行ファイル構成、Unix実行権限0755、`install.sh`のLF改行を検証した。
+- 公開された`install.ps1`をWindows PowerShell 5.1で実行し、一時配置先への最新正式版の導入、指定版による更新、削除が成功。実バイナリの表示は`SSH KeyFlow v0.1.0`。一時プロファイルのPATH追記と、削除後の元bytes完全一致も確認した。実際のユーザーのSSH設定・鍵・PowerShellプロファイルは変更していない。
+- CIで検出したGNU ddの末尾コピーによる作業ファイル切り詰めは`conv=notrunc`で修正した。末尾改行のない元プロファイルとUnicode・引用符を含むパスの回帰テストが成功。macOSの実パス・コマンド配置とWindowsのアカウント・ACLに合わせて隔離fixtureを補正し、管理対象外パスやACLの保護は保持した。
+
+## 未検証の範囲
+
 - Linux/macOS/Windowsの実SSHサーバーへの登録・接続・解除：ユーザーが検証対象を指定した後に確認する。
 - 各OS・CPUでのネイティブ実行：クロスビルドの成功とは区別する。
