@@ -32,7 +32,7 @@
 
 管理情報は `~/.ssh/ssh-keyflow/state.json`、生成した鍵は同ディレクトリの `keys/` に保存します。登録状態、指定鍵の接続確認、処理の進捗を区別するため、登録済みでも接続確認が失敗または未確認の場合があります。検証環境と確認済みの範囲は [docs/verification.md](docs/verification.md) を参照してください。
 
-**公開先の GitHub owner/repository は未設定です。** 以下の `OWNER/REPO` を実際の公開先に置き換えてください。リリースが公開されるまではダウンロード手順は利用できません。
+公開先は [haoyan-dev/ssh-keyflow](https://github.com/haoyan-dev/ssh-keyflow) です。リリースが公開されるまでは以下のダウンロード手順は利用できません。ソースからは `go run ./cmd/ssh-keyflow` で起動できます。
 
 ## インストールと更新
 
@@ -43,7 +43,7 @@ Linux/macOS は POSIX `sh`、`curl`、`tar`、`awk`、`sed`、`grep`、`dd`、`c
 Linux/macOS:
 
 ```sh
-repository='OWNER/REPO'
+repository='haoyan-dev/ssh-keyflow'
 curl -fL "https://github.com/$repository/releases/latest/download/install.sh" -o install.sh
 sh install.sh --repository "$repository"
 ssh-keyflow --version
@@ -52,7 +52,7 @@ ssh-keyflow --version
 Windows PowerShell:
 
 ```powershell
-$repository = 'OWNER/REPO'
+$repository = 'haoyan-dev/ssh-keyflow'
 Invoke-WebRequest -UseBasicParsing "https://github.com/$repository/releases/latest/download/install.ps1" -OutFile install.ps1
 & .\install.ps1 -Repository $repository
 ssh-keyflow --version
@@ -63,11 +63,11 @@ ssh-keyflow --version
 指定版のインストールと、同じコマンドによる更新:
 
 ```sh
-sh install.sh --repository 'OWNER/REPO' --version v1.2.3
+sh install.sh --repository 'haoyan-dev/ssh-keyflow' --version v1.2.3
 ```
 
 ```powershell
-& .\install.ps1 -Repository 'OWNER/REPO' -Version v1.2.3
+& .\install.ps1 -Repository 'haoyan-dev/ssh-keyflow' -Version v1.2.3
 ```
 
 配布元は `--repository` / `-Repository` のほか、環境変数 `SSH_KEYFLOW_REPOSITORY` でも指定できます。既定の配置先は Linux/macOS では `~/.local/bin`、Windows では `%LOCALAPPDATA%\Programs\ssh-keyflow` です。`--install-dir` / `-InstallDir` でユーザーが書き込める絶対パスを指定できます。同じ配置先を指定して更新・削除してください。
