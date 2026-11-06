@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -134,6 +135,51 @@ func TestStructuredInvalidAuthenticationDoesNotInitializeStorage(testingContext 
 	}
 	if _, err := os.Stat(filepath.Join(home, ".ssh")); !os.IsNotExist(err) {
 		testingContext.Fatal("invalid input initialized storage")
+	}
+}
+
+func TestStructuredAmbiguousKeyReportsInvalidInputWithoutChangingRecords(testingContext *testing.T) {
+	home := fixtureTempDir(testingContext)
+	options := app.Options{Home: home, Output: &bytes.Buffer{}, Runner: runner{}, Confirm: func(string) (bool, error) { return true, nil }}
+	for index, public := range []string{publicKey, otherPublicKey} {
+		path := writeFixture(testingContext, home, fmt.Sprintf(".ssh/source%d.pub", index), public)
+		options.Request = &app.Request{Operation: "import", Name: "same-name", PublicPath: path}
+		if err := app.Run(context.Background(), options); err != nil {
+			testingContext.Fatal(err)
+		}
+	}
+	options.Request = &app.Request{Operation: "delete", Key: "same-name"}
+	if err := app.Run(context.Background(), options); !errors.Is(err, app.ErrInvalidInput) {
+		testingContext.Fatalf("ambiguous target was not a usage error: %v", err)
+	}
+	view, err := app.Snapshot(options)
+	if err != nil || len(view.State.Keys) != 2 || len(view.State.Deletions) != 0 {
+		testingContext.Fatalf("ambiguous target changed records: %v %#v", err, view.State)
+	}
+}
+
+func TestStructuredMissingTargetsFailBeforeStorageInitialization(testingContext *testing.T) {
+	requests := []app.Request{
+		{Operation: "add", Key: "missing", Destination: app.Destination{Alias: "server", Hostname: "server.example", User: "alice", Port: 22, OS: "linux"}},
+		{Operation: "delete", Key: "missing"},
+		{Operation: "register", Host: "missing", Key: "missing"},
+		{Operation: "unregister", Registration: "missing"},
+		{Operation: "resume", Resume: "missing"},
+	}
+	for _, request := range requests {
+		testingContext.Run(request.Operation, func(testingContext *testing.T) {
+			home := fixtureTempDir(testingContext)
+			err := app.Run(context.Background(), app.Options{
+				Home: home, Output: &bytes.Buffer{}, Runner: runner{}, Request: &request,
+				Confirm: func(string) (bool, error) { return true, nil },
+			})
+			if !errors.Is(err, app.ErrInvalidInput) {
+				testingContext.Fatalf("missing target was not a usage error: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(home, ".ssh")); !os.IsNotExist(err) {
+				testingContext.Fatal("invalid target initialized storage")
+			}
+		})
 	}
 }
 

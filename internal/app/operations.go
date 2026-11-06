@@ -11,6 +11,7 @@ import (
 )
 
 var ErrCancelled = errors.New("cancelled; no further changes made")
+var ErrInvalidInput = errors.New("invalid operation input")
 
 // Request contains operation inputs, never credentials or simulated menu answers.
 type Request struct {
@@ -59,6 +60,9 @@ func Snapshot(options Options) (View, error) {
 func execute(ctx context.Context, options Options) error {
 	request := options.Request
 	if err := request.Validate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+	if err := request.checkTargets(options.Home); err != nil {
 		return err
 	}
 	switch request.Operation {
@@ -141,7 +145,7 @@ func execute(ctx context.Context, options Options) error {
 			}
 			for _, host := range document.Hosts {
 				if strings.EqualFold(host.Alias, request.Destination.Alias) {
-					return fmt.Errorf("destination alias already managed")
+					return fmt.Errorf("%w: destination alias already managed", ErrInvalidInput)
 				}
 			}
 			if err := checkAlias(options, request.Destination.Alias); err != nil {
@@ -160,6 +164,62 @@ func execute(ctx context.Context, options Options) error {
 	default:
 		return fmt.Errorf("unknown operation %q", request.Operation)
 	}
+}
+
+func (request Request) checkTargets(home string) error {
+	switch request.Operation {
+	case "list", "create", "import":
+		return nil
+	case "add":
+		if request.Key == "" {
+			return nil
+		}
+	}
+	document, err := state.Load(home)
+	if err != nil {
+		return err
+	}
+	switch request.Operation {
+	case "add", "delete":
+		_, err = keyIndex(document, request.Key)
+		return err
+	case "register":
+		if _, err := destinationIndex(document, request.Host); err != nil {
+			return err
+		}
+		_, err = keyIndex(document, request.Key)
+		return err
+	case "unregister":
+		for _, registration := range document.Registrations {
+			if registration.ID == request.Registration {
+				return nil
+			}
+		}
+		return fmt.Errorf("%w: registration %q not found", ErrInvalidInput, request.Registration)
+	case "resume":
+		for _, creation := range document.Creations {
+			if creation.ID == request.Resume {
+				return nil
+			}
+		}
+		for _, job := range document.Onboardings {
+			if job.ID == request.Resume {
+				return nil
+			}
+		}
+		for _, registration := range document.Registrations {
+			if registration.ID == request.Resume {
+				return nil
+			}
+		}
+		for _, deletion := range document.Deletions {
+			if deletion.ID == request.Resume && deletion.Stage != "complete" {
+				return nil
+			}
+		}
+		return fmt.Errorf("%w: resumable operation %q not found", ErrInvalidInput, request.Resume)
+	}
+	return nil
 }
 
 // Validate checks operation arguments without accessing disk or invoking SSH.
@@ -232,13 +292,13 @@ func keyIndex(document state.State, reference string) (int, error) {
 	for index, key := range document.Keys {
 		if reference != "" && key.Name == reference {
 			if found >= 0 {
-				return 0, fmt.Errorf("ambiguous managed key %q; use its fixed ID", reference)
+				return 0, fmt.Errorf("%w: ambiguous managed key %q; use its fixed ID", ErrInvalidInput, reference)
 			}
 			found = index
 		}
 	}
 	if found < 0 {
-		return 0, fmt.Errorf("managed key %q not found", reference)
+		return 0, fmt.Errorf("%w: managed key %q not found", ErrInvalidInput, reference)
 	}
 	return found, nil
 }
@@ -267,7 +327,7 @@ func destinationIndex(document state.State, reference string) (int, error) {
 			return index, nil
 		}
 	}
-	return 0, fmt.Errorf("destination %q not found", reference)
+	return 0, fmt.Errorf("%w: destination %q not found", ErrInvalidInput, reference)
 }
 
 func resumeOperation(ctx context.Context, options Options) error {
@@ -321,6 +381,6 @@ func resumeOperation(ctx context.Context, options Options) error {
 				return finishOnboarding(ctx, options, store, &document, index)
 			}
 		}
-		return fmt.Errorf("resumable operation %q not found", id)
+		return fmt.Errorf("%w: resumable operation %q not found", ErrInvalidInput, id)
 	})
 }

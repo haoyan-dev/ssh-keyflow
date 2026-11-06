@@ -34,7 +34,7 @@ func unregister(ctx context.Context, options Options) error {
 				}
 			}
 			if index < 0 {
-				return fmt.Errorf("registration %q not found", options.Request.Registration)
+				return fmt.Errorf("%w: registration %q not found", ErrInvalidInput, options.Request.Registration)
 			}
 		} else {
 			choice, err := prompt(options, "Registration number to unregister; 0: Back")
