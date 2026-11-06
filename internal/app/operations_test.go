@@ -197,3 +197,118 @@ func TestStructuredRegistrationUsesOriginalInputAndConfigConsent(testingContext 
 		testingContext.Fatalf("direct registration/configuration failed: %v %v %#v %s", err, readErr, view.State, output.String())
 	}
 }
+
+func TestStructuredRegistrationReportsSpecifiedKeyVerificationFailure(testingContext *testing.T) {
+	for _, verification := range []string{"denied", "missing-marker"} {
+		testingContext.Run(verification, func(testingContext *testing.T) {
+			home, external := prepareRegistration(testingContext, true)
+			external.ssh = func(command app.Command) error {
+				payload := command.Args[len(command.Args)-1]
+				switch {
+				case strings.Contains(payload, "KEYFLOW_PROBE"):
+					fmt.Fprintln(command.Stdout, "KEYFLOW_TARGET:/home/me/.ssh/authorized_keys")
+				case strings.Contains(payload, "KEYFLOW_REGISTER"):
+					fmt.Fprintln(command.Stdout, "KEYFLOW_REGISTERED")
+				case strings.Contains(payload, "KEYFLOW_VERIFIED"):
+					if verification == "denied" {
+						return fmt.Errorf("specified key denied")
+					}
+				}
+				return nil
+			}
+			var output bytes.Buffer
+			err := app.Run(context.Background(), app.Options{
+				Home: home, Input: strings.NewReader(""), Output: &output, Runner: external,
+				Request: &app.Request{Operation: "register", Host: "server", Key: "fixture", Bootstrap: "password", Configure: true},
+				Confirm: func(string) (bool, error) { return true, nil },
+			})
+			view, readErr := app.Snapshot(app.Options{Home: home})
+			if err == nil || !strings.Contains(err.Error(), "specified-key connection verification failed") {
+				testingContext.Fatalf("verification failure reported success: %v\n%s", err, output.String())
+			}
+			if readErr != nil || view.State.Registrations[0].Status != "registered" || view.State.Registrations[0].ConnectionCheck != "failed" ||
+				len(view.State.History) == 0 || view.State.History[len(view.State.History)-1].ConnectionCheck != "failed" || len(view.State.Configs) != 0 {
+				testingContext.Fatalf("verification failure lost completed registration or continued configuration: %v %#v", readErr, view.State)
+			}
+			if !strings.Contains(output.String(), "registered; connection=failed") {
+				testingContext.Fatalf("completed registration and failed connection are not distinguished: %s", output.String())
+			}
+		})
+	}
+}
+
+func TestStructuredResumeShowsSavedTargetsBeforeConfirmation(testingContext *testing.T) {
+	for _, kind := range []string{"creation", "onboarding", "pending-key"} {
+		testingContext.Run(kind, func(testingContext *testing.T) {
+			home := fixtureTempDir(testingContext)
+			var output bytes.Buffer
+			options := app.Options{Home: home, Output: &output, Confirm: func(string) (bool, error) { return true, nil }}
+			if kind == "onboarding" {
+				var external registrationRunner
+				home, external = prepareRegistration(testingContext, true)
+				options.Home, options.Runner = home, external
+			} else {
+				options.Runner = onboardingRunner{testingContext: testingContext, home: home, generate: func(app.Command, string) error {
+					return fmt.Errorf("simulated interruption")
+				}}
+				options.Request = &app.Request{Operation: "create", Name: "saved creation"}
+				if kind == "pending-key" {
+					options.Request = &app.Request{Operation: "add", Name: "saved onboarding key",
+						Destination: app.Destination{Alias: "pending", Hostname: "pending.example", User: "alice", Port: 2222, OS: "macos"}}
+				}
+				if err := app.Run(context.Background(), options); err == nil {
+					testingContext.Fatal("fixture creation was not interrupted")
+				}
+			}
+			view, err := app.Snapshot(options)
+			if err != nil {
+				testingContext.Fatal(err)
+			}
+			var id string
+			var expected []string
+			if kind == "creation" {
+				creation := view.State.Creations[0]
+				id = creation.ID
+				expected = []string{creation.ID, creation.Name, creation.PrivatePath, creation.PublicPath, "stage=" + creation.Stage, "reconcile"}
+			} else {
+				job, host := view.State.Onboardings[0], view.State.Hosts[0]
+				id = job.ID
+				expected = []string{job.ID, "stage=" + job.Stage, host.Alias, fmt.Sprintf("%s@%s:%d", host.User, host.Hostname, host.Port), "OS=" + host.OS, "register"}
+				if kind == "pending-key" {
+					creation := view.State.Creations[0]
+					expected = append(expected, creation.Name, creation.PrivatePath, creation.PublicPath, "stage="+creation.Stage)
+				} else {
+					key := view.State.Keys[0]
+					expected = append(expected, key.ID, key.Name, key.Fingerprint, key.PrivatePath, key.PublicPath)
+				}
+			}
+			statePath := filepath.Join(home, ".ssh", "ssh-keyflow", "state.json")
+			before, err := os.ReadFile(statePath)
+			if err != nil {
+				testingContext.Fatal(err)
+			}
+			output.Reset()
+			preview := ""
+			options.Request = &app.Request{Operation: "resume", Resume: id}
+			options.Confirm = func(string) (bool, error) { preview = output.String(); return false, nil }
+			err = app.Run(context.Background(), options)
+			if !errors.Is(err, app.ErrCancelled) {
+				testingContext.Fatalf("resume rejection was not cancellation: %v", err)
+			}
+			for _, text := range expected {
+				if !strings.Contains(preview, text) {
+					testingContext.Fatalf("missing saved target %q before confirmation:\n%s", text, preview)
+				}
+			}
+			after, err := os.ReadFile(statePath)
+			if err != nil || !bytes.Equal(before, after) {
+				testingContext.Fatalf("rejected resume changed saved state: %v", err)
+			}
+			for _, creation := range view.State.Creations {
+				if _, err := os.Stat(creation.PrivatePath); !os.IsNotExist(err) {
+					testingContext.Fatal("rejected resume generated a key")
+				}
+			}
+		})
+	}
+}

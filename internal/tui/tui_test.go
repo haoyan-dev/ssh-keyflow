@@ -93,6 +93,29 @@ func TestTUINarrowFormKeepsInputAndControlsVisible(test *testing.T) {
 	}
 }
 
+func TestTUIAddDestinationRequiresExplicitOSBeforeReview(test *testing.T) {
+	home := test.TempDir()
+	text := func(value string) tea.Msg { return tea.KeyPressMsg(tea.Key{Code: []rune(value)[0], Text: value}) }
+	review := tea.KeyPressMsg(tea.Key{Code: 's', Mod: tea.ModCtrl})
+	form := []tea.Msg{
+		press('a'), text("server"), press(tea.KeyTab), text("server.example"), press(tea.KeyTab), text("alice"),
+		press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), text("new key"), review,
+	}
+	unconfirmed := runScreen(test, home, form...)
+	if strings.Contains(unconfirmed, "Review add") || !strings.Contains(unconfirmed, "invalid destination fields") {
+		test.Fatalf("missing OS was accepted as confirmed:\n%s", unconfirmed)
+	}
+	back := tea.KeyPressMsg(tea.Key{Code: tea.KeyTab, Mod: tea.ModShift})
+	form = append(form, back, back, back, text("macos"), review)
+	confirmed := runScreen(test, home, form...)
+	if !strings.Contains(confirmed, "Review add") || !strings.Contains(confirmed, "OS: linux/macos/windows: macos") {
+		test.Fatalf("explicit OS could not reach review:\n%s", confirmed)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".ssh")); !os.IsNotExist(err) {
+		test.Fatal("form review initialized storage")
+	}
+}
+
 type publicRunner struct{}
 
 func (publicRunner) LookPath(name string) (string, error)   { return name, nil }

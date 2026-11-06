@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"ssh-keyflow/internal/app"
 	"ssh-keyflow/internal/cli"
 )
 
@@ -110,4 +111,71 @@ func TestVersionUsageAndRuntimeFailuresHaveDistinctOutput(test *testing.T) {
 	if code != 1 || output.Len() != 0 || !strings.Contains(diagnostics.String(), "invalid state.json") || strings.Contains(diagnostics.String(), "Usage:") {
 		test.Fatalf("runtime: exit=%d stdout=%s stderr=%s", code, output.String(), diagnostics.String())
 	}
+}
+
+func TestListsShowUnmanagedDiscoveryWithoutWritingOrInvokingSSH(test *testing.T) {
+	home := test.TempDir()
+	files := map[string]string{
+		"id_external.pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB outside\n",
+		"config":          "Host outside\n HostName outside.example\nMatch exec never-run\n IdentityFile ~/.ssh/id_external\n",
+	}
+	if err := os.Mkdir(filepath.Join(home, ".ssh"), 0700); err != nil {
+		test.Fatal(err)
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(home, ".ssh", name), []byte(content), 0600); err != nil {
+			test.Fatal(err)
+		}
+	}
+	for _, category := range []string{"keys", "hosts"} {
+		for _, asJSON := range []bool{false, true} {
+			arguments := []string{category, "list"}
+			if asJSON {
+				arguments = append(arguments, "--json")
+			}
+			var output, diagnostics bytes.Buffer
+			code := cli.Run(context.Background(), arguments, cli.Options{
+				Home: home, Input: strings.NewReader(""), Output: &output, Error: &diagnostics, Runner: forbiddenSSH{test},
+			})
+			if code != 0 || diagnostics.Len() != 0 {
+				test.Fatalf("read-only list failed: %d %s", code, diagnostics.String())
+			}
+			discovery := output.String()
+			if asJSON {
+				var result struct{ Discovery string }
+				if err := json.Unmarshal(output.Bytes(), &result); err != nil {
+					test.Fatalf("JSON mixed diagnostics or text: %v\n%s", err, output.String())
+				}
+				discovery = result.Discovery
+			} else if !strings.Contains(discovery, "Discovery (read-only; unmanaged files are not imported)") {
+				test.Fatalf("text list does not distinguish unmanaged candidates:\n%s", discovery)
+			}
+			for _, expected := range []string{"unmanaged key candidate", "id_external.pub", "unmanaged Host outside", "Match exec is never executed"} {
+				if !strings.Contains(discovery, expected) {
+					test.Fatalf("list %v omitted %q:\n%s", arguments, expected, discovery)
+				}
+			}
+		}
+	}
+	for name, content := range files {
+		current, err := os.ReadFile(filepath.Join(home, ".ssh", name))
+		if err != nil || string(current) != content {
+			test.Fatalf("discovery changed unmanaged %s: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, ".ssh", "ssh-keyflow")); !os.IsNotExist(err) {
+		test.Fatal("discovery initialized management storage")
+	}
+}
+
+type forbiddenSSH struct{ test *testing.T }
+
+func (external forbiddenSSH) LookPath(string) (string, error) {
+	external.test.Fatal("read-only listing probed SSH dependencies")
+	return "", nil
+}
+
+func (external forbiddenSSH) Run(context.Context, app.Command) error {
+	external.test.Fatal("read-only listing executed an SSH command")
+	return nil
 }

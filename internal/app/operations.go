@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"ssh-keyflow/internal/state"
@@ -52,7 +53,7 @@ func Snapshot(options Options) (View, error) {
 	}
 	var output bytes.Buffer
 	options.Output = &output
-	list(options, document)
+	discover(options, document)
 	view.Discovery = output.String()
 	return view, nil
 }
@@ -72,6 +73,7 @@ func execute(ctx context.Context, options Options) error {
 			if view.Review != "" {
 				fmt.Fprintln(options.Output, view.Review, "(updates stopped)")
 			}
+			listManaged(options, view.State)
 			fmt.Fprint(options.Output, view.Discovery)
 		}
 		return err
@@ -366,6 +368,7 @@ func resumeOperation(ctx context.Context, options Options) error {
 				if creation.Stage == "complete" {
 					return fmt.Errorf("creation is already complete")
 				}
+				printCreationResume(options.Output, creation)
 				if _, err := prompt(options, "Type yes to resume this recorded creation; existing files are preserved:"); err != nil {
 					return err
 				}
@@ -375,6 +378,24 @@ func resumeOperation(ctx context.Context, options Options) error {
 		}
 		for index, job := range document.Onboardings {
 			if job.ID == id {
+				fmt.Fprintf(options.Output, "Resume onboarding %s stage=%s\n", job.ID, job.Stage)
+				for _, host := range document.Hosts {
+					if host.ID == job.HostID {
+						fmt.Fprintf(options.Output, "Destination %s [%s]: %s@%s:%d OS=%s account=%s\n",
+							host.Alias, host.ID, host.User, host.Hostname, host.Port, host.OS, host.WindowsAccount)
+					}
+				}
+				for _, key := range document.Keys {
+					if key.ID == job.KeyID {
+						fmt.Fprintf(options.Output, "Saved key %q [%s] %s\nPrivate: %s\nPublic: %s\n", key.Name, key.ID, key.Fingerprint, key.PrivatePath, key.PublicPath)
+					}
+				}
+				for _, creation := range document.Creations {
+					if creation.ID == job.CreationID && creation.Stage != "complete" {
+						printCreationResume(options.Output, creation)
+					}
+				}
+				fmt.Fprintln(options.Output, "Continue saved key work, then register at this destination or show manual guidance using the requested authentication; reconcile unknown results before retrying.")
 				if _, err := prompt(options, "Type yes to resume saved destination and key:"); err != nil {
 					return err
 				}
@@ -383,4 +404,9 @@ func resumeOperation(ctx context.Context, options Options) error {
 		}
 		return fmt.Errorf("%w: resumable operation %q not found", ErrInvalidInput, id)
 	})
+}
+
+func printCreationResume(output io.Writer, creation state.Creation) {
+	fmt.Fprintf(output, "Resume creation %s %q stage=%s\nPrivate: %s\nPublic: %s\nWill reconcile these saved paths, generate only if absent, and validate the pair; existing files are preserved.\n",
+		creation.ID, creation.Name, creation.Stage, creation.PrivatePath, creation.PublicPath)
 }

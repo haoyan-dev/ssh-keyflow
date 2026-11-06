@@ -204,6 +204,7 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 	if err := recordRegistration(store, document, registrationIndex); err != nil {
 		return err
 	}
+	var verificationError error
 	if key.PrivatePath != "" {
 		if err := integrity(*document); err != nil {
 			return err
@@ -214,12 +215,19 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 		registration.ConnectionCheck = "failed"
 		if verifyErr == nil && result == "KEYFLOW_VERIFIED" {
 			registration.ConnectionCheck = "verified"
+		} else if verifyErr != nil {
+			verificationError = fmt.Errorf("specified-key connection verification failed: %w", verifyErr)
+		} else {
+			verificationError = fmt.Errorf("specified-key connection verification failed: expected success marker was not received")
 		}
 		if err := recordRegistration(store, document, registrationIndex); err != nil {
 			return err
 		}
 	}
 	fmt.Fprintf(options.Output, "%s: registered; connection=%s (specified key only).\n", host.Alias, registration.ConnectionCheck)
+	if verificationError != nil {
+		return verificationError
+	}
 	return configureRegistration(options, store, document, host, key)
 }
 

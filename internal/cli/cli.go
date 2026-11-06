@@ -239,7 +239,14 @@ func printRecords(output io.Writer, category string, view app.View) error {
 			fmt.Fprintf(table, "history %s\t%s\t%s\t%s\t%s\t%s\t%s\n", event.RegistrationID, event.At, "", event.Status, event.ConnectionCheck, event.Operation, event.Stage)
 		}
 	}
-	return table.Flush()
+	if err := table.Flush(); err != nil {
+		return err
+	}
+	if category == "hosts" || category == "keys" {
+		_, err := fmt.Fprint(output, "\nDiscovery (read-only; unmanaged files are not imported)\n", view.Discovery)
+		return err
+	}
+	return nil
 }
 
 func terminal(input io.Reader) bool {

@@ -11,6 +11,11 @@ import (
 )
 
 func list(options Options, document state.State) {
+	listManaged(options, document)
+	discover(options, document)
+}
+
+func listManaged(options Options, document state.State) {
 	for _, deleted := range document.DeletedKeys {
 		fmt.Fprintf(options.Output, "deleted key %s [%s] %s deleted_at=%s; tombstone and registration history retained\n", deleted.Key.Name, deleted.Key.ID, deleted.Key.Fingerprint, deleted.DeletedAt)
 	}
@@ -38,6 +43,9 @@ func list(options Options, document state.State) {
 			fmt.Fprintf(options.Output, "creation %s [%s] %s stage=%s; resume this saved operation\n", creation.Name, creation.ID, creation.PrivatePath, creation.Stage)
 		}
 	}
+}
+
+func discover(options Options, document state.State) {
 	managed := map[string]bool{}
 	for _, creation := range document.Creations {
 		managed[filepath.Clean(creation.PrivatePath)], managed[filepath.Clean(creation.PublicPath)] = true, true

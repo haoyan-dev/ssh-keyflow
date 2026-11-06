@@ -55,7 +55,7 @@ func (m *model) openForm(action string) {
 		add("hostname", "Host / IP", "")
 		add("user", "Login user", "")
 		add("port", "Port", "22")
-		add("os", "OS: linux/macos/windows", "linux")
+		add("os", "OS: linux/macos/windows", "")
 		add("account", "Windows account (or blank)", "")
 		m.fields[len(m.fields)-1].input.Placeholder = "standard / administrator"
 		add("key", "Key ID/name (blank = new)", key)
