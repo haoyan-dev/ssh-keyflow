@@ -476,6 +476,16 @@ $fixtureHome = Join-Path $Fixture 'home'
 $fixtureServer = Join-Path $Fixture 'server'
 $null = New-Item -ItemType Directory -Path $fixtureHome
 $null = New-Item -ItemType Directory -Path $fixtureServer
+if ($Account -eq 'administrator') {
+    $acl = New-Object Security.AccessControl.DirectorySecurity
+    $acl.SetAccessRuleProtection($true, $false)
+    $acl.SetOwner((New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')))
+    foreach ($principal in @('S-1-5-32-544', 'S-1-5-18')) {
+        $sid = New-Object Security.Principal.SecurityIdentifier($principal)
+        $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'Allow')))
+    }
+    Set-Acl -LiteralPath $fixtureServer -AclObject $acl
+}
 & $ScriptPath -RegistrationHome $fixtureHome -RegistrationServer $fixtureServer
 if ($Account -eq 'administrator') { $authorized = Join-Path $fixtureServer 'administrators_authorized_keys' } else { $authorized = Join-Path $fixtureHome '.ssh/authorized_keys' }
 $original = [IO.File]::ReadAllText($authorized)

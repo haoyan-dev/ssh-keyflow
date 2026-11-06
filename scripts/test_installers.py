@@ -5,6 +5,7 @@ import http.server
 import io
 import json
 import os
+import shlex
 from pathlib import Path
 import shutil
 import subprocess
@@ -100,8 +101,6 @@ class Installers(unittest.TestCase):
             installer = self.home / 'install.sh'
             installer.write_bytes((ROOT / 'install.sh').read_bytes().replace(b'\r\n', b'\n'))
             arguments = [BASH, '-c', 'PATH="$SSH_KEYFLOW_TEST_TOOLS:$PATH"; export PATH; exec "$0" "$@"', getattr(self, 'shell', 'sh')]
-            if getattr(self, 'trace', False):
-                arguments += ['-x']
             arguments += [shell_path(installer), '--install-dir', shell_path(self.destination), '--profile', shell_path(self.profile)]
             if version:
                 arguments += ['--version', version]
@@ -336,12 +335,13 @@ class Installers(unittest.TestCase):
         tools = self.home / 'tools'
         tools.mkdir()
         wrapper = tools / 'mv'
-        wrapper.write_text('#!/bin/sh\ncase "$*" in *"/.ssh-keyflow-install/hash") exit 1;; esac\nexec /usr/bin/mv "$@"\n')
+        native_mv = subprocess.check_output([BASH, '-c', 'command -v mv'], text=True).strip()
+        wrapper.write_text('#!/bin/sh\ncase "$*" in *"/.ssh-keyflow-install/hash") exit 1;; esac\nexec ' + shlex.quote(native_mv) + ' "$@"\n')
         wrapper.chmod(0o755)
         result = self.run_installer(version='v1.0.0')
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.destination / 'ssh-keyflow').exists())
-        self.assertFalse((self.destination / '.ssh-keyflow-install').exists())
+        self.assertFalse((self.destination / '.ssh-keyflow-install').exists(), result.stdout + result.stderr)
 
     def test_truncated_path_stanza_is_not_removed(self):
         for platform in self.platforms():
@@ -355,7 +355,6 @@ class Installers(unittest.TestCase):
                 self.assertEqual(self.profile.read_bytes(), changed)
 
     def test_paths_with_quotes_and_unicode_preserve_profile_bytes(self):
-        self.trace = True
         for platform in self.platforms():
             with self.subTest(platform=platform):
                 self.destination = self.home / "日本語's bin"
@@ -380,7 +379,8 @@ class Installers(unittest.TestCase):
     def test_shell_receipt_write_failure_preserves_previous_version(self):
         self.assert_success(self.run_installer(version='v1.0.0'))
         wrapper = self.home / 'tools' / 'mv'
-        wrapper.write_text('#!/bin/sh\ncase "$*" in *"/.ssh-keyflow-install/hash") exit 1;; esac\nexec /usr/bin/mv "$@"\n')
+        native_mv = subprocess.check_output([BASH, '-c', 'command -v mv'], text=True).strip()
+        wrapper.write_text('#!/bin/sh\ncase "$*" in *"/.ssh-keyflow-install/hash") exit 1;; esac\nexec ' + shlex.quote(native_mv) + ' "$@"\n')
         wrapper.chmod(0o755)
         result = self.run_installer(version='v2.0.0')
         self.assertNotEqual(result.returncode, 0)
