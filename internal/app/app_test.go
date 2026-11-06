@@ -540,11 +540,11 @@ func TestMissingDependencyCanBeRechecked(testingContext *testing.T) {
 	}
 }
 
-func fixtureTempDir(t *testing.T) string {
-	t.Helper()
-	directory, err := filepath.EvalSymlinks(t.TempDir())
+func fixtureTempDir(testingContext *testing.T) string {
+	testingContext.Helper()
+	directory, err := filepath.EvalSymlinks(testingContext.TempDir())
 	if err != nil {
-		t.Fatal(err)
+		testingContext.Fatal(err)
 	}
 	return directory
 }

@@ -32,7 +32,7 @@
 
 管理情報は `~/.ssh/ssh-keyflow/state.json`、生成した鍵は同ディレクトリの `keys/` に保存します。登録状態、指定鍵の接続確認、処理の進捗を区別するため、登録済みでも接続確認が失敗または未確認の場合があります。検証環境と確認済みの範囲は [docs/verification.md](docs/verification.md) を参照してください。
 
-公開先は [haoyan-dev/ssh-keyflow](https://github.com/haoyan-dev/ssh-keyflow) です。リリースが公開されるまでは以下のダウンロード手順は利用できません。ソースからは `go run ./cmd/ssh-keyflow` で起動できます。
+配布物とインストーラーは [GitHub Releases](https://github.com/haoyan-dev/ssh-keyflow/releases/latest) から取得できます。ソースからは `go run ./cmd/ssh-keyflow` で起動できます。
 
 ## インストールと更新
 
@@ -127,4 +127,4 @@ Windows のシェルテストは `C:/Program Files/Git/bin/bash.exe` を使い�
 
 CI は3 OS で Go テストとローカル配布物のテストを実行し、6対象のクロスビルドと Linux x64 の `--version` 注入を確認します。`v*` タグを push するとリリースワークフローが CI 成功後に9ファイルを公開します。公開先は実行環境の `GITHUB_REPOSITORY` です。`v1.2.3-rc.1` のようなタグはプレリリースにし、latest 正式版として扱いません。
 
-公開先と権限を設定した保守者が、公開するコミットに対してタグを作成・push してください。この作業自体ではタグ push やリリース公開を行っていません。クロスビルド成功は各 OS / CPU の実機動作確認を意味しません。fixture による対象選択・配置確認も、ARM64 実機でのバイナリ実行とは区別してください。
+新しいバージョンを公開するときは、CIが成功したコミットに対してタグを作成・push してください。クロスビルド成功は各 OS / CPU の実機動作確認を意味しません。fixture による対象選択・配置確認も、ARM64 実機でのバイナリ実行とは区別してください。

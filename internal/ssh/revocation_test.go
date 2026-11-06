@@ -482,38 +482,38 @@ func runPOSIXRevocation(testingContext *testing.T, fixture, script string) (stri
 	return string(output), err
 }
 
-func TestWindowsRevocationChecksNativeAccountType(t *testing.T) {
+func TestWindowsRevocationChecksNativeAccountType(testingContext *testing.T) {
 	if runtime.GOOS != "windows" {
-		t.Skip("requires native Windows identity")
+		testingContext.Skip("requires native Windows identity")
 	}
 	output, err := exec.Command("powershell.exe", "-NoProfile", "-Command", `$identity=[Security.Principal.WindowsIdentity]::GetCurrent(); @($identity.Groups | ForEach-Object { $_.Value }) -contains 'S-1-5-32-544'; (New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)`).CombinedOutput()
 	fields := strings.Fields(string(output))
 	if err != nil || len(fields) != 2 {
-		t.Fatal("native identity", err, string(output))
+		testingContext.Fatal("native identity", err, string(output))
 	}
 	administrator, elevated := fields[0] == "True", fields[1] == "True"
 	for _, account := range []string{"standard", "administrator"} {
-		t.Run(account, func(t *testing.T) {
+		testingContext.Run(account, func(testingContext *testing.T) {
 			plan, err := ssh.StandardRevocation("windows", account, []byte(revokedPublic))
 			if err != nil {
-				t.Fatal(err)
+				testingContext.Fatal(err)
 			}
 			prelude, _, found := strings.Cut(plan.Script, "$allowed =")
 			if !found {
-				t.Fatal("account guard boundary missing")
+				testingContext.Fatal("account guard boundary missing")
 			}
-			script := writeRevocationFixture(t, t.TempDir(), "guard.ps1", prelude+"Write-Output 'NATIVE_ACCOUNT_ACCEPTED'\n")
+			script := writeRevocationFixture(testingContext, testingContext.TempDir(), "guard.ps1", prelude+"Write-Output 'NATIVE_ACCOUNT_ACCEPTED'\n")
 			result, runErr := exec.Command("powershell.exe", "-NoProfile", "-File", script).CombinedOutput()
 			if (account == "administrator") != administrator {
 				if runErr == nil || !strings.Contains(string(result), "Account type mismatch") {
-					t.Fatal("native account mismatch accepted", runErr, string(result))
+					testingContext.Fatal("native account mismatch accepted", runErr, string(result))
 				}
 			} else if administrator && !elevated {
 				if runErr == nil || !strings.Contains(string(result), "already elevated") {
-					t.Fatal("elevation guard bypassed", runErr, string(result))
+					testingContext.Fatal("elevation guard bypassed", runErr, string(result))
 				}
 			} else if runErr != nil || !strings.Contains(string(result), "NATIVE_ACCOUNT_ACCEPTED") {
-				t.Fatal("native matching account rejected", runErr, string(result))
+				testingContext.Fatal("native matching account rejected", runErr, string(result))
 			}
 		})
 	}
