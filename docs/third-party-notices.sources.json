@@ -1,0 +1,170 @@
+[
+  {
+    "module": "Go standard library and runtime",
+    "version": "go version go1.26.2 windows/amd64",
+    "source": "LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "module": "Go standard library and runtime",
+    "version": "go version go1.26.2 windows/amd64",
+    "source": "PATENTS",
+    "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+  },
+  {
+    "module": "charm.land/bubbles/v2",
+    "version": "v2.2.1",
+    "source": "LICENSE",
+    "sha256": "373b3931e66627aadcfebd7771df93f3439203147e587a924508c63e20184d7f"
+  },
+  {
+    "module": "charm.land/bubbletea/v2",
+    "version": "v2.1.1",
+    "source": "LICENSE",
+    "sha256": "373b3931e66627aadcfebd7771df93f3439203147e587a924508c63e20184d7f"
+  },
+  {
+    "module": "charm.land/lipgloss/v2",
+    "version": "v2.0.6",
+    "source": "LICENSE",
+    "sha256": "3f531fb89f23b218fbe16b24fb5950418fa1f0046db5cfddb2c1e0d6d39bfcc0"
+  },
+  {
+    "module": "github.com/atotto/clipboard",
+    "version": "v0.1.4",
+    "source": "LICENSE",
+    "sha256": "2c4bac8e2a97180d6e7758c37de85d1cda1859aaf85b56da15d935d2d9a5564f"
+  },
+  {
+    "module": "github.com/charmbracelet/colorprofile",
+    "version": "v0.4.3",
+    "source": "LICENSE",
+    "sha256": "57d6eeeb336030b89c0e0d12cf869f84b97a481cd00b350ef21fca995da5a39a"
+  },
+  {
+    "module": "github.com/charmbracelet/ultraviolet",
+    "version": "v0.0.0-20261008173134-6b8d4baf91b4",
+    "source": "LICENSE",
+    "sha256": "8a77c755a1d1fbdc932e86f0449549121820b6f4cc1234b12fcfc8d38013c1de"
+  },
+  {
+    "module": "github.com/charmbracelet/x/ansi",
+    "version": "v0.11.9",
+    "source": "LICENSE",
+    "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b"
+  },
+  {
+    "module": "github.com/charmbracelet/x/term",
+    "version": "v0.2.2",
+    "source": "LICENSE",
+    "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b"
+  },
+  {
+    "module": "github.com/charmbracelet/x/termios",
+    "version": "v0.1.1",
+    "source": "LICENSE",
+    "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b"
+  },
+  {
+    "module": "github.com/charmbracelet/x/windows",
+    "version": "v0.2.2",
+    "source": "LICENSE",
+    "sha256": "0baa4a5942a801d93f4050d2bc0039d8c037105fcd335230d118eec99a11782b"
+  },
+  {
+    "module": "github.com/clipperhouse/displaywidth",
+    "version": "v0.11.0",
+    "source": "LICENSE",
+    "sha256": "fcdcc889a11c39c73d36019b838af41b418eb7811af12b746ace40c3074bb96c"
+  },
+  {
+    "module": "github.com/clipperhouse/uax29/v2",
+    "version": "v2.7.0",
+    "source": "LICENSE",
+    "sha256": "07e9e3daaccc707c9b7d535ed1405a65d37919fdd42197fe55e68820e974688c"
+  },
+  {
+    "module": "github.com/inconshreveable/mousetrap",
+    "version": "v1.1.0",
+    "source": "LICENSE",
+    "sha256": "4819582701f150b28a563a6cd8ed0bf5a754e3c67b90ad38d78ba4131bf77795"
+  },
+  {
+    "module": "github.com/lucasb-eyer/go-colorful",
+    "version": "v1.4.1",
+    "source": "LICENSE",
+    "sha256": "1e4cf2a117516ec1b54041d68ed4f5d331878b04de3386f4790e7b5b9c04e1ec"
+  },
+  {
+    "module": "github.com/mattn/go-runewidth",
+    "version": "v0.0.30",
+    "source": "LICENSE",
+    "sha256": "88a2379b3ca34bf5c57127aff9dcb802bbb60ece0805cdbda65b3bd115f971d9"
+  },
+  {
+    "module": "github.com/muesli/cancelreader",
+    "version": "v0.2.2",
+    "source": "LICENSE",
+    "sha256": "8c139dbbc83b4fb055b4100b6b9402f7de3dd6bbca05015bdfcc4b392c8cfd5f"
+  },
+  {
+    "module": "github.com/rivo/uniseg",
+    "version": "v0.4.7",
+    "source": "LICENSE.txt",
+    "sha256": "a59885f5f0f3b3c07cf9444db5fe399b6f0791eac82055f7b85cc65500551039"
+  },
+  {
+    "module": "github.com/sahilm/fuzzy",
+    "version": "v0.1.3",
+    "source": "LICENSE",
+    "sha256": "079761b785aaf03158eeb4e9256b9f081ab23d0f63b62794ae92cddb41f39780"
+  },
+  {
+    "module": "github.com/spf13/cobra",
+    "version": "v1.10.2",
+    "source": "LICENSE.txt",
+    "sha256": "5e3400b93bbb099e83e52bab885e7441750673c21f97988ca3f1240639b63283"
+  },
+  {
+    "module": "github.com/spf13/pflag",
+    "version": "v1.0.9",
+    "source": "LICENSE",
+    "sha256": "b8514c577c1c4b46cee454d5a882b15fa411e72c5bd7f801f241591789fce61a"
+  },
+  {
+    "module": "github.com/xo/terminfo",
+    "version": "v1.0.0",
+    "source": "LICENSE",
+    "sha256": "1f5f51151ba96f0492ce288bd007242f924fdad9f04002e175e951644340a891"
+  },
+  {
+    "module": "golang.org/x/sync",
+    "version": "v0.22.0",
+    "source": "LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "module": "golang.org/x/sync",
+    "version": "v0.22.0",
+    "source": "PATENTS",
+    "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+  },
+  {
+    "module": "golang.org/x/sys",
+    "version": "v0.47.0",
+    "source": "LICENSE",
+    "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad"
+  },
+  {
+    "module": "golang.org/x/sys",
+    "version": "v0.47.0",
+    "source": "PATENTS",
+    "sha256": "96f408bfae65bf137fc2525d3ecb030271c50c1e90799f87abf8846d8dd505cc"
+  },
+  {
+    "module": "Unicode data",
+    "version": "Unicode License V3, retrieved 2026-11-06",
+    "source": "https://www.unicode.org/license.txt",
+    "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+  }
+]

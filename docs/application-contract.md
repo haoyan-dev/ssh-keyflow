@@ -1,5 +1,17 @@
 # Application contract
 
+## v0.2.0 Portable release (ticket 04)
+
+`scripts/package_release.py --version <tag> [--output <empty-directory>]` builds Windows/Linux/macOS amd64/arm64 with CGO disabled, VCS stamping disabled, trimpath and injected `main.version`. Existing nonempty output is refused. `--binaries <directory>` instead packages six prebuilt OS_ARCH binaries for artifact tests. Assets are staged before publication to the output directory.
+
+The release contains exactly six archives and `SHA256SUMS` (seven assets), with no installer. Windows archives are zip; Linux/macOS archives are tar.gz. Each contains only its platform executable and `THIRD_PARTY_NOTICES.txt`. Unix executable mode is 0755, notice mode is 0644, tar uid/gid are zero. The manifest has six unique archive basenames with SHA256, two spaces, and LF. Notices retain dependency license/copyright text including platform-specific modules and Unicode data; collection evidence is in `docs/third-party-notices.md`.
+
+Portable means freely placed executables. Storage remains `<Home>/.ssh/ssh-keyflow`; moving/replacing/removing the executable neither migrates data nor changes SSH keys, state, config, remote registrations, PATH, profiles or installer receipts. End users need OS OpenSSH, not Go. They exit the application before manual replacement/removal and retain the notice document when redistributing the binary.
+
+Old v0.1.0 installers require one archive member and therefore reject the new archives. Manual binary replacement also invalidates the old ownership digest, so old-script updates/removal may be rejected. README documents manual maintenance and optional manual cleanup of the exact owned PATH stanza; no automatic receipt/profile repair is added.
+
+CI runs Go and Portable artifact tests on three OSes plus actual six-target crossbuilds. Release workflow uploads the seven staged assets after CI; implementation itself does not tag/push/publish. Fixture artifact tests and crossbuilds do not establish native runtime behavior on every target.
+
 ## v0.2.0 CLI (ticket 02)
 
 `cli.Run(ctx, args, cli.Options{Home, Version, Input, Output, Error, Runner, RunTUI}) int` is the command entry point. `cmd/ssh-keyflow` supplies the release version and exits with its result. Cobra v1.10.2 provides command parsing, flag validation, help and version output. `github.com/charmbracelet/x/term` v0.2.2 checks actual terminal descriptors, including rejecting nonterminal character devices. Home resolution is deferred until an operation actually needs it.
