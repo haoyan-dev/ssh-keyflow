@@ -97,7 +97,12 @@ class Installers(unittest.TestCase):
             environment['HOME'] = shell_path(self.home)
             environment['PATH'] = str(tools) + os.pathsep + environment['PATH']
             environment['SSH_KEYFLOW_TEST_TOOLS'] = shell_path(tools)
-            arguments = [BASH, '-c', 'PATH="$SSH_KEYFLOW_TEST_TOOLS:$PATH"; export PATH; exec sh "$@"', 'installer-test', shell_path(ROOT / 'install.sh'), '--install-dir', shell_path(self.destination), '--profile', shell_path(self.profile)]
+            installer = self.home / 'install.sh'
+            installer.write_bytes((ROOT / 'install.sh').read_bytes().replace(b'\r\n', b'\n'))
+            arguments = [BASH, '-c', 'PATH="$SSH_KEYFLOW_TEST_TOOLS:$PATH"; export PATH; exec "$0" "$@"', getattr(self, 'shell', 'sh')]
+            if getattr(self, 'trace', False):
+                arguments += ['-x']
+            arguments += [shell_path(installer), '--install-dir', shell_path(self.destination), '--profile', shell_path(self.profile)]
             if version:
                 arguments += ['--version', version]
         else:
@@ -350,6 +355,7 @@ class Installers(unittest.TestCase):
                 self.assertEqual(self.profile.read_bytes(), changed)
 
     def test_paths_with_quotes_and_unicode_preserve_profile_bytes(self):
+        self.trace = True
         for platform in self.platforms():
             with self.subTest(platform=platform):
                 self.destination = self.home / "日本語's bin"
@@ -361,8 +367,15 @@ class Installers(unittest.TestCase):
                     result = subprocess.run([BASH, '--noprofile', '--norc', '-c', '. "$1"; . "$1"; printf "%s" "$PATH"', 'profile-test', shell_path(self.profile)], capture_output=True, text=True, encoding='utf-8', timeout=10)
                     self.assert_success(result)
                     self.assertEqual(result.stdout.split(':').count(shell_path(self.destination)), 1)
-                self.assert_success(self.run_installer(platform=platform, extra=['-Uninstall'] if platform == 'windows' else ['--uninstall']))
-                self.assertEqual(self.profile.read_bytes(), original)
+                result = self.run_installer(platform=platform, extra=['-Uninstall'] if platform == 'windows' else ['--uninstall'])
+                self.assert_success(result)
+                self.assertEqual(self.profile.read_bytes(), original, result.stdout + result.stderr)
+
+    def test_dash_unicode_profile_preserves_original_bytes(self):
+        if not shutil.which('dash') and not Path('C:/Program Files/Git/usr/bin/dash.exe').exists():
+            self.skipTest('dash unavailable')
+        self.shell = 'dash'
+        self.test_paths_with_quotes_and_unicode_preserve_profile_bytes()
 
     def test_shell_receipt_write_failure_preserves_previous_version(self):
         self.assert_success(self.run_installer(version='v1.0.0'))
