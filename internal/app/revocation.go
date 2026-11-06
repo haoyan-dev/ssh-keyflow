@@ -80,7 +80,7 @@ func unregister(ctx context.Context, options Options) error {
 			if err := recordRegistration(store, &document, index); err != nil {
 				return err
 			}
-			fmt.Fprintf(options.Output, "Automatic revocation stopped: %s\nManual revocation for %s@%s:%d, fingerprint %s, target %s:\nKeep local files and an existing session. Independently authenticate without this fingerprint, confirm the server's effective configuration and account, then run this same script on the server. Re-run menu 4 for read-only reconciliation before local deletion. POSIX requires Perl. Shared administrator targets affect every administrator; do not elevate or reset existing ACLs.\n%s\n", reason, host.User, host.Hostname, host.Port, key.Fingerprint, plan.Target, plan.Script)
+			fmt.Fprintf(options.Output, "Automatic revocation stopped: %s\nManual revocation for %s@%s:%d, fingerprint %s, target %s:\nKeep local files and an existing session. Independently authenticate without this fingerprint, confirm the server's effective configuration and account, then run this same script on the server. Resume this registration for read-only reconciliation before local deletion. POSIX requires Perl. Shared administrator targets affect every administrator; do not elevate or reset existing ACLs.\n%s\n", reason, host.User, host.Hostname, host.Port, key.Fingerprint, plan.Target, plan.Script)
 			if options.Request != nil && options.Request.Bootstrap != "" && options.Request.Bootstrap != "manual" {
 				return fmt.Errorf("%s", reason)
 			}
@@ -201,7 +201,7 @@ func unregister(ctx context.Context, options Options) error {
 		if err := recordRegistration(store, &document, index); err != nil {
 			return err
 		}
-		fmt.Fprintln(options.Output, "Public key removed; local files preserved; use separate menu 6 for guarded local deletion")
+		fmt.Fprintln(options.Output, "Public key removed; local files preserved; use the separate guarded local deletion operation")
 		return removeKeyConfiguration(options, store, &document, key.ID, host.ID)
 	})
 }

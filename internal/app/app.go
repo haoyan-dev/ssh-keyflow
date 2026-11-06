@@ -159,3 +159,9 @@ func readLine(input io.Reader) (string, error) {
 		}
 	}
 }
+
+// ReadConfirmation leaves subsequent credential input for the native process.
+func ReadConfirmation(input io.Reader) (bool, error) {
+	answer, err := readLine(input)
+	return answer == "yes", err
+}

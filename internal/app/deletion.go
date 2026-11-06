@@ -39,7 +39,7 @@ func deleteLocal(options Options) error {
 		key := document.Keys[keyIndex]
 		for _, registration := range document.Registrations {
 			if registration.KeyID == key.ID && (registration.Status != "removed" || registration.Stage != "complete" || registration.Operation != "unregister") {
-				return fmt.Errorf("recorded registration %s is not confirmed removed; use menu 4 for alternate authentication or manual guidance; local files preserved", registration.ID)
+				return fmt.Errorf("recorded registration %s is not confirmed removed; unregister with alternate authentication or manual guidance; local files preserved", registration.ID)
 			}
 		}
 		deletionIndex := -1

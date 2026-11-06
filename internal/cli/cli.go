@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/charmbracelet/x/term"
@@ -283,7 +282,7 @@ func operationCommand(name, description string, request *app.Request, options Op
 			}
 			return asExecutionError(app.Run(command.Context(), app.Options{
 				Home: home, Input: options.Input, Output: options.Output, Runner: options.Runner, Request: request,
-				Confirm: func(string) (bool, error) { return confirm(options.Input) },
+				Confirm: func(string) (bool, error) { return app.ReadConfirmation(options.Input) },
 			}))
 		},
 	}
@@ -294,22 +293,5 @@ func authenticationFlags(command *cobra.Command, request *app.Request) {
 	command.Flags().StringVar(&request.Identity, "identity", "", "Existing private key for key authentication; secrets stay in OpenSSH")
 	if request.Operation != "unregister" {
 		command.Flags().BoolVar(&request.Configure, "configure", false, "Offer managed SSH configuration and explicit Include consent after registration")
-	}
-}
-
-func confirm(input io.Reader) (bool, error) {
-	var answer strings.Builder
-	var character [1]byte
-	for {
-		count, err := input.Read(character[:])
-		if count > 0 {
-			if character[0] == '\n' {
-				return strings.TrimSpace(answer.String()) == "yes", nil
-			}
-			answer.WriteByte(character[0])
-		}
-		if err != nil {
-			return false, err
-		}
 	}
 }

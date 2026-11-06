@@ -24,7 +24,7 @@ All mutation commands require a real terminal before home initialization, storag
 
 Exit statuses are success 0, execution failure/cancellation 1 and usage/argument failure 2. Argument failures include incomplete/invalid options and ambiguous or missing managed targets (`app.ErrInvalidInput`). Usage errors include the selected command's usage on stderr. Runtime diagnostics have no usage text. Explicitly requested manual guidance succeeds while recorded registration/connection state remains unknown/unverified. Unexpected fallback from an automatic operation fails.
 
-`--help` and `--version` resolve no home, check no SSH dependencies and initialize nothing. Version output is `SSH KeyFlow <version>`. Nonterminal no-argument invocation prints help and exits 0; explicit nonterminal `tui` fails with status 2. Terminal no-argument invocation and `tui` call `Options.RunTUI(ctx, app.Options)` with resolved home, original input/output and runner; ticket 03 supplies that callback. No legacy menu is launched from the executable.
+`--help` and `--version` resolve no home, check no SSH dependencies and initialize nothing. Version output is `SSH KeyFlow <version>`. Nonterminal no-argument invocation prints help and exits 0; explicit nonterminal `tui` fails with status 2. Terminal no-argument invocation and `tui` call `Options.RunTUI(ctx, app.Options)` with resolved home, original input/output and runner; the executable supplies `tui.Run` as that callback. No legacy menu is launched from the executable.
 
 Lists call `app.Snapshot` without SSH checks or writable-storage probes. Plain output is a table of the selected records and saved progress. JSON output is one object followed by a newline:
 
@@ -33,6 +33,18 @@ Lists call `app.Snapshot` without SSH checks or writable-storage probes. Plain o
 - `registrations list`: `registrations`, `history`.
 
 Record arrays use the documented persisted field names and are empty arrays rather than null. `discovery` is the existing read-only text overview, including unmanaged candidates and Include review notes; it is advisory text rather than an additional structured API. Record and file metadata can include private-key paths and digests, never private-key contents or credentials. Integrity review warnings go only to stderr while validated records remain readable. Invalid schema/state fails with status 1, no JSON, and preserves the source state.
+
+## v0.2.0 TUI (ticket 03)
+
+`tui.Run(ctx, app.Options) error` is the terminal UI entry supplied to `cli.Options.RunTUI` by the executable. `tui.NewProgram(ctx, options, ...tea.ProgramOption)` exposes the same entry through Bubble Tea's public Program for embedding and event-driven tests. Bubble Tea v2.1.1, Bubbles v2.2.1 and Lip Gloss v2.0.6 provide terminal lifecycle, lists, text inputs, help, scrollable content and styling. Startup reads `app.Snapshot` without initializing SSH storage.
+
+Tab/shift-tab switch between hosts, keys, and registrations/history. Arrow keys select records; enter opens their saved metadata. `g` opens read-only discovery, unmanaged candidates and integrity review notes. `?` opens the list's full help. Actions are `c` create, `i` import, `a` add destination, `r` register, `u` unregister, `d` delete local key and `s` resume. Selected records prefill applicable IDs, including pending operations and the host/key pair for a saved registration. Authentication defaults to manual guidance.
+
+Bubbles text inputs collect structured request fields rather than numbered answers. Tab/shift-tab move focus; enter advances or opens review at the final field; ctrl+s opens review directly. Review shows the target and requested values before any mutation. Escape cancels forms/review without running the application operation. Enter on review releases the terminal through `tea.Exec` and calls shared `app.Run` with the request. Its existing exact approvals, remote safety checks and locks still apply. `app.ReadConfirmation(io.Reader)` is shared with CLI and reads only the confirmation line without reading ahead into native credential input.
+
+OpenSSH receives the original terminal input. No password or passphrase field exists in the TUI. Bubble Tea restores its terminal after successful, failed or interrupted execution; the application reloads persisted state and presents a scrollable operation result. Captured output contains application diagnostics and metadata, not native credential input. Pending operation IDs remain available for resume. `q` exits outside input forms; ctrl+c cancels a form or exits the UI, while native execution uses its normal interrupt handling. Resize events adjust list, viewport and form dimensions; narrow forms keep the focused input and controls visible.
+
+Public-entry tests cover read-only startup, cancellation, discovery return, narrow layout, selected details and registration prefilling. Actual Windows PTY checks separately cover terminal/no-argument startup, native Ed25519 generation, Ctrl-C interruption during native passphrase entry, same-ID resume, execution failure, resize and clean exit. Native Linux/macOS terminal behavior and live remote SSH authentication remain external validation.
 
 ## v0.2.0 structured operations (ticket 01)
 
