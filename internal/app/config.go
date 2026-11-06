@@ -69,6 +69,9 @@ func ownedConfig(options Options, document *state.State) ([]byte, int, error) {
 }
 
 func configureRegistration(options Options, store *state.LockedStore, document *state.State, host state.Host, key state.Key) error {
+	if options.Request != nil && !options.Request.Configure {
+		return nil
+	}
 	answer, err := prompt(options, "Generate SSH alias configuration? Type yes to approve:")
 	if err != nil || answer != "yes" {
 		return err

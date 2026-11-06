@@ -45,10 +45,12 @@ func (SystemRunner) Run(ctx context.Context, command Command) error {
 }
 
 type Options struct {
-	Home   string
-	Input  io.Reader
-	Output io.Writer
-	Runner Runner
+	Home    string
+	Input   io.Reader
+	Output  io.Writer
+	Runner  Runner
+	Request *Request
+	Confirm func(string) (bool, error)
 }
 
 func Run(ctx context.Context, options Options) error {
@@ -63,6 +65,11 @@ func Run(ctx context.Context, options Options) error {
 	}
 	if options.Runner == nil {
 		options.Runner = SystemRunner{}
+	}
+	if options.Request != nil {
+		request := *options.Request
+		options.Request = &request
+		return execute(ctx, options)
 	}
 	document, err := state.Load(options.Home)
 	if err != nil {

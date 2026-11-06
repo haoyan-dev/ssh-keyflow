@@ -19,6 +19,22 @@ import (
 
 func prompt(options Options, label string) (string, error) {
 	fmt.Fprintln(options.Output, label)
+	if options.Request != nil {
+		if !strings.Contains(label, "Type yes") {
+			return "", fmt.Errorf("structured operation requires an explicit field instead of a menu prompt")
+		}
+		if options.Confirm == nil {
+			return "", fmt.Errorf("explicit confirmation is required")
+		}
+		approved, err := options.Confirm(label)
+		if err != nil {
+			return "", err
+		}
+		if !approved {
+			return "", ErrCancelled
+		}
+		return "yes", nil
+	}
 	return readLine(options.Input)
 }
 
@@ -100,7 +116,12 @@ func importLocked(ctx context.Context, options Options, store *state.LockedStore
 	if err := integrity(document); err != nil {
 		return err
 	}
-	selected, err := prompt(options, "Existing public or private key path:")
+	selected, err := "", error(nil)
+	if options.Request != nil {
+		selected = options.Request.PublicPath
+	} else {
+		selected, err = prompt(options, "Existing public or private key path:")
+	}
 	if err != nil {
 		return err
 	}
@@ -113,7 +134,9 @@ func importLocked(ctx context.Context, options Options, store *state.LockedStore
 		return err
 	}
 	publicPath, privatePath := selected, ""
-	if strings.Contains(string(selectedData), "PRIVATE KEY-----") {
+	if options.Request != nil {
+		publicPath, privatePath = selected, options.Request.PrivatePath
+	} else if strings.Contains(string(selectedData), "PRIVATE KEY-----") {
 		privatePath = selected
 		publicPath, err = prompt(options, "Public key path (blank uses selected private path + .pub):")
 		if publicPath == "" {
@@ -135,7 +158,12 @@ func importLocked(ctx context.Context, options Options, store *state.LockedStore
 			return err
 		}
 	}
-	name, err := prompt(options, "Management name:")
+	name := ""
+	if options.Request != nil {
+		name = options.Request.Name
+	} else {
+		name, err = prompt(options, "Management name:")
+	}
 	if err != nil {
 		return err
 	}

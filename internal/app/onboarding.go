@@ -122,40 +122,48 @@ func onboard(ctx context.Context, options Options) error {
 			}
 			key = document.Keys[selected-1]
 		}
-		fmt.Fprintf(options.Output, "Destination %s: %s@%s:%d OS=%s account=%s\nKey: %s %s\n", host.Alias, host.User, host.Hostname, host.Port, host.OS, host.WindowsAccount, key.Name, key.Fingerprint)
-		confirmation, err := prompt(options, "Type yes to save intent and choose automatic or manual registration:")
-		if err != nil {
-			return err
-		}
-		if confirmation != "yes" {
-			return nil
-		}
-		if err := integrity(document); err != nil {
-			return err
-		}
-		if err := checkAlias(options, host.Alias); err != nil {
-			return err
-		}
-		host.ID, err = newID("host")
-		if err != nil {
-			return err
-		}
-		jobID, err := newID("onboarding")
-		if err != nil {
-			return err
-		}
-		document.Hosts = append(document.Hosts, host)
-		document.Onboardings = append(document.Onboardings, state.Onboarding{ID: jobID, HostID: host.ID, KeyID: key.ID, Stage: "planned", CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)})
-		if answer == "n" {
-			_, err = createKey(ctx, options, store, &document, host.Alias, jobID)
-			if err != nil {
-				return err
-			}
-		} else if err := store.Save(document); err != nil {
-			return err
-		}
-		return finishOnboarding(ctx, options, store, &document, len(document.Onboardings)-1)
+		return saveDestination(ctx, options, store, &document, host, key, answer == "n")
 	})
+}
+
+func saveDestination(ctx context.Context, options Options, store *state.LockedStore, document *state.State, host state.Host, key state.Key, newKey bool) error {
+	fmt.Fprintf(options.Output, "Destination %s: %s@%s:%d OS=%s account=%s\nKey: %s %s\n", host.Alias, host.User, host.Hostname, host.Port, host.OS, host.WindowsAccount, key.Name, key.Fingerprint)
+	confirmation, err := prompt(options, "Type yes to save intent and choose automatic or manual registration:")
+	if err != nil {
+		return err
+	}
+	if confirmation != "yes" {
+		return nil
+	}
+	if err := integrity(*document); err != nil {
+		return err
+	}
+	if err := checkAlias(options, host.Alias); err != nil {
+		return err
+	}
+	host.ID, err = newID("host")
+	if err != nil {
+		return err
+	}
+	jobID, err := newID("onboarding")
+	if err != nil {
+		return err
+	}
+	document.Hosts = append(document.Hosts, host)
+	document.Onboardings = append(document.Onboardings, state.Onboarding{ID: jobID, HostID: host.ID, KeyID: key.ID, Stage: "planned", CreatedAt: time.Now().UTC().Format(time.RFC3339Nano)})
+	if newKey {
+		name := host.Alias
+		if options.Request != nil {
+			name = options.Request.Name
+		}
+		_, err = createKey(ctx, options, store, document, name, jobID)
+		if err != nil {
+			return err
+		}
+	} else if err := store.Save(*document); err != nil {
+		return err
+	}
+	return finishOnboarding(ctx, options, store, document, len(document.Onboardings)-1)
 }
 
 func finishOnboarding(ctx context.Context, options Options, store *state.LockedStore, document *state.State, jobIndex int) error {

@@ -60,9 +60,17 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 			return guideErr
 		}
 		fmt.Fprintf(options.Output, "Automatic registration stopped: %v\nCheck address, port, network, server, authentication, permissions and standard sshd configuration. Direct SSH uses -F none; configured ProxyJump and Match options are not loaded. Host-key changes require independent review; no known_hosts entry is removed. Manual registration:\n%s\n", cause, guidance)
+		if options.Request != nil && options.Request.Bootstrap != "" && options.Request.Bootstrap != "manual" {
+			return cause
+		}
 		return nil
 	}
-	mode, err := prompt(options, "Bootstrap login: p password/keyboard-interactive; k existing private key; 0 manual:")
+	mode, err := "", error(nil)
+	if options.Request != nil {
+		mode, err = bootstrapMode(options.Request.Bootstrap)
+	} else {
+		mode, err = prompt(options, "Bootstrap login: p password/keyboard-interactive; k existing private key; 0 manual:")
+	}
 	if err != nil {
 		return err
 	}
@@ -71,7 +79,11 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 	}
 	identity := ""
 	if mode == "k" {
-		identity, err = prompt(options, "Existing private key path for bootstrap login:")
+		if options.Request != nil {
+			identity = options.Request.Identity
+		} else {
+			identity, err = prompt(options, "Existing private key path for bootstrap login:")
+		}
 		if err != nil {
 			return err
 		}
@@ -249,13 +261,17 @@ func registerAnother(ctx context.Context, options Options) error {
 			return fmt.Errorf("no managed key selected")
 		}
 		host, key := document.Hosts[hostIndex-1], document.Keys[keyIndex-1]
-		fmt.Fprintf(options.Output, "Register %s at %s (%s@%s:%d)\n", key.Fingerprint, host.Alias, host.User, host.Hostname, host.Port)
-		answer, err := prompt(options, "Type yes to register this managed public key:")
-		if err != nil || answer != "yes" {
-			return err
-		}
-		return registerSaved(ctx, options, store, &document, host.ID, key.ID)
+		return registerSelected(ctx, options, store, &document, host, key)
 	})
+}
+
+func registerSelected(ctx context.Context, options Options, store *state.LockedStore, document *state.State, host state.Host, key state.Key) error {
+	fmt.Fprintf(options.Output, "Register %s at %s (%s@%s:%d)\n", key.Fingerprint, host.Alias, host.User, host.Hostname, host.Port)
+	answer, err := prompt(options, "Type yes to register this managed public key:")
+	if err != nil || answer != "yes" {
+		return err
+	}
+	return registerSaved(ctx, options, store, document, host.ID, key.ID)
 }
 
 func sshArguments(home string, host state.Host, identity, mode string, verify, first bool) []string {

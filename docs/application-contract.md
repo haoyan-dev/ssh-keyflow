@@ -1,4 +1,33 @@
-# Application contract (tickets 01–04)
+# Application contract
+
+## v0.2.0 structured operations (ticket 01)
+
+`app.Run(ctx, app.Options{Home, Input, Output, Runner, Request, Confirm})` is the common application entry for CLI and TUI. A non-nil `Request` selects one operation directly; it does not supply simulated menu answers. The legacy nil-Request menu remains temporarily available while the CLI and TUI tickets replace its entry point.
+
+`Request.Validate()` checks argument completeness and supported authentication without accessing storage or invoking commands. Request fields:
+
+| Operation | Inputs |
+| --- | --- |
+| `list` | No mutation inputs; prints the read-only discovery listing |
+| `import` | `Name`, `PublicPath`, optional `PrivatePath`; the public path is explicit even for private-pair imports |
+| `create` | `Name` |
+| `add` | `Destination` (alias, hostname, user, port, OS, Windows account), exactly one of existing `Key` or new-key `Name`; port 0 defaults to 22 |
+| `register` | `Host`, `Key` |
+| `unregister` | `Registration` fixed ID |
+| `delete` | `Key` |
+| `resume` | `Resume` fixed creation, onboarding, registration or pending local deletion ID |
+
+`Key` resolves a fixed ID first, otherwise a unique exact management name. Duplicate names require a fixed ID. `Host` resolves a fixed ID first, otherwise a case-insensitive alias. `Destination` is the existing `state.Host` shape; new host IDs are allocated by the application.
+
+For `add`, `register`, `unregister` and `resume`, `Bootstrap` is `manual` (also the default), `password` or `key`. `Identity` is required for `key` and contains only a private-key path, never a secret. `Configure` offers generation of the managed SSH configuration after successful registration; Include changes require their own confirmation.
+
+`Confirm func(message string) (bool, error)` handles approvals for structured operations. The output stream contains the target/preview printed immediately before each approval. A missing callback fails closed. A false answer returns `app.ErrCancelled`; this is not success and does not imply that earlier completed steps were rolled back. Confirmation input is distinct from the original `Input` passed unchanged to native OpenSSH. Structured operation arguments are copied at entry so resume dispatch does not modify the caller's request.
+
+`app.Snapshot(app.Options{Home}) (app.View, error)` exposes validated persisted `State`, read-only `Discovery` text and an optional `Review` integrity warning. It does not initialize storage, probe SSH commands or require a writable home. Schema errors fail rather than returning an empty view. Integrity warnings preserve read access and do not authorize mutation. JSON consumers should select their documented output fields from this view; it contains provenance and file metadata, never private-key contents.
+
+All existing mutation-wide locks, intent checkpoints, remote reconciliation, alternate-authentication checks and ownership guards remain in the shared implementations. An explicitly requested manual registration/revocation returns guidance with unknown state preserved. An automatic operation that falls back to guidance returns its error to structured callers instead of reporting automatic success.
+
+The shared-operation ticket needs no new dependency; CLI/TUI libraries will be added and pinned by the tickets that use them.
 
 ## Public application boundary
 

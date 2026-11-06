@@ -18,15 +18,24 @@ func deleteLocal(options Options) error {
 		for index, key := range document.Keys {
 			fmt.Fprintf(options.Output, "%d: %s [%s] %s\n", index+1, key.Name, key.ID, key.Fingerprint)
 		}
-		choice, err := prompt(options, "Managed local key number to delete/resume; 0: Back")
-		if err != nil || choice == "0" {
-			return err
+		selectedIndex := 0
+		if options.Request != nil {
+			selectedIndex, err = keyIndex(document, options.Request.Key)
+			if err != nil {
+				return err
+			}
+		} else {
+			choice, err := prompt(options, "Managed local key number to delete/resume; 0: Back")
+			if err != nil || choice == "0" {
+				return err
+			}
+			selection, err := strconv.Atoi(choice)
+			if err != nil || selection < 1 || selection > len(document.Keys) {
+				return fmt.Errorf("invalid managed key selection")
+			}
+			selectedIndex = selection - 1
 		}
-		selection, err := strconv.Atoi(choice)
-		if err != nil || selection < 1 || selection > len(document.Keys) {
-			return fmt.Errorf("invalid managed key selection")
-		}
-		keyIndex := selection - 1
+		keyIndex := selectedIndex
 		key := document.Keys[keyIndex]
 		for _, registration := range document.Registrations {
 			if registration.KeyID == key.ID && (registration.Status != "removed" || registration.Stage != "complete" || registration.Operation != "unregister") {
