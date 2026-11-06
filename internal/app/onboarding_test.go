@@ -52,7 +52,7 @@ func (external onboardingRunner) Run(ctx context.Context, command app.Command) e
 }
 
 func TestCreateEd25519PersistsIntentAndListsCreatedProvenance(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	output, err := runCLI(testingContext, home, "5\nc\n日本語 My laptop/../key\nyes\n2\n0\n", onboardingRunner{testingContext: testingContext, home: home})
 	if err != nil || !strings.Contains(output, "Created") || !strings.Contains(output, "origin=created") || !strings.Contains(output, "日本語 My laptop/../key") {
 		testingContext.Fatalf("creation: %v\n%s", err, output)
@@ -77,7 +77,7 @@ func TestCreateEd25519PersistsIntentAndListsCreatedProvenance(testingContext *te
 func TestInterruptedCreationRecoversSamePathWithoutOverwriting(testingContext *testing.T) {
 	for _, partial := range []string{"neither", "private", "pair", "public"} {
 		testingContext.Run(partial, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			originalPath := ""
 			interrupted := onboardingRunner{testingContext: testingContext, home: home, generate: func(command app.Command, path string) error {
 				originalPath = path
@@ -120,7 +120,7 @@ func TestInterruptedCreationRecoversSamePathWithoutOverwriting(testingContext *t
 }
 
 func TestDestinationReusesImportedPublicKeyAndPersistsManualHistory(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	publicPath := writeFixture(testingContext, home, ".ssh/existing.pub", publicKey)
 	if output, err := runCLI(testingContext, home, importInput(publicPath, "共有鍵"), runner{}); err != nil || !strings.Contains(output, "Imported") {
 		testingContext.Fatalf("import: %v %s", err, output)
@@ -156,7 +156,7 @@ func TestManualGuidanceIsCopyableForEveryDestinationOS(testingContext *testing.T
 		{"windows", "administrator", []string{"administrators_authorized_keys", "$env:ProgramData", "shared", "Read-Host", "S-1-5-18", "Get-Acl"}},
 	} {
 		testingContext.Run(target.system+target.account, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			publicPath := writeFixture(testingContext, home, ".ssh/original.pub", publicKey+" $(danger); 'comment'")
 			if output, err := runCLI(testingContext, home, importInput(publicPath, "existing"), runner{}); err != nil || !strings.Contains(output, "Imported") {
 				testingContext.Fatalf("import: %v %s", err, output)
@@ -179,7 +179,7 @@ func TestManualGuidanceIsCopyableForEveryDestinationOS(testingContext *testing.T
 }
 
 func TestAbandonedOnboardingCannotClaimStandaloneCreation(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	output, err := runCLI(testingContext, home, "1\nn\nabandoned\nexample.com\nme\n\nlinux\nn\nyes\nno\n5\nc\nindependent\nyes\n2\n0\n", onboardingRunner{testingContext: testingContext, home: home})
 	if err != nil || !strings.Contains(output, "Created independent") || strings.Contains(output, "managed host abandoned") || strings.Contains(output, "registration registration-") {
 		testingContext.Fatalf("unrelated onboarding claimed standalone key: %v %s", err, output)
@@ -187,7 +187,7 @@ func TestAbandonedOnboardingCannotClaimStandaloneCreation(testingContext *testin
 }
 
 func TestDestinationAliasCannotShadowRecursiveUnmanagedHost(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	config := "Include conf/*.conf\nMatch exec never-execute-this\n"
 	writeFixture(testingContext, home, ".ssh/config", config)
 	writeFixture(testingContext, home, ".ssh/conf/host.conf", "Host Existing backup-*\n HostName original\n")
@@ -209,7 +209,7 @@ func TestDestinationAliasCannotShadowRecursiveUnmanagedHost(testingContext *test
 func TestWildcardHostDefaultsPreserveManualOnboarding(testingContext *testing.T) {
 	for _, pattern := range []string{"*", "backup-*"} {
 		testingContext.Run(pattern, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			config := "Host " + pattern + "\n  ForwardAgent no\n"
 			configPath := writeFixture(testingContext, home, ".ssh/config", config)
 			publicPath := writeFixture(testingContext, home, ".ssh/source.pub", publicKey)
@@ -232,7 +232,7 @@ func TestWildcardHostDefaultsPreserveManualOnboarding(testingContext *testing.T)
 }
 
 func TestNewDestinationResumesSameKeyAfterInterruption(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	keyPath := ""
 	external := onboardingRunner{testingContext: testingContext, home: home, generate: func(command app.Command, path string) error {
 		keyPath = path
@@ -276,7 +276,7 @@ type changingInput struct {
 }
 
 func TestCreationDoesNotClaimFilesAppearingDuringConfirmation(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	input := "5\nc\ncollision\nyes\n0\n"
 	var output strings.Builder
 	privatePath := ""
@@ -301,7 +301,7 @@ func TestCreationDoesNotClaimFilesAppearingDuringConfirmation(testingContext *te
 
 func TestOnboardingRejectsInvalidDestinationFields(testingContext *testing.T) {
 	for _, fields := range []string{"-option\nexample.test\nme\n\nlinux", "host\n$(command)\nme\n\nlinux", "host\nexample.test\nme;command\n\nlinux", "host\nexample.test\nme\n65536\nlinux", "host\nexample.test\nme\n0\nlinux", "host\nexample.test\nme\n22\nunsupported"} {
-		home := testingContext.TempDir()
+		home := fixtureTempDir(testingContext)
 		output, err := runCLI(testingContext, home, "1\nn\n"+fields+"\n0\n", runner{})
 		if err != nil || !strings.Contains(output, "invalid destination") {
 			testingContext.Fatalf("invalid destination accepted: %v %s", err, output)
@@ -315,7 +315,7 @@ func TestOnboardingRejectsInvalidDestinationFields(testingContext *testing.T) {
 func TestCreationAndOnboardingHistoryRejectsInconsistentState(testingContext *testing.T) {
 	for _, broken := range []string{"provenance", "creation-result", "creation-stage", "onboarding-reference", "manual-history"} {
 		testingContext.Run(broken, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			output, err := runCLI(testingContext, home, "1\nn\nhost\nexample.test\nme\n\nlinux\nn\nyes\nyes\n0\n", onboardingRunner{testingContext: testingContext, home: home})
 			if err != nil || !strings.Contains(output, "Intent saved") {
 				testingContext.Fatalf("history fixture: %v %s", err, output)
@@ -367,7 +367,7 @@ func (input *changingInput) Read(buffer []byte) (int, error) {
 }
 
 func TestDestinationRechecksImportedKeyAfterConfirmation(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	publicPath := writeFixture(testingContext, home, ".ssh/original.pub", publicKey)
 	runCLI(testingContext, home, importInput(publicPath, "original"), runner{})
 	statePath := filepath.Join(home, ".ssh/ssh-keyflow/state.json")
@@ -391,10 +391,10 @@ func TestCopyablePOSIXRegistrationPreservesBytesAndMatchesKeyOptions(testingCont
 	}
 	for _, initial := range []string{"# retain me\r\n" + otherPublicKey + "\r\n", "# no trailing newline", "command=\"printf 'hello world'\",restrict " + publicKey + "\n", "# " + publicKey + "\n"} {
 		testingContext.Run(initial, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			publicPath := writeFixture(testingContext, home, ".ssh/source.pub", publicKey)
 			runCLI(testingContext, home, importInput(publicPath, "existing"), runner{})
-			output, err := runCLI(testingContext, home, "1\nn\nhost\nexample.test\nme\n\nlinux\n1\nyes\n0\n", runner{})
+			output, err := runCLI(testingContext, home, "1\nn\nhost\nexample.test\nme\n\n"+nativePOSIXSystem()+"\n1\nyes\n0\n", runner{})
 			if err != nil {
 				testingContext.Fatal(err)
 			}
@@ -403,7 +403,7 @@ func TestCopyablePOSIXRegistrationPreservesBytesAndMatchesKeyOptions(testingCont
 			if !found {
 				testingContext.Fatal("no copyable script", output)
 			}
-			fixture := testingContext.TempDir()
+			fixture := fixtureTempDir(testingContext)
 			authorized := writeFixture(testingContext, fixture, ".ssh/authorized_keys", initial)
 			scriptPath := writeFixture(testingContext, fixture, "register.sh", script)
 			for attempt := 0; attempt < 2; attempt++ {
@@ -434,7 +434,7 @@ func TestCopyableWindowsRegistrationScripts(testingContext *testing.T) {
 	}
 	for _, account := range []string{"standard", "administrator"} {
 		testingContext.Run(account, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			publicPath := writeFixture(testingContext, home, ".ssh/source.pub", publicKey)
 			runCLI(testingContext, home, importInput(publicPath, "existing"), runner{})
 			output, err := runCLI(testingContext, home, "1\nn\nhost\nexample.test\nme\n\nwindows\n"+account+"\n1\nyes\n0\n", runner{})
@@ -446,7 +446,7 @@ func TestCopyableWindowsRegistrationScripts(testingContext *testing.T) {
 			if !found {
 				testingContext.Fatal("no copyable script", output)
 			}
-			fixture := testingContext.TempDir()
+			fixture := fixtureTempDir(testingContext)
 			scriptPath := writeFixture(testingContext, fixture, "register.ps1", script)
 			helper := writeFixture(testingContext, fixture, "fixture.ps1", windowsRegistrationFixture)
 			command := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", helper, scriptPath, fixture, account)
@@ -475,6 +475,7 @@ if (($Account -eq 'administrator') -ne $adminGroup -or ($adminGroup -and !$eleva
 $fixtureHome = Join-Path $Fixture 'home'
 $fixtureServer = Join-Path $Fixture 'server'
 $null = New-Item -ItemType Directory -Path $fixtureHome
+$null = New-Item -ItemType Directory -Path $fixtureServer
 & $ScriptPath -RegistrationHome $fixtureHome -RegistrationServer $fixtureServer
 if ($Account -eq 'administrator') { $authorized = Join-Path $fixtureServer 'administrators_authorized_keys' } else { $authorized = Join-Path $fixtureHome '.ssh/authorized_keys' }
 $original = [IO.File]::ReadAllText($authorized)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -16,8 +17,19 @@ func checkAliasExcept(options Options, alias, ownedPath string) error {
 }
 
 func inspectAliases(options Options, alias, ownedPath string, included func()) error {
+	if ownedPath != "" {
+		canonical, err := filepath.EvalSymlinks(ownedPath)
+		if err != nil {
+			return fmt.Errorf("requires review: cannot resolve owned configuration: %w", err)
+		}
+		ownedPath = canonical
+	}
 	skip := func(canonical string) bool {
-		if ownedPath == "" || filepath.Clean(canonical) != filepath.Clean(ownedPath) {
+		same := filepath.Clean(canonical) == filepath.Clean(ownedPath)
+		if runtime.GOOS == "windows" {
+			same = strings.EqualFold(filepath.Clean(canonical), filepath.Clean(ownedPath))
+		}
+		if ownedPath == "" || !same {
 			return false
 		}
 		if included != nil {

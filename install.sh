@@ -69,8 +69,11 @@ if [ "$uninstall" = true ]; then
             dd if="$owned_profile" of="$stage/matched" bs=1 skip="$offset" count="$length" 2>/dev/null
             cmp -s "$stage/matched" "$receipt/stanza" || fail 'Owned PATH stanza was changed or duplicated; profile and installation preserved.'
             dd if="$owned_profile" of="$stage/profile" bs=1 count="$offset" 2>/dev/null
+            wc -c "$owned_profile" "$stage/profile" >&2
             dd if="$owned_profile" bs=1 skip="$((offset + length))" 2>/dev/null >> "$stage/profile"
+            wc -c "$owned_profile" "$stage/profile" >&2
             cat "$stage/profile" > "$owned_profile"
+            wc -c "$owned_profile" "$stage/profile" >&2
             rm "$receipt/profile" "$receipt/stanza"
         fi
         rm "$binary" "$receipt/hash"

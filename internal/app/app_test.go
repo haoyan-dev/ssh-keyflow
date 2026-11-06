@@ -27,7 +27,7 @@ func (runner) Run(ctx context.Context, command app.Command) error {
 
 func TestStartupShowsMenu(testingContext *testing.T) {
 	var output bytes.Buffer
-	err := app.Run(context.Background(), app.Options{Home: testingContext.TempDir(), Input: strings.NewReader("0\n"), Output: &output, Runner: runner{}})
+	err := app.Run(context.Background(), app.Options{Home: fixtureTempDir(testingContext), Input: strings.NewReader("0\n"), Output: &output, Runner: runner{}})
 	if err != nil || !strings.Contains(output.String(), "SSH KeyFlow") || !strings.Contains(output.String(), "2: List") {
 		testingContext.Fatalf("startup: %v\n%s", err, output.String())
 	}
@@ -48,7 +48,7 @@ func writeFixture(testingContext *testing.T, home, relative, content string) str
 func TestInvalidStateStopsStartupWithoutOverwriting(testingContext *testing.T) {
 	for _, document := range []string{`{`, `null`, `{"version":99,"keys":[],"hosts":[],"registrations":[]}`, `{"version":1,"keys":[],"hosts":[],"registrations":[],"unknown":true}`, `{"version":1,"keys":[],"hosts":[],"registrations":[]} {}`} {
 		testingContext.Run(document, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			path := writeFixture(testingContext, home, ".ssh/ssh-keyflow/state.json", document)
 			var output bytes.Buffer
 			err := app.Run(context.Background(), app.Options{Home: home, Input: strings.NewReader("0\n"), Output: &output, Runner: runner{}})
@@ -68,7 +68,7 @@ func TestStateRelationshipsAndDuplicateFieldsAreRejected(testingContext *testing
 		`{"version":1,"keys":[],"hosts":[{"id":"host","alias":"test","hostname":"example","user":"me","port":0,"os":"linux"}],"registrations":[]}`,
 		`{"version":1,"keys":[],"hosts":[],"registrations":[{"id":"reg","key_id":"missing","host_id":"missing","status":"registered","connection_check":"unverified","operation":"register","stage":"complete"}]}`,
 	} {
-		home := testingContext.TempDir()
+		home := fixtureTempDir(testingContext)
 		writeFixture(testingContext, home, ".ssh/ssh-keyflow/state.json", document)
 		var output bytes.Buffer
 		if err := app.Run(context.Background(), app.Options{Home: home, Input: strings.NewReader("0\n"), Output: &output, Runner: runner{}}); err == nil {
@@ -78,7 +78,7 @@ func TestStateRelationshipsAndDuplicateFieldsAreRejected(testingContext *testing
 }
 
 func TestListDiscoversRecursiveIncludesWithoutExecutingOrChangingThem(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	config := "Include conf/*.conf missing.conf\nHost original\n IdentityFile ~/.ssh/custom\nMatch exec touch-danger\n Include nested.conf\n"
 	path := writeFixture(testingContext, home, ".ssh/config", config)
 	writeFixture(testingContext, home, ".ssh/conf/first.conf", "Host nested\nInclude config\n")
@@ -112,7 +112,7 @@ func runCLI(testingContext *testing.T, home, input string, external app.Runner) 
 func importInput(path, name string) string { return "5\ni\n" + path + "\n\n" + name + "\nyes\n0\n" }
 
 func TestSuccessfulUpdateKeepsPreviousValidStateBackup(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	first := writeFixture(testingContext, home, ".ssh/first.pub", publicKey)
 	second := writeFixture(testingContext, home, ".ssh/second.pub", otherPublicKey)
 	if output, err := runCLI(testingContext, home, importInput(first, "first"), runner{}); err != nil || !strings.Contains(output, "Imported") {
@@ -134,7 +134,7 @@ func TestSuccessfulUpdateKeepsPreviousValidStateBackup(testingContext *testing.T
 func TestLockedOrUnwritableUpdateNeverReportsSuccess(testingContext *testing.T) {
 	for _, obstruction := range []string{"lock", "backup"} {
 		testingContext.Run(obstruction, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			first := writeFixture(testingContext, home, ".ssh/first.pub", publicKey)
 			second := writeFixture(testingContext, home, ".ssh/second.pub", otherPublicKey)
 			runCLI(testingContext, home, importInput(first, "first"), runner{})
@@ -171,7 +171,7 @@ func (fake pairRunner) Run(ctx context.Context, command app.Command) error {
 func TestImportValidatesPairForEitherSelectedHalf(testingContext *testing.T) {
 	for _, selectedHalf := range []string{"public", "private"} {
 		testingContext.Run(selectedHalf, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			public := writeFixture(testingContext, home, ".ssh/key.pub", publicKey)
 			private := writeFixture(testingContext, home, ".ssh/key", "-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n")
 			selected, companion := public, private
@@ -187,7 +187,7 @@ func TestImportValidatesPairForEitherSelectedHalf(testingContext *testing.T) {
 }
 
 func TestManagedMismatchIsVisibleAndBlocksFurtherImports(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	first := writeFixture(testingContext, home, ".ssh/first.pub", publicKey)
 	second := writeFixture(testingContext, home, ".ssh/second.pub", otherPublicKey)
 	if output, err := runCLI(testingContext, home, importInput(first, "first"), runner{}); err != nil || !strings.Contains(output, "Imported") {
@@ -208,7 +208,7 @@ func (fake replacingRunner) Run(ctx context.Context, command app.Command) error 
 }
 
 func TestImportRechecksSourceAfterConfirmation(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	path := writeFixture(testingContext, home, ".ssh/source.pub", publicKey)
 	output, err := runCLI(testingContext, home, importInput(path, "changed"), replacingRunner{path: path})
 	if err != nil || !strings.Contains(output, "requires review") || strings.Contains(output, "Imported") {
@@ -231,7 +231,7 @@ func (fake replacingPrivateRunner) Run(ctx context.Context, command app.Command)
 }
 
 func TestPrivateReplacementDuringValidationIsRejected(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	public := writeFixture(testingContext, home, ".ssh/key.pub", publicKey)
 	private := writeFixture(testingContext, home, ".ssh/key", "-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n")
 	output, err := runCLI(testingContext, home, "5\ni\n"+public+"\n"+private+"\nChanged\nyes\n0\n", replacingPrivateRunner{path: private})
@@ -241,7 +241,7 @@ func TestPrivateReplacementDuringValidationIsRejected(testingContext *testing.T)
 }
 
 func TestImportedKeyHasValidatedProvenance(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	path := writeFixture(testingContext, home, ".ssh/source.pub", publicKey)
 	output, err := runCLI(testingContext, home, importInput(path, "recorded"), runner{})
 	if err != nil || !strings.Contains(output, "Imported") {
@@ -294,7 +294,7 @@ func (fake callbackRunner) Run(ctx context.Context, command app.Command) error {
 }
 
 func TestMutationLockCoversExternalValidationAndConfirmation(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	first := writeFixture(testingContext, home, ".ssh/first.pub", publicKey)
 	second := writeFixture(testingContext, home, ".ssh/second.pub", otherPublicKey)
 	nestedOutput := ""
@@ -310,7 +310,7 @@ func TestMutationLockCoversExternalValidationAndConfirmation(testingContext *tes
 }
 
 func TestInvalidPrivateDigestMetadataStopsStartup(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	public := writeFixture(testingContext, home, ".ssh/key.pub", publicKey)
 	private := writeFixture(testingContext, home, ".ssh/key", "-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n")
 	output, err := runCLI(testingContext, home, "5\ni\n"+public+"\n"+private+"\nPaired\nyes\n0\n", pairRunner{derived: publicKey})
@@ -331,7 +331,7 @@ func TestInvalidPrivateDigestMetadataStopsStartup(testingContext *testing.T) {
 }
 
 func TestMismatchedPairNeverBecomesManaged(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	public := writeFixture(testingContext, home, ".ssh/key.pub", publicKey)
 	private := writeFixture(testingContext, home, ".ssh/key", "-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n")
 	output, err := runCLI(testingContext, home, "5\ni\n"+public+"\n"+private+"\nMismatched\nyes\n2\n0\n", pairRunner{derived: otherPublicKey})
@@ -344,7 +344,7 @@ func TestMismatchedPairNeverBecomesManaged(testingContext *testing.T) {
 }
 
 func TestImportRequiresExplicitConfirmationAndDoesNotDuplicateKeys(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	path := writeFixture(testingContext, home, ".ssh/key.pub", publicKey)
 	output, err := runCLI(testingContext, home, "5\ni\n"+path+"\n\nCancelled\nno\n0\n", runner{})
 	if err != nil || !strings.Contains(output, "Cancelled") || strings.Contains(output, "Imported") {
@@ -366,7 +366,7 @@ func TestImportRequiresExplicitConfirmationAndDoesNotDuplicateKeys(testingContex
 }
 
 func TestChildOwnsCredentialInputWithoutMenuReadAhead(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	public := writeFixture(testingContext, home, ".ssh/key.pub", publicKey)
 	private := writeFixture(testingContext, home, ".ssh/key", "-----BEGIN OPENSSH PRIVATE KEY-----\nfixture\n")
 	credential := "child-only-secret"
@@ -398,7 +398,7 @@ func TestChildOwnsCredentialInputWithoutMenuReadAhead(testingContext *testing.T)
 }
 
 func TestStartupReportsUnwritableStorage(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	writeFixture(testingContext, home, ".ssh/ssh-keyflow", "not a directory")
 	if _, err := runCLI(testingContext, home, "0\n", runner{}); err == nil {
 		testingContext.Fatal("startup accepted unusable storage")
@@ -406,7 +406,7 @@ func TestStartupReportsUnwritableStorage(testingContext *testing.T) {
 }
 
 func TestUnknownMenuActionsReportNoChanges(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	output, err := runCLI(testingContext, home, "7\ninvalid\n0\n", runner{})
 	if err != nil || strings.Count(output, "Not implemented in this build") != 2 {
 		testingContext.Fatalf("unimplemented choices: %v %s", err, output)
@@ -417,7 +417,7 @@ func TestUnknownMenuActionsReportNoChanges(testingContext *testing.T) {
 }
 
 func TestStateValidatesIDsRelationshipsAndLifecycleFields(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	path := writeFixture(testingContext, home, ".ssh/key.pub", publicKey)
 	if output, err := runCLI(testingContext, home, importInput(path, "Stable"), runner{}); err != nil || !strings.Contains(output, "Imported") {
 		testingContext.Fatalf("setup: %v %s", err, output)
@@ -500,7 +500,7 @@ func TestStateValidatesIDsRelationshipsAndLifecycleFields(testingContext *testin
 }
 
 func TestPublicOnlyImportPersistsAndListsStableManagedIdentity(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	path := writeFixture(testingContext, home, ".ssh/鍵 with spaces.pub", publicKey)
 	var output bytes.Buffer
 	input := "5\ni\n" + path + "\n\nLaptop key\nyes\n2\n0\n"
@@ -532,10 +532,19 @@ func (*missingRunner) Run(ctx context.Context, command app.Command) error { retu
 
 func TestMissingDependencyCanBeRechecked(testingContext *testing.T) {
 	var output bytes.Buffer
-	err := app.Run(context.Background(), app.Options{Home: testingContext.TempDir(), Input: strings.NewReader("r\n0\n"), Output: &output, Runner: &missingRunner{}})
+	err := app.Run(context.Background(), app.Options{Home: fixtureTempDir(testingContext), Input: strings.NewReader("r\n0\n"), Output: &output, Runner: &missingRunner{}})
 	for _, expected := range []string{"ssh-keygen", "Add-WindowsCapability", "apt install openssh-client", "xcode-select --install", "Recheck", "2: List"} {
 		if err != nil || !strings.Contains(output.String(), expected) {
 			testingContext.Fatalf("missing %q: %v\n%s", expected, err, output.String())
 		}
 	}
+}
+
+func fixtureTempDir(t *testing.T) string {
+	t.Helper()
+	directory, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return directory
 }

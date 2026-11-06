@@ -14,7 +14,7 @@ import (
 )
 
 func TestNewDestinationContinuesDirectlyThroughRegistrationAndVerification(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	public := writeFixture(testingContext, home, "key.pub", publicKey)
 	private := writeFixture(testingContext, home, "key", "private fixture")
 	external := registrationRunner{testingContext: testingContext, home: home}
@@ -293,7 +293,7 @@ func (external registrationRunner) Run(ctx context.Context, command app.Command)
 
 func prepareRegistration(testingContext *testing.T, private bool) (string, registrationRunner) {
 	testingContext.Helper()
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	publicPath := writeFixture(testingContext, home, "key with spaces.pub", publicKey)
 	companion := ""
 	if private {

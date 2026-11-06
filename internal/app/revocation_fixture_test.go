@@ -98,7 +98,7 @@ func TestRevocationExecutesGuardedPayloadInIsolatedPOSIXFixture(testingContext *
 			}); err != nil {
 				testingContext.Fatal(err)
 			}
-			remote := testingContext.TempDir()
+			remote := fixtureTempDir(testingContext)
 			kernel := "Linux"
 			if system == "macos" {
 				kernel = "Darwin"
@@ -158,7 +158,7 @@ func TestWindowsRevocationExecutesGuardedPayloadInNTFSFixture(testingContext *te
 	}); err != nil {
 		testingContext.Fatal(err)
 	}
-	remote := testingContext.TempDir()
+	remote := fixtureTempDir(testingContext)
 	fixtureHome := filepath.Join(remote, "home with spaces")
 	retained := "\xef\xbb\xbf# keep 日本語\r\ncommand=\"echo " + publicKey + "\",restrict " + otherPublicKey + "\n# final"
 	initial := strings.Replace(retained, "# final", "command=\"echo \\\"hi\\\"\",restrict "+publicKey+"\r\n# final", 1)

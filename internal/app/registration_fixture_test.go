@@ -96,7 +96,7 @@ func TestWindowsRegistrationRunsInIsolatedNTFSFixture(testingContext *testing.T)
 	}); err != nil {
 		testingContext.Fatal(err)
 	}
-	remote := filepath.Join(testingContext.TempDir(), "remote home with spaces")
+	remote := filepath.Join(fixtureTempDir(testingContext), "remote home with spaces")
 	if err := os.MkdirAll(remote, 0700); err != nil {
 		testingContext.Fatal(err)
 	}
@@ -250,16 +250,23 @@ func TestRegistrationExecutesGuardedScriptsInIsolatedPOSIXFixture(testingContext
 	for _, configuration := range []string{"standard", "custom", "mismatch", "unsafe-read"} {
 		testingContext.Run(configuration, func(testingContext *testing.T) {
 			home, external := prepareRegistration(testingContext, false)
-			remote := testingContext.TempDir()
+			remote := fixtureTempDir(testingContext)
 			binaryDirectory := filepath.Join(remote, "bin")
-			writeFixture(testingContext, remote, "bin/uname", "#!/bin/sh\nprintf '%s\\n' Linux\n")
+			system, kernel, mismatch := "linux", "Linux", "Darwin"
+			if runtime.GOOS == "darwin" {
+				system, kernel, mismatch = "macos", "Darwin", "Linux"
+			}
+			if err := state.Update(home, func(document *state.State) error { document.Hosts[0].OS = system; return nil }); err != nil {
+				testingContext.Fatal(err)
+			}
+			writeFixture(testingContext, remote, "bin/uname", "#!/bin/sh\nprintf '%s\\n' "+kernel+"\n")
 			writeFixture(testingContext, remote, "bin/id", "#!/bin/sh\nif [ \"$1\" = -un ]; then printf '%s\\n' me; else /usr/bin/id \"$@\"; fi\n")
 			effective := "usedns no\npubkeyauthentication yes\nstrictmodes yes\nauthorizedkeyscommand none\nauthorizedkeysfile .ssh/authorized_keys .ssh/authorized_keys2\n"
 			if configuration == "custom" {
 				effective = strings.ReplaceAll(effective, ".ssh/authorized_keys .ssh/authorized_keys2", "/custom/authorized")
 			}
 			if configuration == "mismatch" {
-				writeFixture(testingContext, remote, "bin/uname", "#!/bin/sh\nprintf '%s\\n' Darwin\n")
+				writeFixture(testingContext, remote, "bin/uname", "#!/bin/sh\nprintf '%s\\n' "+mismatch+"\n")
 			}
 			daemon := writeFixture(testingContext, remote, "bin/sshd", "#!/bin/sh\n[ \"$1\" = -T ] && [ \"$2\" = -C ] || exit 1\ncase \"$3\" in user=me,host=192.0.2.1,addr=192.0.2.1,laddr=192.0.2.2,lport=22) ;; *) exit 1;; esac\nprintf '%s' '"+effective+"'\n")
 			initial := "# unrelated\r\n" + otherPublicKey + "\r\n"
@@ -334,4 +341,11 @@ func TestInteractiveSystemRunnerRejectsScriptInput(testingContext *testing.T) {
 	if err == nil || !strings.Contains(fmt.Sprint(err), "real terminal") || output.Len() != 0 {
 		testingContext.Fatal("nonterminal credentials were accepted", err)
 	}
+}
+
+func nativePOSIXSystem() string {
+	if runtime.GOOS == "darwin" {
+		return "macos"
+	}
+	return "linux"
 }

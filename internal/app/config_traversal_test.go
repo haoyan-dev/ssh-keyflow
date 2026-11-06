@@ -19,7 +19,7 @@ func TestDiscoveryContinuesButOnboardingRefusesUnresolvedConfiguration(testingCo
 		{"parse", "Include \"unterminated", "configuration parse note"},
 	} {
 		testingContext.Run(scenario.name, func(testingContext *testing.T) {
-			home := testingContext.TempDir()
+			home := fixtureTempDir(testingContext)
 			original := scenario.directive + "\nHost after-problem\n"
 			config := writeFixture(testingContext, home, ".ssh/config", original)
 			output, err := runCLI(testingContext, home, "2\n0\n", runner{})
@@ -42,7 +42,7 @@ func TestDiscoveryContinuesButOnboardingRefusesUnresolvedConfiguration(testingCo
 }
 
 func TestRepeatedQuotedIncludesAreNotCyclesAndStillProtectAliases(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	writeFixture(testingContext, home, ".ssh/config", "Include=\"conf with spaces/host.conf\"\nInclude \"conf with spaces/host.conf\"\n")
 	writeFixture(testingContext, home, ".ssh/conf with spaces/host.conf", "Include nested.conf\n")
 	writeFixture(testingContext, home, ".ssh/nested.conf", "Host reserved\n")

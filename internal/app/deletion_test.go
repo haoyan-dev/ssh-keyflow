@@ -44,7 +44,7 @@ func TestLocalDeletionResumesCrashAfterFileRemovalWithoutChangingIDs(testingCont
 }
 
 func TestCreatedKeyDeletionRetainsCompletedCreationJournal(testingContext *testing.T) {
-	home := testingContext.TempDir()
+	home := fixtureTempDir(testingContext)
 	external := onboardingRunner{testingContext: testingContext, home: home}
 	output, err := runCLI(testingContext, home, "5\nc\nindependent\nyes\n6\n1\nyes\n2\n0\n", external)
 	document, loadErr := state.Load(home)
