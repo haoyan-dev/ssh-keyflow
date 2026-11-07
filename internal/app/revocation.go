@@ -48,6 +48,8 @@ func unregister(ctx context.Context, options Options) error {
 			index = selection - 1
 		}
 		registration := &document.Registrations[index]
+		options.target = pairTarget(&document, registration.HostID, registration.KeyID)
+		options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
 		var host state.Host
 		var key state.Key
 		for _, candidate := range document.Hosts {
@@ -61,6 +63,7 @@ func unregister(ctx context.Context, options Options) error {
 			}
 		}
 		if key.ID == "" && registration.Status == "removed" {
+			options.report(Report{Kind: ReportRegistration, Outcome: OutcomeReconciled, Status: registration.Status, Stage: registration.Stage, Operation: registration.Operation})
 			fmt.Fprintln(options.Output, "Already removed; local key has been deleted; history retained")
 			return nil
 		}
@@ -77,10 +80,12 @@ func unregister(ctx context.Context, options Options) error {
 			if registration.Status != "removed" {
 				registration.Stage = "unknown"
 			}
-			if err := recordRegistration(store, &document, index); err != nil {
+			if err := recordRegistration(options, store, &document, index); err != nil {
 				return err
 			}
 			fmt.Fprintf(options.Output, "Automatic revocation stopped: %s\nManual revocation for %s@%s:%d, fingerprint %s, target %s:\nKeep local files and an existing session. Independently authenticate without this fingerprint, confirm the server's effective configuration and account, then run this same script on the server. Resume this registration for read-only reconciliation before local deletion. POSIX requires Perl. Shared administrator targets affect every administrator; do not elevate or reset existing ACLs.\n%s\n", reason, host.User, host.Hostname, host.Port, key.Fingerprint, plan.Target, plan.Script)
+			options.report(Report{Kind: ReportManual, Outcome: OutcomeRequired, Operation: "unregister"})
+			options.report(Report{Kind: ReportVerification, Outcome: OutcomeNotChecked})
 			if options.Request != nil && options.Request.Bootstrap != "" && options.Request.Bootstrap != "manual" {
 				return fmt.Errorf("%s", reason)
 			}
@@ -173,14 +178,14 @@ func unregister(ctx context.Context, options Options) error {
 		registration.Operation, registration.ConnectionCheck = "unregister", "unverified"
 		if presence == "KEYFLOW_ABSENT" {
 			registration.Status, registration.Stage = "removed", "complete"
-			if err := recordRegistration(store, &document, index); err != nil {
+			if err := recordRegistration(options, store, &document, index); err != nil {
 				return err
 			}
 			fmt.Fprintln(options.Output, "Already absent; read-only reconciliation recorded; local files preserved")
 			return removeKeyConfiguration(options, store, &document, key.ID, host.ID)
 		}
 		registration.Status, registration.Stage = "registered", "planned"
-		if err := recordRegistration(store, &document, index); err != nil {
+		if err := recordRegistration(options, store, &document, index); err != nil {
 			return err
 		}
 		if plan.Shared {
@@ -198,7 +203,7 @@ func unregister(ctx context.Context, options Options) error {
 			return nil
 		}
 		registration.Status, registration.Stage = "unknown", "pending"
-		if err := recordRegistration(store, &document, index); err != nil {
+		if err := recordRegistration(options, store, &document, index); err != nil {
 			return err
 		}
 		body := sshops.ScriptWithSuccess(host.OS, plan.Script, "KEYFLOW_REMOVED")
@@ -207,7 +212,7 @@ func unregister(ctx context.Context, options Options) error {
 			return fallback("remote outcome unknown; retry starts with read-only reconciliation; local files preserved")
 		}
 		registration.Status, registration.Stage = "removed", "complete"
-		if err := recordRegistration(store, &document, index); err != nil {
+		if err := recordRegistration(options, store, &document, index); err != nil {
 			return err
 		}
 		fmt.Fprintln(options.Output, "Public key removed; local files preserved; use the separate guarded local deletion operation")

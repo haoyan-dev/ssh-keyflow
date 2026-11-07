@@ -2,43 +2,71 @@ package tui
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 
-	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"ssh-keyflow/internal/app"
 )
 
 type model struct {
-	ctx     context.Context
-	options app.Options
-	view    app.View
-	list    list.Model
-	tab     int
-	width   int
-	height  int
-	page    string
-	status  string
-	content viewport.Model
-	fields  []field
-	focus   int
-	action  string
-	request app.Request
-	running bool
+	inputGeneration uint64
+	signals         *handoffSignals
+	result          operationResult
+	resultControl   int
+	initialDraft    map[string]string
+	initialTarget   app.Request
+	discardSelected bool
+	editContent     viewport.Model
+	reviewControl   int
+	stale           bool
+	formTarget      app.Request
+	choices         list.Model
+	choiceEntries   []entry
+	choiceQuery     string
+	target          entry
+	origins         []returnContext
+	ctx             context.Context
+	options         app.Options
+	view            app.View
+	list            list.Model
+	lists           [4]list.Model
+	queries         [4]string
+	search          textinput.Model
+	searching       bool
+	tab             int
+	width           int
+	height          int
+	page            string
+	status          string
+	content         viewport.Model
+	draft           map[string]string
+	step            int
+	formError       string
+	errorField      string
+	fields          []field
+	focus           int
+	action          string
+	request         app.Request
+	running         bool
 }
 
-type entry struct{ title, description, detail, kind, id string }
+type entry struct {
+	title, description, kind, id, searchText string
+	readOnly                                 bool
+}
 
 func (item entry) Title() string       { return item.title }
 func (item entry) Description() string { return item.description }
-func (item entry) FilterValue() string { return item.title + " " + item.description }
+func (item entry) FilterValue() string {
+	return item.title + " " + item.description + " " + item.id + " " + item.searchText
+}
 
 func Run(ctx context.Context, options app.Options) error {
 	program, err := NewProgram(ctx, options)
@@ -61,37 +89,36 @@ func NewProgram(ctx context.Context, options app.Options, programOptions ...tea.
 	if err != nil {
 		return nil, err
 	}
-	items := list.New(nil, list.NewDefaultDelegate(), 76, 16)
-	items.SetFilteringEnabled(false)
-	items.SetShowHelp(false)
-	items.AdditionalShortHelpKeys = func() []key.Binding {
-		return []key.Binding{key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "category")),
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details"))}
-	}
-	items.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{
-			key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "create key")),
-			key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "import key")),
-			key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add destination")),
-			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "register")),
-			key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "unregister")),
-			key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete local key")),
-			key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "resume")),
-			key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "discovery")),
-		}
-	}
-	initial := model{ctx: ctx, options: options, view: view, list: items, width: 80, height: 24, page: "list",
+	initial := model{ctx: ctx, options: options, view: view, width: 80, height: 24, page: "list",
 		content: viewport.New(viewport.WithWidth(76), viewport.WithHeight(15))}
 	initial.content.SoftWrap = true
+	initial.search = textinput.New()
+	initial.search.CharLimit = 4096
+	initial.search.Prompt = "Search: "
+	for index := range initial.lists {
+		initial.lists[index] = list.New(nil, list.NewDefaultDelegate(), 76, 16)
+		initial.lists[index].SetFilteringEnabled(false)
+		initial.lists[index].SetShowHelp(false)
+	}
+	initial.list = initial.lists[0]
 	initial.refreshList()
 	defaults := []tea.ProgramOption{tea.WithContext(ctx), tea.WithInput(options.Input), tea.WithOutput(options.Output), tea.WithWindowSize(80, 24)}
-	return tea.NewProgram(initial, append(defaults, programOptions...)...), nil
+	initial.signals = &handoffSignals{}
+	program := tea.NewProgram(initial, append(append(defaults, programOptions...), tea.WithoutSignalHandler())...)
+	initial.signals.program = program
+	return program, nil
 }
 
-func (m model) Init() tea.Cmd { return nil }
+func (m model) Init() tea.Cmd { return m.signals.listen }
 
 func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	m.resizeBody()
+	if response, ok := message.(inputResponse); ok {
+		if response.generation != m.inputGeneration {
+			return m, nil
+		}
+		message = response.message
+	}
 	switch message := message.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = message.Width, message.Height
@@ -101,115 +128,216 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyPressMsg:
 		pressed := message.String()
-		if pressed == "ctrl+c" && m.page == "form" {
-			m.page, m.status = "list", "Changes cancelled"
+		if m.running {
 			return m, nil
 		}
-		if pressed == "ctrl+c" || (pressed == "q" && m.page != "form") {
+		if m.width < 32 || m.height < 12 {
+			if pressed == "q" || pressed == "ctrl+c" {
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+		if m.page == "help" && (pressed == "esc" || pressed == "?" || pressed == "ctrl+c") {
+			m.back()
+			return m, nil
+		}
+		if m.page == "discard" {
+			return m.updateDiscard(message)
+		}
+		if pressed == "ctrl+c" && m.draftActive() {
+			m.cancelDraft()
+			return m, nil
+		}
+		if pressed == "ctrl+c" {
+			return m, tea.Quit
+		}
+		if m.searching {
+			switch pressed {
+			case "enter", "esc":
+				m.searching = false
+				m.inputGeneration++
+				m.search.Blur()
+			default:
+				return m.updateSearch(message)
+			}
+			return m, nil
+		}
+		if (m.page == "list" || m.page == "picker") && pressed == "/" {
+			m.searching = true
+			m.inputGeneration++
+			if m.page == "picker" {
+				m.search.SetValue(m.choiceQuery)
+			} else {
+				m.search.SetValue(m.queries[m.tab])
+			}
+			return m, m.inputCommand(m.search.Focus())
+		}
+		if (m.page == "list" || m.page == "picker") && pressed == "x" {
+			if m.page == "picker" {
+				m.choiceQuery = ""
+				m.refreshChoices()
+			} else {
+				m.queries[m.tab] = ""
+				m.refreshList()
+			}
+			return m, nil
+		}
+		if pressed == "q" && !m.draftActive() && m.page != "help" {
 			return m, tea.Quit
 		}
 		if m.page == "form" {
-			return m.updateForm(message)
+			next, command := m.updateForm(message)
+			updated := next.(model)
+			return updated, updated.inputCommand(command)
+		}
+		if (pressed == "home" || pressed == "end") && m.page != "list" && m.page != "picker" {
+			if pressed == "home" {
+				m.content.GotoTop()
+			} else {
+				m.content.GotoBottom()
+			}
+			return m, nil
+		}
+		if m.page == "review" && (pressed == "esc" || pressed == "e") {
+			m.editReview()
+			return m, nil
 		}
 		if pressed == "esc" {
-			if m.page == "review" {
-				m.status = "Changes cancelled"
-			}
-			m.page = "list"
+			m.back()
 			return m, nil
 		}
 		if m.page == "review" {
-			if pressed == "enter" {
-				m.running = true
-				operation := &execution{ctx: m.ctx, options: m.options, request: m.request}
-				return m, tea.Exec(operation, func(err error) tea.Msg { return completed{err, operation.output.String()} })
+			switch pressed {
+			case "tab", "shift+tab":
+				direction := 1
+				if pressed == "shift+tab" {
+					direction = 3
+				}
+				m.reviewControl = (m.reviewControl + direction) % 4
+			case "?":
+				m.openDocument("help", entry{}, m.helpText())
+			case "c":
+				m.cancelDraft()
+			case "enter":
+				switch m.reviewControl {
+				case 1:
+					m.editReview()
+				case 2:
+					m.cancelDraft()
+				case 3:
+					m.openDocument("help", entry{}, m.helpText())
+				default:
+					if err := m.resolveFormTargets(); err != nil {
+						m.targetError(err)
+						return m, nil
+					}
+					m.running = true
+					ctx, cancel := context.WithCancel(m.ctx)
+					m.signals.start(cancel)
+					operation := &execution{ctx: ctx, options: m.options, request: m.request, target: m.handoffTarget()}
+					return m, tea.Exec(operation, func(err error) tea.Msg {
+						return operation.complete(err)
+					})
+				}
+			default:
+				var command tea.Cmd
+				m.content, command = m.content.Update(message)
+				return m, command
 			}
-			var command tea.Cmd
-			m.content, command = m.content.Update(message)
-			return m, command
+			return m, nil
 		}
-		if pressed == "tab" || pressed == "shift+tab" {
+		if (m.page == "list" || m.page == "details") && (pressed == "tab" || pressed == "shift+tab") {
+			m.lists[m.tab] = m.list
 			if pressed == "tab" {
-				m.tab = (m.tab + 1) % 3
+				m.tab = (m.tab + 1) % 4
 			} else {
-				m.tab = (m.tab + 2) % 3
+				m.tab = (m.tab + 3) % 4
 			}
-			m.page = "list"
+			m.page, m.target, m.origins = "list", entry{}, nil
+			m.list = m.lists[m.tab]
 			m.refreshList()
 			return m, nil
 		}
-		if pressed == "g" {
-			m.page = "details"
+		if pressed == "f5" && (m.page == "list" || m.page == "details" || m.page == "result" || m.page == "reload-error") {
+			m.refreshSnapshot()
+			return m, nil
+		}
+		if pressed == "h" && (m.page == "list" || m.page == "details") {
+			target := m.visibleTarget()
+			if m.page == "list" {
+				target = entry{}
+			}
+			m.openDocument("history", entry{}, m.historyDetails(target))
+			return m, nil
+		}
+		if pressed == "g" && m.page != "help" {
 			notes := ""
 			if m.view.Review != "" {
 				notes = "Requires review: " + m.view.Review + "\n\n"
 			}
-			m.content.SetContent("Discovery (read-only; unmanaged files are not imported)\n\n" + notes + m.view.Discovery)
-			m.content.GotoTop()
+			m.openDocument("discovery", entry{}, "Discovery (read-only; unmanaged files are not imported)\n\n"+notes+m.view.Discovery)
 			return m, nil
 		}
 		if pressed == "?" {
-			if m.page == "help" {
-				m.page = "list"
-				return m, nil
-			}
-			var text strings.Builder
-			text.WriteString("Keyboard help\n\ntab  category\nenter  details\nesc  back\n?  toggle help\n")
-			for _, group := range m.list.FullHelp() {
-				for _, binding := range group {
-					if binding.Enabled() {
-						help := binding.Help()
-						fmt.Fprintf(&text, "%s  %s\n", help.Key, help.Desc)
-					}
-				}
-			}
-			m.page = "help"
-			m.content.SetContent(text.String())
-			m.content.GotoTop()
+			m.openDocument("help", entry{}, m.helpText())
 			return m, nil
+		}
+		if m.page == "result" {
+			return m.updateResult(message)
 		}
 		if m.page == "help" {
 			var command tea.Cmd
 			m.content, command = m.content.Update(message)
 			return m, command
 		}
+		if pressed == "enter" && m.page == "picker" {
+			m.chooseTarget()
+			return m, nil
+		}
 		if pressed == "enter" && m.page == "list" {
 			if item, ok := m.list.SelectedItem().(entry); ok {
-				m.page = "details"
-				m.content.SetContent(item.title + "\n\n" + item.detail)
-				m.content.GotoTop()
+				m.openDocument("details", item, m.entityDetails(item))
 			}
 			return m, nil
 		}
 		actions := map[string]string{"c": "create", "i": "import", "a": "add", "r": "register", "u": "unregister", "d": "delete", "s": "resume"}
 		if action := actions[pressed]; action != "" {
-			m.openForm(action)
+			m.beginAction(action)
 			return m, nil
 		}
 	case completed:
+		m.signals.finish()
 		m.running = false
-		m.page = "details"
-		m.status = "Operation complete"
-		result := m.status
-		if message.err != nil {
-			m.status = "Operation stopped; see details"
-			result = "Operation stopped: " + message.err.Error()
-		}
-		m.content.SetContent(result + "\n\n" + message.output)
-		m.content.GotoTop()
+		m.result = message.result
+		m.resultControl = 0
+		m.page, m.target, m.origins = "result", entry{}, nil
 		view, err := app.Snapshot(m.options)
+		m.result.reloadErr = err
 		if err != nil {
-			m.status = "Reload failed; see details"
-			m.content.SetContent(result + "\n\n" + message.output + "\nReload failed: " + err.Error())
+			m.stale = true
 		} else {
-			m.view = view
+			m.view, m.stale = view, false
 			m.refreshList()
 		}
+		m.renderOperationResult()
+		m.content.GotoTop()
 		return m, nil
+	}
+	if !m.running && m.width >= 32 && m.height >= 12 {
+		if m.searching && (m.page == "list" || m.page == "picker") {
+			return m.updateSearch(message)
+		}
+		if m.page == "form" {
+			next, command := m.updateForm(message)
+			updated := next.(model)
+			return updated, updated.inputCommand(command)
+		}
 	}
 	var command tea.Cmd
 	if m.page == "list" {
 		m.list, command = m.list.Update(message)
+	} else if m.page == "picker" {
+		m.choices, command = m.choices.Update(message)
 	} else {
 		m.content, command = m.content.Update(message)
 	}
@@ -217,51 +345,121 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) chrome() (string, string) {
-	header := lipgloss.NewStyle().Bold(true).Render("SSH KeyFlow")
-	tabs := []string{"Hosts", "Keys", "Registrations"}
+	tabs := []string{"Destinations", "Keys", "Registrations", "Tasks"}
 	tabs[m.tab] = "[" + tabs[m.tab] + "]"
 	categories := strings.Join(tabs, " | ")
-	if m.width < 45 {
+	if m.width < 60 {
 		categories = tabs[m.tab] + " (tab: categories)"
 	}
-	footer := "c create · i import · a add host · r register · u unregister · d delete · s resume · g discovery · esc back · q quit"
-	if m.page == "help" {
-		footer = "↑/↓ scroll · esc back · q quit"
-	} else if m.page == "form" {
-		footer = "tab/shift+tab move · enter next/review · ctrl+s review · esc cancel"
-	} else if m.page == "review" {
-		footer = "enter continue to explicit terminal confirmation · esc cancel · ↑/↓ scroll"
+	footer := "↑/↓ select · enter details · / search · x Clear search\n? help · h history · g discovery · F5 refresh · q quit"
+	switch m.page {
+	case "details":
+		footer = "↑/↓ scroll · r register · u unregister · d delete\n? help · h history · F5 refresh · esc back · q quit"
+	case "history", "discovery", "result", "reload-error":
+		footer = "↑/↓ scroll · ? help · esc back · q quit"
+	case "help":
+		footer = "↑/↓ scroll · esc/? back · ctrl+c back"
+	case "picker":
+		footer = "↑/↓ select · enter choose · / search\nx Clear search · ? help · esc back"
+	case "form":
+		footer = "tab/shift+tab move · enter next · ctrl+s review · esc back\nPgUp/PgDn scroll · Help control"
+	case "discard":
+		footer = "tab/↑/↓ choose · enter select · esc keep editing\n? help"
+	case "review":
+		footer = m.reviewControls()
 	}
-	if m.width < 60 && m.page != "help" {
-		footer = "? help · esc back · q quit"
-		if m.page == "form" {
-			footer = "tab move · ctrl+s review\nesc cancel"
-		} else if m.page == "review" {
-			footer = "enter continue · esc cancel\n↑/↓ scroll"
+	if m.width < 60 {
+		switch m.page {
+		case "list":
+			footer = "/ search · enter details\n? help · q quit"
+		case "details", "history", "discovery", "result", "reload-error":
+			footer = "↑/↓ scroll · ? help\nesc back · q quit"
+		case "picker":
+			footer = "enter choose · / search\n? help · esc back"
+		case "help":
+			footer = "↑/↓ scroll · esc/? back"
+		case "form":
+			footer = "tab move · ctrl+s review\nesc back · PgUp/PgDn scroll"
+		case "review":
+			footer = m.reviewControls()
 		}
 	}
-	status := m.status
-	if m.view.Review != "" {
-		status += "\nRequires review (g: details)"
+	if m.page == "details" && m.target.kind == "task" {
+		footer = "s Continue · ↑/↓ scroll\n? help · esc back · q quit"
 	}
-	style := lipgloss.NewStyle().Width(max(10, m.width))
-	return style.Render(header + "\n" + categories), style.Render(status + "\n" + footer)
+	if m.page == "result" {
+		footer = m.resultFooter()
+	}
+	if m.draftActive() && m.page == "discovery" {
+		footer = "↑/↓ scroll · ? help · esc back\nctrl+c cancel draft"
+	}
+	if m.searching {
+		footer = "enter filter · esc keep query"
+	}
+	status := m.status
+	if m.stale {
+		status = "Saved state stale; F5 Refresh / q Exit"
+	}
+	if status == "" && m.view.Review != "" {
+		status = "Requires review (g: details)"
+	}
+	if status != "" {
+		footer = ansi.Truncate(status, max(1, m.width), "…") + "\n" + footer
+	}
+	return "SSH KeyFlow\n" + categories, ansi.Hardwrap(footer, max(1, m.width), false)
 }
 
 func (m *model) resizeBody() {
 	header, footer := m.chrome()
-	available := max(1, m.height-lipgloss.Height(header)-lipgloss.Height(footer))
+	extra := 0
+	if (m.page == "list" && (m.searching || m.queries[m.tab] != "")) || (m.page == "picker" && (m.searching || m.choiceQuery != "")) {
+		extra = 1
+	}
+	available := max(1, m.height-lipgloss.Height(header)-lipgloss.Height(footer)-extra)
+	m.search.SetWidth(max(1, m.width-10))
+	m.list.SetShowTitle(m.width >= 60)
+	m.list.SetShowStatusBar(false)
+	m.list.SetShowPagination(available >= 6)
 	m.list.SetSize(max(10, m.width-2), available)
 	m.content.SetWidth(max(10, m.width-2))
 	m.content.SetHeight(available)
+	if m.page == "picker" {
+		m.choices.SetShowTitle(m.width >= 60)
+		m.choices.SetShowStatusBar(false)
+		m.choices.SetShowPagination(available >= 6)
+		m.choices.SetSize(max(10, m.width-2), available)
+	}
 }
 
 func (m model) View() tea.View {
+	if m.width < 32 || m.height < 12 {
+		lines := strings.Split(ansi.Hardwrap("Resize: minimum 32x12\nq quit", max(1, m.width), false), "\n")
+		view := tea.NewView(strings.Join(lines[:min(len(lines), max(1, m.height))], "\n"))
+		view.AltScreen = true
+		return view
+	}
 	m.resizeBody()
 	header, footer := m.chrome()
 	body := m.list.View()
+	if m.page == "list" && len(m.list.Items()) == 0 {
+		body = ansi.Hardwrap(m.emptyList(), max(1, m.width-2), false)
+	}
+	if m.page == "list" && (m.searching || m.queries[m.tab] != "") {
+		m.search.SetWidth(max(1, m.width-10))
+		m.search.SetValue(m.queries[m.tab])
+		body = m.search.View() + "\n" + body
+	}
 	if m.page == "form" {
 		body = m.formView()
+	} else if m.page == "picker" {
+		body = m.choices.View()
+		if len(m.choices.Items()) == 0 {
+			body = "No matching eligible targets.\nx: Clear search · esc: Back"
+		}
+		if m.searching || m.choiceQuery != "" {
+			m.search.SetWidth(max(1, m.width-10))
+			body = m.search.View() + "\n" + body
+		}
 	} else if m.page != "list" {
 		body = m.content.View()
 	}
@@ -270,47 +468,18 @@ func (m model) View() tea.View {
 	return view
 }
 
-func (m *model) refreshList() {
-	var entries []list.Item
-	add := func(kind, id, title, description string, value any) {
-		detail, _ := json.MarshalIndent(value, "", "  ")
-		entries = append(entries, entry{title, description, string(detail), kind, id})
+func (m model) emptyList() string {
+	if m.queries[m.tab] != "" {
+		return "No matching records.\nx: Clear search"
 	}
 	switch m.tab {
 	case 0:
-		m.list.Title = "Managed destinations"
-		for _, host := range m.view.State.Hosts {
-			add("host", host.ID, host.Alias, fmt.Sprintf("%s@%s:%d · %s", host.User, host.Hostname, host.Port, host.OS), host)
-		}
-		for _, job := range m.view.State.Onboardings {
-			add("onboarding", job.ID, "Onboarding "+job.ID, "stage="+job.Stage+" · host="+job.HostID, job)
-		}
+		return "No destinations yet.\na: Add destination\nc: Create key / i: Import key"
 	case 1:
-		m.list.Title = "Managed keys"
-		for _, item := range m.view.State.Keys {
-			add("key", item.ID, item.Name, item.Fingerprint+" · connection="+item.ConnectionCheck, item)
-		}
-		for _, job := range m.view.State.Creations {
-			if job.Stage != "complete" {
-				add("creation", job.ID, "Creation "+job.Name, "stage="+job.Stage+" · "+job.ID, job)
-			}
-		}
-		for _, job := range m.view.State.Deletions {
-			if job.Stage != "complete" {
-				add("deletion", job.ID, "Deletion "+job.ID, "stage="+job.Stage+" · key="+job.KeyID, job)
-			}
-		}
-		for _, item := range m.view.State.DeletedKeys {
-			add("deleted", item.Key.ID, "Deleted "+item.Key.Name, item.Key.Fingerprint+" · history retained", item)
-		}
+		return "Managed keys\nNo managed keys yet.\nc: Create key / i: Import key"
 	case 2:
-		m.list.Title = "Registrations and recorded history"
-		for _, item := range m.view.State.Registrations {
-			add("registration", item.ID, item.ID, item.Status+" · connection="+item.ConnectionCheck+" · "+item.Operation+"/"+item.Stage, item)
-		}
-		for _, item := range m.view.State.History {
-			add("history", item.RegistrationID, item.At+" · "+item.Operation, item.Status+" · connection="+item.ConnectionCheck+" · "+item.Stage, item)
-		}
+		return "No registrations recorded.\nSelect a destination or key to register."
+	default:
+		return "No recorded follow-up.\nRemote access is not verified."
 	}
-	m.list.SetItems(entries)
 }

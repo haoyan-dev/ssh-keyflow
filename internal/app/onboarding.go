@@ -160,8 +160,11 @@ func saveDestination(ctx context.Context, options Options, store *state.LockedSt
 		if err != nil {
 			return err
 		}
-	} else if err := store.Save(*document); err != nil {
-		return err
+	} else {
+		options.target = pairTarget(document, host.ID, key.ID)
+		if err := options.saveReport(store, *document, Report{Kind: ReportOnboarding, Outcome: OutcomePending, Stage: "planned"}); err != nil {
+			return err
+		}
 	}
 	return finishOnboarding(ctx, options, store, document, len(document.Onboardings)-1)
 }
@@ -209,8 +212,14 @@ func finishOnboarding(ctx context.Context, options Options, store *state.LockedS
 		document.Registrations = append(document.Registrations, state.Registration{ID: identifier, KeyID: key.ID, HostID: host.ID, Status: "unknown", ConnectionCheck: "unverified", Operation: "register", Stage: "pending"})
 	}
 	job.Stage = "planned"
-	if err := store.Save(*document); err != nil {
+	options.target = pairTarget(document, host.ID, key.ID)
+	if err := options.saveReport(store, *document, Report{Kind: ReportOnboarding, Outcome: OutcomePending, Stage: job.Stage}); err != nil {
 		return err
+	}
+	for _, registration := range document.Registrations {
+		if !found && registration.ID == options.target.RegistrationID {
+			options.report(Report{Kind: ReportRegistration, Outcome: OutcomePending, Saved: true, Status: registration.Status, Stage: registration.Stage, Operation: registration.Operation, ConnectionCheck: registration.ConnectionCheck})
+		}
 	}
 	fmt.Fprintf(options.Output, "Intent saved for %s (%s@%s:%d), fingerprint %s; recorded history is unknown, connection=unverified.\n", host.Alias, host.User, host.Hostname, host.Port, key.Fingerprint)
 	return registerSaved(ctx, options, store, document, host.ID, key.ID)

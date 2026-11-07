@@ -2,10 +2,12 @@ package tui_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,10 +22,19 @@ func runScreen(test *testing.T, home string, messages ...tea.Msg) string {
 }
 
 func runSizedScreen(test *testing.T, home string, width, height int, messages ...tea.Msg) string {
+	return runSizedScreenOptions(test, home, width, height, nil, messages...)
+}
+
+func runSizedScreenOptions(test *testing.T, home string, width, height int, options []tea.ProgramOption, messages ...tea.Msg) string {
+	return runSizedModelOptions(test, home, width, height, options, messages...).View().Content
+}
+
+func runSizedModelOptions(test *testing.T, home string, width, height int, options []tea.ProgramOption, messages ...tea.Msg) tea.Model {
 	test.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	program, err := tui.NewProgram(ctx, app.Options{Home: home, Input: strings.NewReader(""), Output: io.Discard}, tea.WithWindowSize(width, height), tea.WithoutRenderer())
+	var probes atomic.Int32
+	program, err := tui.NewProgram(ctx, app.Options{Home: home, Input: strings.NewReader(""), Output: io.Discard, Runner: navigationRunner{&probes}}, append([]tea.ProgramOption{tea.WithWindowSize(width, height), tea.WithoutRenderer()}, options...)...)
 	if err != nil {
 		test.Fatal(err)
 	}
@@ -42,7 +53,10 @@ func runSizedScreen(test *testing.T, home string, width, height int, messages ..
 	if final.err != nil {
 		test.Fatal(final.err)
 	}
-	return final.model.View().Content
+	if probes.Load() != 0 {
+		test.Fatal("navigation probed dependencies or executed a command")
+	}
+	return final.model
 }
 
 func press(code rune) tea.Msg { return tea.KeyPressMsg(tea.Key{Code: code}) }
@@ -50,7 +64,7 @@ func press(code rune) tea.Msg { return tea.KeyPressMsg(tea.Key{Code: code}) }
 func TestTUIStartsAtReadOnlyListsAndQuits(test *testing.T) {
 	home := test.TempDir()
 	text := runScreen(test, home)
-	for _, expected := range []string{"SSH KeyFlow", "Hosts", "Keys", "Registrations"} {
+	for _, expected := range []string{"SSH KeyFlow", "Destinations", "Keys", "Registrations", "Tasks"} {
 		if !strings.Contains(text, expected) {
 			test.Fatalf("missing %q in %s", expected, text)
 		}
@@ -66,7 +80,7 @@ func TestTUIFormCanBeCancelledBeforeMutation(test *testing.T) {
 	if !strings.Contains(opened, "Create Ed25519 key") || !strings.Contains(opened, "Management name") {
 		test.Fatalf("form not opened: %s", opened)
 	}
-	cancelled := runScreen(test, home, press(tea.KeyTab), press('c'), tea.KeyPressMsg(tea.Key{Text: "draft", Code: 'd'}), press(tea.KeyEscape))
+	cancelled := runScreen(test, home, press(tea.KeyTab), press('c'), tea.KeyPressMsg(tea.Key{Text: "draft", Code: 'd'}), press(tea.KeyEscape), press(tea.KeyTab), press(tea.KeyEnter))
 	if !strings.Contains(cancelled, "Changes cancelled") || !strings.Contains(cancelled, "Managed keys") {
 		test.Fatalf("cancel failed: %s", cancelled)
 	}
@@ -96,18 +110,14 @@ func TestTUINarrowFormKeepsInputAndControlsVisible(test *testing.T) {
 
 func TestTUIAddDestinationRequiresExplicitOSBeforeReview(test *testing.T) {
 	home := test.TempDir()
-	text := func(value string) tea.Msg { return tea.KeyPressMsg(tea.Key{Code: []rune(value)[0], Text: value}) }
-	review := tea.KeyPressMsg(tea.Key{Code: 's', Mod: tea.ModCtrl})
-	form := []tea.Msg{
-		press('a'), text("server"), press(tea.KeyTab), text("server.example"), press(tea.KeyTab), text("alice"),
-		press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), text("new key"), review,
-	}
-	unconfirmed := runScreen(test, home, form...)
-	if strings.Contains(unconfirmed, "Review add") || !strings.Contains(unconfirmed, "invalid destination fields") {
+	form := destinationDraft("macos")
+	// Leave OS untouched until the user explicitly selects it.
+	form = form[:len(form)-1]
+	unconfirmed := runScreen(test, home, append(form, reviewKey())...)
+	if strings.Contains(unconfirmed, "Review add") || !strings.Contains(unconfirmed, "OS: select linux, macos or windows") {
 		test.Fatalf("missing OS was accepted as confirmed:\n%s", unconfirmed)
 	}
-	back := tea.KeyPressMsg(tea.Key{Code: tea.KeyTab, Mod: tea.ModShift})
-	form = append(form, back, back, back, text("macos"), review)
+	form = append(form, text("macos"), reviewKey(), text("new key"), reviewKey())
 	confirmed := runScreen(test, home, form...)
 	if !strings.Contains(confirmed, "Review add") || !strings.Contains(confirmed, "OS: linux/macos/windows: macos") {
 		test.Fatalf("explicit OS could not reach review:\n%s", confirmed)
@@ -173,13 +183,25 @@ func TestTUIListAndScrollableHelpFitResizedTerminal(test *testing.T) {
 		if lipgloss.Height(text) > 12 || lipgloss.Width(text) > 32 {
 			test.Fatalf("overflow %dx%d: %s", lipgloss.Width(text), lipgloss.Height(text), text)
 		}
-		if !strings.Contains(text, "q quit") {
+		if !strings.Contains(text, "q quit") && !strings.Contains(text, "esc/? back") {
 			test.Fatalf("missing controls: %s", text)
 		}
 	}
 	top := runSizedScreen(test, home, 32, 12, press('?'))
-	bottom := runSizedScreen(test, home, 32, 12, press('?'), press(tea.KeyPgDown), press(tea.KeyPgDown), press(tea.KeyPgDown))
-	if !strings.Contains(top, "Keyboard help") || !strings.Contains(bottom, "discovery") || top == bottom {
+	bottom := runSizedScreen(test, home, 32, 12, press('?'), press(tea.KeyEnd))
+	if !strings.Contains(top, "Keyboard help") || !strings.Contains(bottom, "Discovery") || top == bottom {
 		test.Fatalf("help not scrollable: top=%s bottom=%s", top, bottom)
 	}
+}
+
+// Runner is an external process boundary; navigation must never reach it.
+type navigationRunner struct{ calls *atomic.Int32 }
+
+func (r navigationRunner) LookPath(name string) (string, error) {
+	r.calls.Add(1)
+	return "", fmt.Errorf("unexpected dependency probe: %s", name)
+}
+func (r navigationRunner) Run(context.Context, app.Command) error {
+	r.calls.Add(1)
+	return fmt.Errorf("unexpected process execution")
 }

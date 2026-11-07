@@ -15,6 +15,13 @@ import (
 )
 
 func registerSaved(ctx context.Context, options Options, store *state.LockedStore, document *state.State, hostID, keyID string) error {
+	configurationStarted := false
+	defer func() {
+		if !configurationStarted {
+			options.report(Report{Kind: ReportAlias, Outcome: OutcomeSkipped})
+			options.report(Report{Kind: ReportInclude, Outcome: OutcomeSkipped})
+		}
+	}()
 	if err := integrity(*document); err != nil {
 		return err
 	}
@@ -38,6 +45,8 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 	if host.ID == "" || key.ID == "" {
 		return fmt.Errorf("requires review: destination/key unavailable")
 	}
+	options.target = pairTarget(document, host.ID, key.ID)
+	options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
 	public, err := os.ReadFile(key.PublicPath)
 	if err != nil {
 		return err
@@ -52,7 +61,13 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 				document.Onboardings[index].Stage = "manual"
 			}
 		}
-		if err := store.Save(*document); err != nil {
+		options.target = pairTarget(document, host.ID, key.ID)
+		if options.target.OnboardingID != "" {
+			if err := options.saveReport(store, *document, Report{Kind: ReportOnboarding, Outcome: OutcomeRequired, Stage: "manual"}); err != nil {
+				return err
+			}
+		} else if err := store.Save(*document); err != nil {
+			options.report(Report{Kind: ReportManual, Outcome: OutcomeUnknown, Operation: "register"})
 			return err
 		}
 		guidance, guideErr := manualGuidance(host, public)
@@ -60,6 +75,9 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 			return guideErr
 		}
 		fmt.Fprintf(options.Output, "Automatic registration stopped: %v\nCheck address, port, network, server, authentication, permissions and standard sshd configuration. Direct SSH uses -F none; configured ProxyJump and Match options are not loaded. Host-key changes require independent review; no known_hosts entry is removed. Manual registration:\n%s\n", cause, guidance)
+		options.target = pairTarget(document, host.ID, key.ID)
+		options.report(Report{Kind: ReportManual, Outcome: OutcomeRequired, Operation: "register"})
+		options.report(Report{Kind: ReportVerification, Outcome: OutcomeNotChecked})
 		if options.Request != nil && options.Request.Bootstrap != "" && options.Request.Bootstrap != "manual" {
 			return cause
 		}
@@ -150,6 +168,7 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 		document.Registrations = append(document.Registrations, state.Registration{ID: identifier, KeyID: key.ID, HostID: host.ID, Status: "unknown", ConnectionCheck: "unverified", Operation: "register", Stage: "planned"})
 		registrationIndex = len(document.Registrations) - 1
 	}
+	options.target = pairTarget(document, host.ID, key.ID)
 	registration := &document.Registrations[registrationIndex]
 	uncertain := registration.Stage == "unknown" || registration.Status == "registered"
 	for _, event := range document.History {
@@ -171,7 +190,7 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 		present = result == "KEYFLOW_PRESENT"
 		if !present {
 			registration.Status, registration.Stage = "unknown", "planned"
-			if err := recordRegistration(store, document, registrationIndex); err != nil {
+			if err := recordRegistration(options, store, document, registrationIndex); err != nil {
 				return err
 			}
 			approval, err := prompt(options, "Read-only reconciliation found the key absent. Type yes to retry registration:")
@@ -186,14 +205,14 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 	if !present {
 		registration.Status, registration.Stage, registration.Operation = "unknown", "pending", "register"
 		registration.ConnectionCheck = "unverified"
-		if err := recordRegistration(store, document, registrationIndex); err != nil {
+		if err := recordRegistration(options, store, document, registrationIndex); err != nil {
 			return err
 		}
 		body := sshops.ScriptWithSuccess(host.OS, plan.Script, "KEYFLOW_REGISTERED")
 		result, remoteErr := run(sshops.OperationScript(host.OS, "KEYFLOW_REGISTER", guarded(body)), false, false)
 		if remoteErr != nil || !strings.HasSuffix(result, "KEYFLOW_REGISTERED") {
 			registration.Status, registration.Stage = "unknown", "unknown"
-			if err := recordRegistration(store, document, registrationIndex); err != nil {
+			if err := recordRegistration(options, store, document, registrationIndex); err != nil {
 				return err
 			}
 			return fallback(fmt.Errorf("result unknown; resume to reconcile before any retry: %v", remoteErr))
@@ -201,9 +220,10 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 	}
 	registration.Status, registration.Stage = "registered", "complete"
 	registration.ConnectionCheck = "unverified"
-	if err := recordRegistration(store, document, registrationIndex); err != nil {
+	if err := recordRegistration(options, store, document, registrationIndex); err != nil {
 		return err
 	}
+	options.target = pairTarget(document, host.ID, key.ID)
 	var verificationError error
 	if key.PrivatePath != "" {
 		if err := integrity(*document); err != nil {
@@ -220,21 +240,39 @@ func registerSaved(ctx context.Context, options Options, store *state.LockedStor
 		} else {
 			verificationError = fmt.Errorf("specified-key connection verification failed: expected success marker was not received")
 		}
-		if err := recordRegistration(store, document, registrationIndex); err != nil {
+		if err := recordRegistration(options, store, document, registrationIndex); err != nil {
 			return err
 		}
+
+		outcome := OutcomeFailed
+		if registration.ConnectionCheck == "verified" {
+			outcome = OutcomeVerified
+		}
+		options.report(Report{Kind: ReportVerification, Outcome: outcome, Saved: true, ConnectionCheck: registration.ConnectionCheck})
+	} else {
+		options.report(Report{Kind: ReportVerification, Outcome: OutcomeUnavailable, ConnectionCheck: "unverified"})
 	}
 	fmt.Fprintf(options.Output, "%s: registered; connection=%s (specified key only).\n", host.Alias, registration.ConnectionCheck)
 	if verificationError != nil {
 		return verificationError
 	}
+	configurationStarted = true
 	return configureRegistration(options, store, document, host, key)
 }
 
-func recordRegistration(store *state.LockedStore, document *state.State, index int) error {
+func recordRegistration(options Options, store *state.LockedStore, document *state.State, index int) error {
 	registration := document.Registrations[index]
 	document.History = append(document.History, state.RegistrationEvent{RegistrationID: registration.ID, At: time.Now().UTC().Format(time.RFC3339Nano), Status: registration.Status, ConnectionCheck: registration.ConnectionCheck, Stage: registration.Stage, Operation: registration.Operation})
-	return store.Save(*document)
+
+	options.target = pairTarget(document, registration.HostID, registration.KeyID)
+	outcome := OutcomePending
+	if registration.Stage == "unknown" {
+		outcome = OutcomeUnknown
+	}
+	if registration.Stage == "complete" {
+		outcome = OutcomeApplied
+	}
+	return options.saveReport(store, *document, Report{Kind: ReportRegistration, Outcome: outcome, Status: registration.Status, Stage: registration.Stage, Operation: registration.Operation, ConnectionCheck: registration.ConnectionCheck})
 }
 
 func registerAnother(ctx context.Context, options Options) error {
@@ -274,6 +312,8 @@ func registerAnother(ctx context.Context, options Options) error {
 }
 
 func registerSelected(ctx context.Context, options Options, store *state.LockedStore, document *state.State, host state.Host, key state.Key) error {
+	options.target = pairTarget(document, host.ID, key.ID)
+	options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
 	fmt.Fprintf(options.Output, "Register %s at %s (%s@%s:%d)\n", key.Fingerprint, host.Alias, host.User, host.Hostname, host.Port)
 	answer, err := prompt(options, "Type yes to register this managed public key:")
 	if err != nil || answer != "yes" {

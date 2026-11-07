@@ -368,6 +368,13 @@ func resumeOperation(ctx context.Context, options Options) error {
 				if creation.Stage == "complete" {
 					return fmt.Errorf("creation is already complete")
 				}
+				options.target = ReportTarget{KeyID: creation.KeyID, CreationID: creation.ID}
+				for _, job := range document.Onboardings {
+					if job.CreationID == creation.ID {
+						options.target.HostID, options.target.OnboardingID = job.HostID, job.ID
+					}
+				}
+				options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
 				printCreationResume(options.Output, creation)
 				if _, err := prompt(options, "Type yes to resume this recorded creation; existing files are preserved:"); err != nil {
 					return err
@@ -378,6 +385,8 @@ func resumeOperation(ctx context.Context, options Options) error {
 		}
 		for index, job := range document.Onboardings {
 			if job.ID == id {
+				options.target = pairTarget(&document, job.HostID, job.KeyID)
+				options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
 				fmt.Fprintf(options.Output, "Resume onboarding %s stage=%s\n", job.ID, job.Stage)
 				for _, host := range document.Hosts {
 					if host.ID == job.HostID {
