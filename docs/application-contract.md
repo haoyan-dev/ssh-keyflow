@@ -1,5 +1,50 @@
 # Application contract
 
+## Source-hosted one-line installers
+
+`install.sh` (POSIX sh on Linux/macOS) and `install.ps1` (Windows PowerShell 5.1
+or PowerShell 7) are served separately from `main` through
+`raw.githubusercontent.com/haoyan-dev/ssh-keyflow/main/`. They consume the existing
+Portable release archives, including v0.2.0, without changing release assets.
+The one-line entry points are `curl -fsSL <install.sh URL> | sh` and
+`irm <install.ps1 URL> | iex`. Source delivery follows `main`; version selection
+controls the Portable release downloaded by the installer.
+
+The default repository is `haoyan-dev/ssh-keyflow`. `--repository` / `-Repository`
+or `SSH_KEYFLOW_REPOSITORY` override it. Latest resolution requires a stable,
+nondraft, nonprerelease version; explicit `--version` / `-Version` may select a
+prerelease. OS/CPU selection supports the same six targets as Portable archives.
+Download the archive and SHA256SUMS, require one matching checksum, and reject
+unexpected members, links and nonregular archive entries before installation.
+Both executable and `THIRD_PARTY_NOTICES.txt` are installed.
+
+Default locations are `$HOME/.local/bin` and
+`$env:LOCALAPPDATA/Programs/ssh-keyflow`. Both installers retain the v0.1.0
+ownership formats and add notice ownership (`notices-hash` in the POSIX receipt
+directory, `noticesHash` in Windows receipt JSON). An intact legacy receipt with
+no notices upgrades directly. Unowned, changed, or missing owned files stop
+installation/removal. A failed replacement or receipt write restores previous
+executable, notices and ownership hashes.
+
+PATH changes require terminal consent or explicit `--add-to-path` /
+`-AddToPath`. Piped source is never read as an answer. Noninteractive execution
+without consent leaves profiles unchanged and prints a full launch path and
+manual PATH command. PowerShell also treats host refusal to prompt under
+`-NonInteractive` as declined consent. PowerShell argument parsing and
+installation run in a child scope, including under `Invoke-Expression`, to
+preserve caller variables, strict mode and error preferences.
+Profile changes use same-filesystem staging and atomic replacement, preserving
+existing metadata and recovery copies until ownership is recorded. A PATH setup
+failure restores the profile and the previous executable, notices and receipt.
+PATH stanzas remain idempotent and byte-owned; uninstall removes only the exact,
+unique owned stanza, executable, notices and receipt. Existing v0.1.0 stanzas
+remain owned across upgrades. SSH keys, state, SSH configurations and remote
+registrations are never modified. Application shutdown is required before
+update/removal; PATH profile persistence takes effect in a new shell.
+
+Isolated tests use loopback HTTP through `SSH_KEYFLOW_RELEASE_URL` and
+`SSH_KEYFLOW_API_URL`. Normal defaults use HTTPS GitHub endpoints.
+
 ## v0.2.0 Portable release (ticket 04)
 
 `scripts/package_release.py --version <tag> [--output <empty-directory>]` builds Windows/Linux/macOS amd64/arm64 with CGO disabled, VCS stamping disabled, trimpath and injected `main.version`. Existing nonempty output is refused. `--binaries <directory>` instead packages six prebuilt OS_ARCH binaries for artifact tests. Assets are staged before publication to the output directory.
@@ -8,7 +53,7 @@ The release contains exactly six archives and `SHA256SUMS` (seven assets), with 
 
 Portable means freely placed executables. Storage remains `<Home>/.ssh/ssh-keyflow`; moving/replacing/removing the executable neither migrates data nor changes SSH keys, state, config, remote registrations, PATH, profiles or installer receipts. End users need OS OpenSSH, not Go. They exit the application before manual replacement/removal and retain the notice document when redistributing the binary.
 
-Old v0.1.0 installers require one archive member and therefore reject the new archives. Manual binary replacement also invalidates the old ownership digest, so old-script updates/removal may be rejected. README documents manual maintenance and optional manual cleanup of the exact owned PATH stanza; no automatic receipt/profile repair is added.
+Old v0.1.0 installers require one archive member and therefore reject the new archives. Use the new source-hosted installer for intact v0.1.0 installations. Manual binary replacement also invalidates the old ownership digest, so updates/removal may be rejected. README documents manual maintenance and optional manual cleanup of the exact owned PATH stanza; no automatic repair of changed receipts/profiles is added.
 
 CI runs Go and Portable artifact tests on three OSes plus actual six-target crossbuilds. Release workflow uploads the seven staged assets after CI; implementation itself does not tag/push/publish. Fixture artifact tests and crossbuilds do not establish native runtime behavior on every target.
 

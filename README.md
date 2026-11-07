@@ -2,6 +2,55 @@
 
 自分の端末への SSH 接続に使う鍵、公開鍵登録、接続設定と登録履歴を管理する Go 製の TUI / CLI です。コマンド名は `ssh-keyflow`、Windows では `ssh-keyflow.exe` です。
 
+## 1行でインストール
+
+次のコマンドで、最新の正式リリースをインストールできます。
+
+**macOS / Linux**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/haoyan-dev/ssh-keyflow/main/install.sh | sh
+```
+
+**Windows（PowerShell）**
+
+```powershell
+irm https://raw.githubusercontent.com/haoyan-dev/ssh-keyflow/main/install.ps1 | iex
+```
+
+OSとCPU（x64 / ARM64）を判定し、最新の正式リリースと `SHA256SUMS` を取得します。チェックサムとアーカイブの内容を検証した後、本体とライセンス文書をユーザー専用の場所へ配置します。Goと管理者権限は不要です。OSの `ssh` と `ssh-keygen` は別途必要です。取得するスクリプトを先に確認したい場合は、保存して内容を読んでから実行してください。
+
+既定の配置先はmacOS/Linuxの `~/.local/bin`、Windowsの `%LOCALAPPDATA%\Programs\ssh-keyflow` です。PATHへの追加は対話端末で確認し、承認した場合だけシェルのプロファイルに保存します。新しい端末を開いて、次を実行してください。
+
+```sh
+ssh-keyflow --version
+ssh-keyflow
+```
+
+PATHの追加を断った場合や、非対話環境で実行した場合は、インストーラーが表示する本体のフルパスで起動できます。WindowsのPATH保存は、実行したPowerShellのプロファイルだけに適用されます。別の種類のPowerShellやコマンドプロンプトでは、表示されるPATHの手動設定案内を使ってください。
+
+同じコマンドを再実行すると更新できます。更新前にSSH KeyFlowを終了してください。管理するのは本体・ライセンス文書・インストーラー自身のPATH追記だけです。鍵、状態、SSH設定、接続先の公開鍵登録は変更しません。所有記録がない既存ファイルや改変されたファイルは上書きしません。
+
+版や配置先を指定する場合やアンインストールする場合は、スクリプトを保存して実行します。
+
+```sh
+# macOS / Linux：v0.2.1を指定、明示的にPATHへ追加
+curl -fsSLo install.sh https://raw.githubusercontent.com/haoyan-dev/ssh-keyflow/main/install.sh
+sh install.sh --version v0.2.1 --add-to-path
+# 本体を終了してから、所有する本体・ライセンス文書・PATH追記だけを削除
+sh install.sh --uninstall
+```
+
+```powershell
+# Windows：v0.2.1を指定、明示的にPATHへ追加
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/haoyan-dev/ssh-keyflow/main/install.ps1 -OutFile install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.2.1 -AddToPath
+# 本体を終了してから削除
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
+```
+
+上記のWindows例は、そのプロセスだけ実行ポリシーを指定します。PowerShell 7で管理する場合は `powershell` を `pwsh` に置き換えてください。配置先は `--install-dir /absolute/path` / `-InstallDir C:\absolute\path`、対象プロファイルは `--profile /absolute/path` / `-ProfilePath C:\absolute\profile.ps1` で指定します。独自の配置先を使った場合は更新・削除でも同じ指定を使ってください。別のリポジトリを使う場合は `--repository OWNER/REPO` / `-Repository OWNER/REPO` を指定できます。
+
 ## 起動と操作
 
 端末で引数なし、または `ssh-keyflow tui` を実行すると一覧中心のTUIが開きます。Tab / Shift+Tabで接続先・鍵・登録履歴を切り替え、矢印キーで選択、Enterで詳細、`?` でヘルプを表示します。`g` は管理対象外の鍵・設定と要確認事項の読み取り専用一覧です。
@@ -50,9 +99,9 @@ ssh-keyflow resume --id <saved-operation-id>
 
 Windows / Linux / macOS の amd64（x64）/ arm64 用アーカイブを提供します。Windowsはzip、Linux/macOSはtar.gzです。Goやインストーラーは不要で、OS側の `ssh` と `ssh-keygen` が必要です。TUIは対話端末で使います。
 
-配布元は [GitHub Releases](https://github.com/haoyan-dev/ssh-keyflow/releases) です。v0.2.0の実装完了だけでは公開されません。対象タグの6アーカイブと `SHA256SUMS` のうち、自分のOS / CPUのアーカイブとmanifestを取得してください。
+配布元は [GitHub Releases](https://github.com/haoyan-dev/ssh-keyflow/releases) です。対象タグの6アーカイブと `SHA256SUMS` のうち、自分のOS / CPUのアーカイブとmanifestを取得してください。
 
-例：`v0.2.0` が公開されている場合、Linux amd64では次のように検証して展開します。
+例：v0.2.0をLinux amd64で使う場合、次のように検証して展開します。
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
@@ -75,7 +124,7 @@ Expand-Archive .\ssh-keyflow_v0.2.0_windows_amd64.zip .\ssh-keyflow-portable
 
 SHA256は整合性確認であり署名検証ではありません。各アーカイブは実行ファイルと `THIRD_PARTY_NOTICES.txt` を含みます。配置先は利用者が書き込める任意の場所を選び、配布物の移動・共有時には同梱ライセンス文書も保持してください。Portableは実行ファイルの配置を自由に選べる意味で、ユーザー間で鍵や管理データを持ち運ぶ仕組みは含みません。
 
-## 更新・PATH・本体削除
+## Portableの手動更新・PATH・本体削除
 
 更新前にアプリを終了し、新しい配布物のチェックサムを検証して別のディレクトリへ展開します。その後、既存の実行ファイルと同梱ライセンス文書を新しいものへ差し替え、`--version` を確認してください。本体は移動しても従来のホーム配下の状態・鍵・生成設定を使います。
 
@@ -85,7 +134,7 @@ PATHは必要な場合だけ自分で設定します。現在のセッション�
 
 ## v0.1.0のインストーラー利用者
 
-旧配置先は既定でLinux/macOSの `~/.local/bin`、Windowsの `%LOCALAPPDATA%\Programs\ssh-keyflow` です。旧PATHを引き続き使う場合は、その場所の本体を終了後に手動で差し替えてください。v0.2.0のアーカイブにはライセンス文書もあるため、実行ファイル1個だけを要求する旧インストーラーでは更新できません。
+旧配置先は既定でLinux/macOSの `~/.local/bin`、Windowsの `%LOCALAPPDATA%\Programs\ssh-keyflow` です。本体と旧所有記録を変更していなければ、新しいインストーラーで更新できます。既存のPATH追記を保持し、新たに同梱ライセンス文書も管理します。v0.2.0のアーカイブは実行ファイル1個だけを要求する旧インストーラーには対応しないため、古いスクリプトを再利用しないでください。
 
 手動差し替え後は本体のハッシュと旧所有記録が一致せず、旧スクリプトの更新・削除も拒否され得ます。以後の更新・削除は手動で行ってください。旧所有記録（POSIXの `.ssh-keyflow-install/`、Windowsの `.ssh-keyflow-install.json`）と既存PATHは自動移行・自動編集しません。記録はそのまま残せます。
 
@@ -99,6 +148,8 @@ Goは `go.mod` の指定、梱包テストはPython 3.12の標準ライブラリ
 go test ./...
 go vet ./...
 python scripts/test_portable.py -v
+python scripts/test_installers.py -v
+python scripts/test_installer_profiles.py -v
 python scripts/package_release.py --version v0.2.0 --output dist
 ```
 
@@ -112,6 +163,6 @@ python scripts/package_release.py --version v0.2.0 --output dist
 
 アーカイブ内部は `ssh-keyflow`（Windowsは `ssh-keyflow.exe`）と `THIRD_PARTY_NOTICES.txt`。Unix実行権限は0755です。トップレベルの配布物は6アーカイブと `SHA256SUMS` の7件だけです。manifestは6アーカイブについて、64桁SHA256・半角スペース2個・ベース名・LFで記録します。
 
-CIは3 OSでGoテストとPortable生成物テストを実行し、6対象の実クロスビルドとLinux amd64版の版注入を確認します。`v*` タグのpushでCI成功後に7件を `GITHUB_REPOSITORY` へ公開します。プレリリースタグはlatest正式版にしません。今回の実装作業ではタグ・push・公開を行いません。
+CIは3 OSでGoテスト、Portable生成物テスト、インストーラーテストを実行し、6対象の実クロスビルドとLinux amd64版の版注入を確認します。`v*` タグのpushでCI成功後に7件を `GITHUB_REPOSITORY` へ公開します。インストーラーは `main` のソースから別途配信し、7件のリリース配布物は変更しません。プレリリースタグはlatest正式版にしません。
 
 テストは一時ホーム・配置先・配布物を使い、実ユーザーのSSHデータ、永続PATH、プロファイル、接続先を変更しません。クロスビルドは各OS / CPUでの実機実行の証拠とは区別します。確認済み範囲は [docs/verification.md](docs/verification.md)、公開インターフェースは [docs/application-contract.md](docs/application-contract.md) を参照してください。

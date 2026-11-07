@@ -116,3 +116,55 @@ Six-target final release generation remains an integration check after these fix
 - The extracted final Windows amd64 binary reported `SSH KeyFlow v0.2.0`; `keys list --json` succeeded with valid JSON, no diagnostic output and no `.ssh` directory created in the isolated home.
 
 Earlier hosted CI at `97ec7f9` passed the Ubuntu, macOS and Windows jobs plus cross-builds. That result predates these code fixes; final-head hosted CI is tracked separately on PR #1. Hosted native tests and cross-builds do not establish interactive Linux/macOS TUI or live SSH-server behavior. No user SSH data or remote server was accessed, and no release was published.
+
+## Source-hosted installers (2026-11-07)
+
+Tested uncommitted installer changes over `3e71b0e90bf4e364a821fc741d288cbc8bc8515e`
+on Windows amd64, Python 3.12.13, Windows PowerShell 5.1.26100.9711,
+PowerShell 7.6.9 and Git Bash. The scripts consume existing two-member Portable
+archives; application code and release packaging are unchanged.
+
+The tested script SHA256 values are:
+
+| File | SHA256 |
+| --- | --- |
+| `install.sh` | `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f` |
+| `install.ps1` | `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f` |
+| `scripts/test_installers.py` | `ee4c8c38ac9e5f99cb09dccea4bb17dd96bb85b90678f702831625ef5770bd57` |
+| `scripts/test_installer_profiles.py` | `0b08067ce8da9956b186f28a220d64ff4d7656c42fd7afc293059d74a20a0b9c` |
+
+- The initial installer suite passed all 50 tests in 203.911s. After extending
+  Windows uninstall rollback, the 26 Windows cases passed again in 84.720s.
+  After the shell byte-offset fix, all 24 shell cases passed again in 132.616s.
+  Fixtures cover stable/version/architecture selection, both pipeline entry
+  points, checksum and archive rejection, ownership, legacy receipts, update,
+  removal and failed writes.
+- The focused profile suite initially passed 29 of 30 cases, including all
+  16 Windows cases. Its remaining Git Bash case exposed text-mode CRLF
+  normalization in the byte-offset calculation. Enabling awk binary input
+  fixed the non-UTF-8/CRLF/no-final-newline regression; its focused rerun passed.
+  These tests also cover complete rollback after profile replacement, directory
+  and read-only profiles, locked files, byte/mode/Windows ACL preservation, and
+  IEX caller variables including a read-only version variable.
+  The final shell profile suite passed all 14 cases in 59.290s; together with
+  the 16 unchanged Windows cases, all 30 profile cases are verified.
+- `python3.12.exe scripts/test_portable.py -v` passed all five tests in
+  22.917s, including a native executable build/run.
+- Final scripts installed the actual published v0.2.0 Windows amd64 archive
+  using Windows PowerShell 5.1, reported `SSH KeyFlow v0.2.0`, updated through
+  latest stable resolution with PowerShell 7 and explicit PATH consent, and
+  uninstalled through Windows PowerShell 5.1. Only a temporary installation
+  directory and profile were used. Uninstall restored the exact original profile
+  bytes and left the installation directory empty; smoke fixtures were removed.
+- Separate read-only Standards and Specification reviews resolved the profile
+  atomicity, rollback, caller-scope and noninteractive prompt findings. Shell
+  syntax, PowerShell 5.1/7 parsing and `git diff --check` passed. Both reviewers
+  also cleared the final shell byte-offset change without additional findings.
+
+The three-OS CI matrix now runs both installer suites, but this source change
+has not been pushed or run on hosted CI. Native Linux/macOS and ARM64 runtime
+execution remain unverified locally; shell fixtures substitute platform identity
+under Git Bash. Tests use isolated homes and loopback release fixtures and do
+not modify real user SSH data, profiles, persistent PATH or remote registrations.
+The source-hosted commands become available only after publication to `main`;
+no commit, push, tag or publication was performed in this task.
