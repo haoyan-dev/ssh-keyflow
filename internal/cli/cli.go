@@ -45,7 +45,7 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 		Args:          cobra.NoArgs,
 		SilenceErrors: true, SilenceUsage: true,
 		RunE: func(command *cobra.Command, _ []string) error {
-			if terminal(options.Input) {
+			if terminal(options.Input) && terminalWriter(options.Output) {
 				return openTUI(command.Context(), options)
 			}
 			return command.Help()

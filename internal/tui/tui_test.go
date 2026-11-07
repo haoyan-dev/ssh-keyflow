@@ -33,6 +33,7 @@ func runSizedScreen(test *testing.T, home string, width, height int, messages ..
 	}
 	done := make(chan result, 1)
 	go func() { model, err := program.Run(); done <- result{model, err} }()
+	program.Send(tea.WindowSizeMsg{Width: width, Height: height})
 	for _, message := range messages {
 		program.Send(message)
 	}
@@ -141,6 +142,12 @@ func TestTUISelectedDetailsAndDiscoveryUseCurrentOperations(test *testing.T) {
 	if err := app.Run(context.Background(), options); err != nil {
 		test.Fatal(err)
 	}
+	for _, messages := range [][]tea.Msg{nil, {press('?')}, {press(tea.KeyTab)}, {press(tea.KeyTab), press('?')}} {
+		screen := runSizedScreen(test, home, 32, 12, messages...)
+		if lipgloss.Height(screen) > 12 || lipgloss.Width(screen) > 32 {
+			test.Fatalf("populated narrow overflow: %s", screen)
+		}
+	}
 	details := runScreen(test, home, press(tea.KeyTab), press(tea.KeyEnter))
 	if !strings.Contains(details, "Managed example") || !strings.Contains(details, "fingerprint") || !strings.Contains(details, "imported") {
 		test.Fatalf("selected key details unavailable: %s", details)
@@ -152,5 +159,27 @@ func TestTUISelectedDetailsAndDiscoveryUseCurrentOperations(test *testing.T) {
 	review := runScreen(test, home, press(tea.KeyTab), press(tea.KeyTab), press('r'), tea.KeyPressMsg(tea.Key{Code: 's', Mod: tea.ModCtrl}))
 	if !strings.Contains(review, "Review register") {
 		test.Fatalf("selected registration did not supply its destination and key: %s", review)
+	}
+}
+
+func TestTUIListAndScrollableHelpFitResizedTerminal(test *testing.T) {
+	home := test.TempDir()
+	for _, messages := range [][]tea.Msg{
+		nil, {press('?')}, {press('?'), press(tea.KeyPgDown), press(tea.KeyPgDown), press(tea.KeyPgDown)},
+		{tea.WindowSizeMsg{Width: 80, Height: 24}, press('?'), tea.WindowSizeMsg{Width: 32, Height: 12}},
+		{tea.WindowSizeMsg{Width: 32, Height: 12}, tea.WindowSizeMsg{Width: 80, Height: 24}, tea.WindowSizeMsg{Width: 32, Height: 12}},
+	} {
+		text := runSizedScreen(test, home, 32, 12, messages...)
+		if lipgloss.Height(text) > 12 || lipgloss.Width(text) > 32 {
+			test.Fatalf("overflow %dx%d: %s", lipgloss.Width(text), lipgloss.Height(text), text)
+		}
+		if !strings.Contains(text, "q quit") {
+			test.Fatalf("missing controls: %s", text)
+		}
+	}
+	top := runSizedScreen(test, home, 32, 12, press('?'))
+	bottom := runSizedScreen(test, home, 32, 12, press('?'), press(tea.KeyPgDown), press(tea.KeyPgDown), press(tea.KeyPgDown))
+	if !strings.Contains(top, "Keyboard help") || !strings.Contains(bottom, "discovery") || top == bottom {
+		test.Fatalf("help not scrollable: top=%s bottom=%s", top, bottom)
 	}
 }

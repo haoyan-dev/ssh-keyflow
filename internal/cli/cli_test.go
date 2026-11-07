@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/charmbracelet/x/term"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,4 +179,21 @@ func (external forbiddenSSH) LookPath(string) (string, error) {
 func (external forbiddenSSH) Run(context.Context, app.Command) error {
 	external.test.Fatal("read-only listing executed an SSH command")
 	return nil
+}
+
+func TestTerminalInputWithRedirectedOutputShowsHelp(test *testing.T) {
+	if !term.IsTerminal(os.Stdin.Fd()) {
+		test.Skip("requires terminal stdin; run with a native PTY")
+	}
+	for _, arguments := range [][]string{nil, {"tui"}} {
+		var output, diagnostics bytes.Buffer
+		code := cli.Run(context.Background(), arguments, cli.Options{Home: test.TempDir(), Input: os.Stdin, Output: &output, Error: &diagnostics})
+		if len(arguments) == 0 {
+			if code != 0 || !strings.Contains(output.String(), "Usage:") || diagnostics.Len() != 0 {
+				test.Fatalf("automatic startup: exit=%d stdout=%s stderr=%s", code, output.String(), diagnostics.String())
+			}
+		} else if code != 2 || !strings.Contains(diagnostics.String(), "terminal") {
+			test.Fatalf("explicit tui: exit=%d stderr=%s", code, diagnostics.String())
+		}
+	}
 }

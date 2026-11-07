@@ -312,3 +312,62 @@ func TestStructuredResumeShowsSavedTargetsBeforeConfirmation(testingContext *tes
 		})
 	}
 }
+
+func TestManualUnregisterRequiresConfirmationBeforeSaving(test *testing.T) {
+	for _, mode := range []string{"", "manual"} {
+		for _, consent := range []string{"missing", "decline", "approve"} {
+			test.Run(mode+"/"+consent, func(test *testing.T) {
+				home := fixtureTempDir(test)
+				public := writeFixture(test, home, ".ssh/source.pub", publicKey)
+				var output bytes.Buffer
+				options := app.Options{Home: home, Output: &output, Runner: runner{}, Confirm: func(string) (bool, error) { return true, nil }}
+				options.Request = &app.Request{Operation: "import", Name: "reuse", PublicPath: public}
+				if err := app.Run(context.Background(), options); err != nil {
+					test.Fatal(err)
+				}
+				options.Request = &app.Request{Operation: "add", Key: "reuse", Bootstrap: "manual", Destination: app.Destination{Alias: "server", Hostname: "server.example", User: "alice", OS: "linux", Port: 22}}
+				if err := app.Run(context.Background(), options); err != nil {
+					test.Fatal(err)
+				}
+				before, err := app.Snapshot(options)
+				if err != nil {
+					test.Fatal(err)
+				}
+				saved, err := os.ReadFile(filepath.Join(home, ".ssh", "ssh-keyflow", "state.json"))
+				if err != nil {
+					test.Fatal(err)
+				}
+				output.Reset()
+				calls := 0
+				options.Confirm = nil
+				if consent != "missing" {
+					options.Confirm = func(message string) (bool, error) {
+						calls++
+						for _, target := range []string{"alice@server.example:22", before.State.Keys[0].Fingerprint, "authorized_keys"} {
+							if !strings.Contains(message+output.String(), target) {
+								test.Errorf("confirmation missing %s: %s %s", target, message, output.String())
+							}
+						}
+						return consent == "approve", nil
+					}
+				}
+				options.Request = &app.Request{Operation: "unregister", Registration: before.State.Registrations[0].ID, Bootstrap: mode}
+				err = app.Run(context.Background(), options)
+				if consent == "approve" {
+					after, snapshotErr := app.Snapshot(options)
+					if err != nil || snapshotErr != nil || calls != 1 || after.State.Registrations[0].Operation != "unregister" || !strings.Contains(output.String(), "Manual revocation") {
+						test.Fatalf("approved: %v %v calls=%d", err, snapshotErr, calls)
+					}
+				} else {
+					current, readErr := os.ReadFile(filepath.Join(home, ".ssh", "ssh-keyflow", "state.json"))
+					if err == nil || readErr != nil || !bytes.Equal(saved, current) {
+						test.Fatalf("unconfirmed mutation: %v %v", err, readErr)
+					}
+					if consent == "decline" && (!errors.Is(err, app.ErrCancelled) || calls != 1) {
+						test.Fatalf("decline: %v calls=%d", err, calls)
+					}
+				}
+			})
+		}
+	}
+}

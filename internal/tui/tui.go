@@ -63,6 +63,7 @@ func NewProgram(ctx context.Context, options app.Options, programOptions ...tea.
 	}
 	items := list.New(nil, list.NewDefaultDelegate(), 76, 16)
 	items.SetFilteringEnabled(false)
+	items.SetShowHelp(false)
 	items.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "category")),
 			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "details"))}
@@ -90,12 +91,11 @@ func NewProgram(ctx context.Context, options app.Options, programOptions ...tea.
 func (m model) Init() tea.Cmd { return nil }
 
 func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
+	m.resizeBody()
 	switch message := message.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = message.Width, message.Height
-		m.list.SetSize(max(10, m.width-2), max(3, m.height-8))
-		m.content.SetWidth(max(10, m.width-2))
-		m.content.SetHeight(max(3, m.height-8))
+		m.resizeBody()
 		for index := range m.fields {
 			m.fields[index].input.SetWidth(max(8, m.width-4))
 		}
@@ -148,10 +148,30 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.content.GotoTop()
 			return m, nil
 		}
-		if pressed == "?" && m.page == "details" {
-			m.page = "list"
-			m.list.Help.ShowAll = true
+		if pressed == "?" {
+			if m.page == "help" {
+				m.page = "list"
+				return m, nil
+			}
+			var text strings.Builder
+			text.WriteString("Keyboard help\n\ntab  category\nenter  details\nesc  back\n?  toggle help\n")
+			for _, group := range m.list.FullHelp() {
+				for _, binding := range group {
+					if binding.Enabled() {
+						help := binding.Help()
+						fmt.Fprintf(&text, "%s  %s\n", help.Key, help.Desc)
+					}
+				}
+			}
+			m.page = "help"
+			m.content.SetContent(text.String())
+			m.content.GotoTop()
 			return m, nil
+		}
+		if m.page == "help" {
+			var command tea.Cmd
+			m.content, command = m.content.Update(message)
+			return m, command
 		}
 		if pressed == "enter" && m.page == "list" {
 			if item, ok := m.list.SelectedItem().(entry); ok {
@@ -196,7 +216,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	return m, command
 }
 
-func (m model) View() tea.View {
+func (m model) chrome() (string, string) {
 	header := lipgloss.NewStyle().Bold(true).Render("SSH KeyFlow")
 	tabs := []string{"Hosts", "Keys", "Registrations"}
 	tabs[m.tab] = "[" + tabs[m.tab] + "]"
@@ -204,19 +224,15 @@ func (m model) View() tea.View {
 	if m.width < 45 {
 		categories = tabs[m.tab] + " (tab: categories)"
 	}
-	body := m.list.View()
-	if m.page == "form" {
-		body = m.formView()
-	} else if m.page != "list" {
-		body = m.content.View()
-	}
 	footer := "c create · i import · a add host · r register · u unregister · d delete · s resume · g discovery · esc back · q quit"
-	if m.page == "form" {
+	if m.page == "help" {
+		footer = "↑/↓ scroll · esc back · q quit"
+	} else if m.page == "form" {
 		footer = "tab/shift+tab move · enter next/review · ctrl+s review · esc cancel"
 	} else if m.page == "review" {
 		footer = "enter continue to explicit terminal confirmation · esc cancel · ↑/↓ scroll"
 	}
-	if m.width < 60 {
+	if m.width < 60 && m.page != "help" {
 		footer = "? help · esc back · q quit"
 		if m.page == "form" {
 			footer = "tab move · ctrl+s review\nesc cancel"
@@ -228,9 +244,28 @@ func (m model) View() tea.View {
 	if m.view.Review != "" {
 		status += "\nRequires review (g: details)"
 	}
-	body = fmt.Sprintf("%s\n%s\n%s\n%s\n%s", header, categories, body, status, footer)
-	body = lipgloss.NewStyle().Width(max(10, m.width)).Render(body)
-	view := tea.NewView(body)
+	style := lipgloss.NewStyle().Width(max(10, m.width))
+	return style.Render(header + "\n" + categories), style.Render(status + "\n" + footer)
+}
+
+func (m *model) resizeBody() {
+	header, footer := m.chrome()
+	available := max(1, m.height-lipgloss.Height(header)-lipgloss.Height(footer))
+	m.list.SetSize(max(10, m.width-2), available)
+	m.content.SetWidth(max(10, m.width-2))
+	m.content.SetHeight(available)
+}
+
+func (m model) View() tea.View {
+	m.resizeBody()
+	header, footer := m.chrome()
+	body := m.list.View()
+	if m.page == "form" {
+		body = m.formView()
+	} else if m.page != "list" {
+		body = m.content.View()
+	}
+	view := tea.NewView(header + "\n" + body + "\n" + footer)
 	view.AltScreen = true
 	return view
 }

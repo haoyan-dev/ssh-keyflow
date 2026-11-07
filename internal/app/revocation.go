@@ -120,6 +120,15 @@ func unregister(ctx context.Context, options Options) error {
 				return fallback("alternate key must exclude target fingerprint and certificates, even at another path")
 			}
 		} else if mode != "p" {
+			if options.Request != nil {
+				answer, err := prompt(options, fmt.Sprintf("Type yes to record manual unregister intent for %s@%s:%d, fingerprint %s, target %s; remote removal remains unverified", host.User, host.Hostname, host.Port, key.Fingerprint, plan.Target))
+				if err != nil {
+					return err
+				}
+				if answer != "yes" {
+					return ErrCancelled
+				}
+			}
 			return fallback("no alternate authentication selected; local files preserved")
 		}
 		probe, err := sshops.RegistrationProbe(host.OS, host.WindowsAccount, host.User)
