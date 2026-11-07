@@ -353,7 +353,7 @@ func (m model) chrome() (string, string) {
 	tabs[m.tab] = "[" + tabs[m.tab] + "]"
 	categories := strings.Join(tabs, " | ")
 	if m.width < 60 {
-		categories = tabs[m.tab] + " (tab: categories)"
+		categories = tabs[m.tab] + " (tab: switch)"
 	}
 	footer := "↑/↓ select · enter details · / search · x Clear search\n? help · h history · g discovery · F5 refresh · q quit"
 	switch m.page {

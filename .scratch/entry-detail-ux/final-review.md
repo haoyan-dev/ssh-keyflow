@@ -49,5 +49,11 @@ Finding P02: the technical-value assertion assumed an unwrapped path. Resolved
 by normalizing rendered whitespace when checking complete saved values; the
 existing 32-column scrolling test still verifies full-value reachability.
 
+Finding P03: expanding the layout matrix to every entry kind exposed an
+existing 33-column Registrations header at minimum width. Native 32x12
+inspection also showed clipping. Resolved by shortening the compact category
+hint to “(tab: switch)”; all four overview and technical pages are included
+in the layout regression check.
+
 No unresolved specification findings. Native/live-platform limits are stated
 in the verification record and are not treated as evidence from fake Runners.
