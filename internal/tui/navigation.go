@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/viewport"
+	"github.com/charmbracelet/x/ansi"
 	"ssh-keyflow/internal/app"
 	"ssh-keyflow/internal/state"
 )
@@ -16,14 +17,20 @@ type returnContext struct {
 	page      string
 	target    entry
 	content   viewport.Model
+	document  string
 	searching bool
+}
+
+func (m *model) setContent(text string) {
+	m.document = text
+	m.content.SetContent(ansi.Wrap(text, max(1, m.content.Width()), ""))
 }
 
 func (m *model) openDocument(page string, target entry, text string) {
 	m.inputGeneration++
-	m.origins = append(m.origins, returnContext{m.page, m.target, m.content, m.searching})
+	m.origins = append(m.origins, returnContext{m.page, m.target, m.content, m.document, m.searching})
 	m.page, m.target, m.searching = page, target, false
-	m.content.SetContent(text)
+	m.setContent(text)
 	m.content.GotoTop()
 }
 
@@ -36,7 +43,13 @@ func (m *model) back() {
 	origin := m.origins[len(m.origins)-1]
 	m.origins = m.origins[:len(m.origins)-1]
 	m.page, m.target, m.content = origin.page, origin.target, origin.content
+	m.document = origin.document
 	m.searching = origin.searching
+	width, height := m.content.Width(), m.content.Height()
+	m.resizeBody()
+	if m.page == "form" && (width != m.content.Width() || height != m.content.Height()) {
+		m.revealFormFocus()
+	}
 }
 
 // visibleTarget never falls through an overlay/result to a hidden list row.
@@ -99,15 +112,11 @@ func (m model) categoryEntries() []entry {
 	switch m.tab {
 	case 0:
 		for _, host := range m.view.State.Hosts {
-			entries = append(entries, entry{kind: "host", id: host.ID, title: host.Alias, description: login(host) + " · " + host.OS + " · " + host.ID})
+			entries = append(entries, entry{kind: "host", id: host.ID, title: host.Alias, description: login(host) + " · " + host.OS})
 		}
 	case 1:
 		for _, key := range m.view.State.Keys {
-			availability := "public only"
-			if key.PrivatePath != "" {
-				availability = "private key available"
-			}
-			entries = append(entries, entry{kind: "key", id: key.ID, title: key.Name, description: key.Fingerprint + " · " + availability + " · " + key.ID})
+			entries = append(entries, m.keyChoiceEntry(key))
 		}
 	case 3:
 		for _, task := range ProjectTasks(m.view) {
@@ -117,7 +126,20 @@ func (m model) categoryEntries() []entry {
 		for _, reg := range m.view.State.Registrations {
 			_, active := m.key(reg.KeyID)
 			key, _ := m.recordedKey(reg.KeyID)
-			entries = append(entries, entry{kind: "registration", id: reg.ID, title: m.registrationLabel(reg), description: reg.Status + " · connection=" + reg.ConnectionCheck + " · " + reg.ID, readOnly: !active, searchText: reg.KeyID + " " + reg.HostID + " " + key.Fingerprint})
+			title := m.registrationLabel(reg)
+			reference := ""
+			if host, ok := m.host(reg.HostID); ok {
+				title = host.Alias + " / " + key.Name
+				for _, other := range m.view.State.Registrations {
+					otherKey, _ := m.recordedKey(other.KeyID)
+					if other.ID != reg.ID && other.HostID == reg.HostID && otherKey.Name == key.Name {
+						reference = shortReference(reg.ID)
+						title += " [" + reference + "]"
+						break
+					}
+				}
+			}
+			entries = append(entries, entry{kind: "registration", id: reg.ID, title: title, reference: reference, description: "Saved: " + registrationStatus(reg.Status) + " · Connection: " + connectionStatus(reg.ConnectionCheck), readOnly: !active, searchText: reg.KeyID + " " + reg.HostID + " " + key.Fingerprint + " " + m.registrationLabel(reg)})
 		}
 	}
 	return entries
@@ -265,7 +287,34 @@ func (m model) technicalDetails(item entry) string {
 
 func (m model) historyDetails(target entry) string {
 	var text strings.Builder
-	text.WriteString("History (read-only)\nRecorded evidence, not current remote state.\n\n")
+	scope := "All recorded registration events"
+	if target.id != "" {
+		label := target.title
+		switch target.kind {
+		case "host":
+			if host, ok := m.host(target.id); ok {
+				label = host.Alias
+			}
+		case "key":
+			if key, ok := m.recordedKey(target.id); ok {
+				label = key.Name
+			}
+		case "registration":
+			for _, reg := range m.view.State.Registrations {
+				if reg.ID == target.id {
+					label = m.registrationLabel(reg)
+				}
+			}
+		}
+		if label == "" {
+			label = target.id
+		}
+		scope = target.kind + ": " + label
+	} else if m.tab == 1 {
+		scope += " and local key work"
+	}
+	text.WriteString(detailHeading("History (read-only)") + "\nScope: " + scope + "\nRecorded evidence, not current remote state.\n\n")
+	count := 0
 	for _, event := range m.view.State.History {
 		for _, reg := range m.view.State.Registrations {
 			if reg.ID != event.RegistrationID {
@@ -274,7 +323,8 @@ func (m model) historyDetails(target entry) string {
 			if target.id != "" && !((target.kind == "host" && target.id == reg.HostID) || (target.kind == "key" && target.id == reg.KeyID) || (target.kind == "registration" && target.id == reg.ID)) {
 				continue
 			}
-			fmt.Fprintf(&text, "%s\n%s\nRegistration ID: %s\nOperation: %s / %s\nRegistration: %s\nConnection: %s (recorded at that time)\n\n", event.At, m.registrationLabel(reg), reg.ID, event.Operation, event.Stage, event.Status, event.ConnectionCheck)
+			fmt.Fprintf(&text, "%s\n%s\nRegistration ID: %s\nOperation: %s / %s\nRegistration: %s\nConnection: %s (recorded at that time)\n\n", detailHeading(event.At), m.registrationLabel(reg), reg.ID, event.Operation, event.Stage, event.Status, event.ConnectionCheck)
+			count++
 		}
 	}
 	if target.kind == "key" || (target.id == "" && m.tab == 1) {
@@ -283,19 +333,37 @@ func (m model) historyDetails(target entry) string {
 				continue
 			}
 			fmt.Fprintf(&text, "Deleted local key: %s [%s]\nDeleted: %s\nDeletion ID: %s\nFull fingerprint: %s\nPublic path: %s\nPrivate path: %s\nRegistration history retained.\n\n", deleted.Key.Name, deleted.Key.ID, deleted.DeletedAt, deleted.DeletionID, deleted.Key.Fingerprint, deleted.Key.PublicPath, deleted.Key.PrivatePath)
+			count++
 		}
 		for _, creation := range m.view.State.Creations {
 			if creation.Stage == "complete" && (target.id == "" || creation.KeyID == target.id) {
 				fmt.Fprintf(&text, "Completed key creation: %s\nCreation ID: %s\nKey ID: %s\nCreated: %s\nPublic path: %s\nPrivate path: %s\nFull fingerprint: %s\n\n", creation.Name, creation.ID, creation.KeyID, creation.CreatedAt, creation.PublicPath, creation.PrivatePath, creation.Fingerprint)
+				count++
 			}
 		}
 		for _, deletion := range m.view.State.Deletions {
 			if deletion.Stage == "complete" && (target.id == "" || deletion.KeyID == target.id) {
 				fmt.Fprintf(&text, "Completed local deletion: %s\nKey ID: %s\nCreated: %s\nPublic removed: %t\nPrivate removed: %t\n\n", deletion.ID, deletion.KeyID, deletion.CreatedAt, deletion.PublicRemoved, deletion.PrivateRemoved)
+				count++
 			}
 		}
 	}
-	text.WriteString("End of recorded history. No actions run from history.\n")
+	if count == 0 {
+		text.WriteString("No recorded events in this view.\n")
+	} else {
+		text.WriteString("End of recorded history.\n")
+	}
+	text.WriteString("No actions run from history.\n")
+	return text.String()
+}
+
+func (m model) discoveryDetails() string {
+	var text strings.Builder
+	text.WriteString(detailHeading("Discovery") + "\nRead-only; unmanaged files are not imported.\n\n")
+	if m.view.Review != "" {
+		text.WriteString(detailHeading("Saved-state review") + "\n" + m.view.Review + "\n\n")
+	}
+	text.WriteString(detailHeading("Discovery report") + "\n" + m.view.Discovery)
 	return text.String()
 }
 
@@ -318,7 +386,7 @@ func (m *model) refreshSnapshot() {
 		m.status = "Saved state stale; Refresh failed. F5: retry / q: quit"
 		text := "Refresh failed: " + err.Error() + "\nPrevious saved state is stale. Mutations are disabled until Refresh succeeds."
 		if m.page == "reload-error" {
-			m.content.SetContent(text)
+			m.setContent(text)
 			m.content.GotoTop()
 		} else {
 			m.openDocument("reload-error", entry{}, text)
@@ -366,25 +434,31 @@ func (m *model) refreshSnapshot() {
 		}
 		if found {
 			offset := m.content.YOffset()
-			m.content.SetContent(m.entityDetails(m.target))
+			m.setContent(m.entityDetails(m.target))
 			m.content.SetYOffset(offset)
 		} else {
 			m.target.readOnly = true
 			m.status = "Target removed; details are read-only"
-			m.content.SetContent("Requires review: target no longer available. " + m.target.kind + " ID: " + m.target.id + "\nEsc returns to the previous view; Refresh reloads saved evidence only.")
+			m.setContent("Requires review: target no longer available. " + m.target.kind + " ID: " + m.target.id + "\nEsc returns to the previous view; Refresh reloads saved evidence only.")
 			m.content.GotoTop()
 		}
 	}
 }
 
 func (m model) helpText() string {
+	if m.page == "instructions" {
+		return detailHeading("Session output help") + "\n\nInstructions and diagnostics belong to the last operation and are not saved after exit. Scrolling or opening this document never executes an operation or marks follow-up complete. Esc restores the result at the same position.\n\nArrows/PgUp/PgDn and Home/End scroll. ?/Esc restores this document."
+	}
 	if m.page == "technical" {
 		return "Technical details help\n\nThis document shows the displayed entry's full saved IDs, fingerprints, paths and checkpoints. Configuration file records are shared evidence, not proof of alias activation or current remote access. It is read-only; return to the overview for actions or F5 Refresh.\n\nArrows/PgUp/PgDn and Home/End scroll full values. Esc returns to the same overview position; ?/Esc closes Help and restores this document."
 	}
 	if m.page == "result" {
-		return "Result help\n\nTab/Shift+Tab select the labelled result controls; Enter opens the focused action. s Continue saved work, t View task and v View entity use the exact result IDs. r Register again is offered only for manual registration with a saved destination and key. Multiple eligible continuations require a picker. No navigation executes an operation.\n\nArrows/PgUp/PgDn and Home/End scroll all facts, paths and diagnostics. ?/Esc closes Help and restores the result viewport. Esc leaves the result; q exits. F5 Refresh reloads Snapshot only; it never replays an operation or confirms remote state. A stale result permits Refresh/Help/Exit only.\n\nSaved checkpoints are independent facts, not completion. Saved evidence may predate this operation. Uncertain remote effects require reconciliation before retry. Manual instructions and Include follow-up may have no saved recovery task."
+		return "Result help\n\nTab/Shift+Tab select the labelled result controls; Enter opens the focused action. s Continue saved work, t View task and v View entity use the exact result IDs. o opens session instructions / diagnostics; Esc restores the result. r Register again is offered only for manual registration with a saved destination and key. Multiple eligible continuations require a picker. No navigation executes an operation.\n\nArrows/PgUp/PgDn and Home/End scroll all facts, paths and diagnostics. ?/Esc closes Help and restores the result viewport. Esc leaves the result; q exits. F5 Refresh reloads Snapshot only; it never replays an operation or confirms remote state. A stale result permits Refresh/Help/Exit only.\n\nSaved checkpoints are independent facts, not completion. Saved evidence may predate this operation. Uncertain remote effects require reconciliation before retry. Manual instructions and Include follow-up may have no saved recovery task."
 	}
 	if m.visibleTarget().kind == "task" {
+		if m.visibleTarget().readOnly {
+			return detailHeading("Tasks help: read-only review") + "\n\nNo supported saved continuation. Enter opens the overview; v from the overview opens full reasons, source IDs and recovery guidance. F5 reloads saved evidence only.\n\n/ searches the Tasks list. Arrows/PgUp/PgDn scroll documents; Esc restores the exact origin. No Mark done, dismissal or automatic retry is available."
+		}
 		return "Tasks help\n\ns Continue opens the supported saved operation with its exact ID; approval and execution remain in the terminal. If a creation belongs to destination setup, continuation can proceed into registration. Continue registration includes reconciliation/verification; there is no Verify-only or config-only operation. Local creation/deletion recovery has no remote authentication.\n\n/ searches readable labels, reasons and saved source IDs on the Tasks list. Arrows/PgUp/PgDn scroll details; ?/Esc returns to the exact viewport. F5 Refresh reloads saved evidence only. Review entries and history are read-only. No Mark done, dismissal, automatic retry or guessed continuation is available."
 	}
 	if m.page == "review" {
@@ -397,26 +471,34 @@ func (m model) helpText() string {
 		return "Form help\n\nTab/Shift+Tab move fields and controls. Enter advances; Ctrl+S validates all steps. Esc returns one step; from the first step it invokes Cancel. Cancel or Ctrl+C returns clean drafts directly and asks before discarding changed drafts, with Keep editing selected. PgUp/PgDn scroll full values and errors. q, ? and action letters remain text in inputs. Esc closes Help and retains draft/focus.\n\nExisting and new keys are exclusive. Import existing files separately before destination setup. Manual instructions and configuration=no are defaults. Bootstrap credentials register the selected public key; passwords/passphrases stay in OpenSSH. Configuration is only requested: backend eligibility and terminal approvals decide alias/Include setup. Public-only keys cannot verify with a specified private key.\n\nUnregister uses fresh alternate authentication excluding the target fingerprint, or manual instructions. Local key files are preserved. Local creation/deletion resume has no remote authentication or configuration options. Native checks and approvals remain authoritative."
 	}
 	var text strings.Builder
-	text.WriteString("Keyboard help\n\n/ Search names, login, fingerprints and IDs\nSearch: enter accepts; esc keeps query\nx Clear search\ntab/shift+tab Category (lists/entities)\nenter Overview / choose related target\nv Technical details from an overview (read-only)\nF5 Refresh saved state only (no SSH probe)\nh History (read-only)\nesc Back\n? Help / return to origin\nctrl+c Closes help first\nq Quit outside help and text input\n\n")
-	text.WriteString("Actions (advisory; locked backend checks still decide):\n")
+	location := m.location("")
+	if location == "" {
+		location = []string{"Destinations", "Keys", "Registrations", "Tasks"}[m.tab]
+	}
+	text.WriteString(detailHeading("Help: "+location) + "\n\n" + detailHeading("Actions here") + "\n")
 	if m.page != "list" && m.page != "details" {
-		text.WriteString("This view is read-only. Go back to a current entity for actions.\n")
+		if m.page == "picker" {
+			text.WriteString("Arrows select; Enter chooses the displayed target.\n/ Search labels, IDs and fingerprints.\nx Clear search; Esc returns without choosing.\n")
+		} else {
+			text.WriteString("This view is read-only. Go back to a current entity for actions.\n")
+		}
 	} else if target := m.visibleTarget(); target.readOnly {
 		text.WriteString("Historical target: read-only. Select a current managed entity.\n")
 	} else {
 		text.WriteString("c Create key · i Import key · a Add destination\n")
 		switch target.kind {
 		case "host":
-			text.WriteString("r Register: choose a managed key\nu Unregister: choose a current eligible registration\nd Delete: requires a managed key in Keys\n")
+			text.WriteString("r Register: choose a managed key\nu Unregister: choose a current eligible registration\n")
 		case "key":
 			text.WriteString("r Register: choose a destination\nu Unregister: choose a current eligible registration\nd Delete local key: all recorded registrations must be confirmed removed; files/configuration are rechecked in the terminal\n")
 		case "registration":
-			text.WriteString("r Register: use this displayed destination/key pair\nu Unregister: current eligible registration only\nd Delete: requires a managed key in Keys\n")
+			text.WriteString("r Register: use this displayed destination/key pair\nu Unregister: current eligible registration only\n")
 		default:
 			text.WriteString("Select a current destination/key/registration before r/u/d. No implicit target.\n")
 		}
 		text.WriteString("s Continue supported saved registration intent; otherwise inspect Tasks. Tasks uses saved evidence only.\n")
 	}
+	text.WriteString("\n" + detailHeading("Move and find") + "\n/ Search names, login, fingerprints and IDs\nSearch: enter accepts; esc keeps query\nx Clear search\ntab/shift+tab Category (lists/entities)\nenter Overview / choose related target\nesc Back · q Quit outside help and text input\n\n" + detailHeading("Read and refresh") + "\nv Technical details from an overview (read-only)\nh History (read-only) · ? Help / return to origin\nF5 Refresh saved state only (no SSH probe)\nctrl+c Closes help first\nLocked backend checks and native approvals decide eligibility.\n\n")
 	if m.status != "" {
 		text.WriteString("\nCurrent notice:\n" + m.status + "\n")
 	}

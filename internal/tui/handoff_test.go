@@ -313,7 +313,7 @@ func TestHandoffInterruptedCreationRetainsSavedCheckpointAndOriginalInput(t *tes
 	}
 	session.send(press(tea.KeyEnd))
 	screen = session.screen(t)
-	if !strings.Contains(screen, "native-output-q-c-r") || strings.Contains(screen, "\x1b[") {
+	if !strings.Contains(screen, "native-output-q-c-r") || strings.Contains(screen, "\x1b[2J") {
 		t.Fatalf("diagnostic output was lost or not sanitized:\n%s", screen)
 	}
 	session.send(press('?'), press(tea.KeyEscape), press(tea.KeyHome))

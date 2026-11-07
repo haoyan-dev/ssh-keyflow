@@ -21,7 +21,7 @@ type field struct {
 // draft contains only form inputs; selected entities remain fixed IDs in formTarget.
 // fields is the visible step. Rebuilding it never discards applicable draft values.
 func (m *model) openForm(action string) {
-	m.origins = append(m.origins, returnContext{m.page, m.target, m.content, m.searching})
+	m.origins = append(m.origins, returnContext{m.page, m.target, m.content, m.document, m.searching})
 	m.action, m.page, m.focus, m.step, m.status = action, "form", 0, 0, ""
 	m.draft = map[string]string{"port": "22", "auth": "manual", "configure": "no", "keymode": "existing"}
 	if len(m.view.State.Keys) == 0 {
@@ -72,7 +72,8 @@ func (m *model) buildFields(focused string) {
 	m.fields = nil
 	add := func(name, label string, fixed bool) {
 		input := textinput.New()
-		input.SetWidth(max(8, m.width-4))
+		input.SetWidth(max(1, m.width-7))
+		input.Prompt = "  "
 		input.CharLimit = 4096
 		input.SetValue(m.draft[name])
 		m.fields = append(m.fields, field{name: name, label: label, input: input, fixed: fixed})
@@ -141,6 +142,7 @@ func (m *model) buildFields(focused string) {
 	}
 	m.fields[m.focus].input.Focus()
 	m.content.GotoTop()
+	m.revealFormFocus()
 }
 
 func (m *model) saveFields() {
@@ -180,7 +182,7 @@ func (m model) updateForm(message tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch pressed {
 	case "pgup", "pgdown":
-		m.content.SetContent(m.formBody())
+		m.setContent(m.formBody())
 		var command tea.Cmd
 		m.content, command = m.content.Update(message)
 		return m, command
@@ -223,7 +225,9 @@ func (m model) updateForm(message tea.Msg) (tea.Model, tea.Cmd) {
 			direction = len(m.fields) - 1
 		}
 		m.focus = (m.focus + direction) % len(m.fields)
-		return m, m.fields[m.focus].input.Focus()
+		command := m.fields[m.focus].input.Focus()
+		m.revealFormFocus()
+		return m, command
 	}
 	f := &m.fields[m.focus]
 	if f.fixed {
@@ -248,7 +252,8 @@ func (m model) updateForm(message tea.Msg) (tea.Model, tea.Cmd) {
 	} else {
 		f.input, command = f.input.Update(message)
 	}
-	if f.input.Value() != value || f.input.Position() != position {
+	changed := f.input.Value() != value || f.input.Position() != position
+	if changed {
 		m.content.GotoTop()
 	}
 	name, controlling := f.name, false
@@ -260,6 +265,8 @@ func (m model) updateForm(message tea.Msg) (tea.Model, tea.Cmd) {
 	m.clearHidden()
 	if controlling {
 		m.buildFields(name)
+	} else if changed {
+		m.revealFormFocus()
 	}
 	return m, command
 }
@@ -436,7 +443,7 @@ func (m model) reviewForm() (tea.Model, tea.Cmd) {
 	m.request, m.page, m.status = request, "review", ""
 	m.inputGeneration++
 	var preview strings.Builder
-	fmt.Fprintf(&preview, "Review %s\n%s\n\n", m.action, m.formTargetLabel())
+	fmt.Fprintf(&preview, "%s\nNo changes yet.\n\n%s\n", detailHeading("Review "+m.action), detailHeading("Target"))
 	if m.action == "add" {
 		fmt.Fprintf(&preview, "Destination: %s · %s@%s:%d\nOS: linux/macos/windows: %s\n", request.Destination.Alias, request.Destination.User, request.Destination.Hostname, request.Destination.Port, request.Destination.OS)
 		if request.Destination.WindowsAccount != "" {
@@ -444,10 +451,13 @@ func (m model) reviewForm() (tea.Model, tea.Cmd) {
 		}
 	}
 	if request.Host != "" {
-		fmt.Fprintf(&preview, "Destination ID or alias: %s\n", request.Host)
+		fmt.Fprintf(&preview, "%s\n", m.hostLabel(request.Host))
 	}
 	if request.Key != "" {
-		fmt.Fprintf(&preview, "Managed key ID / unique name: %s\n", request.Key)
+		fmt.Fprintf(&preview, "%s\n", m.keyLabel(request.Key))
+		if key, ok := m.key(request.Key); ok && key.PrivatePath == "" {
+			preview.WriteString("Public key only; verification unavailable.\n")
+		}
 	}
 	if request.Name != "" {
 		fmt.Fprintf(&preview, "Management name: %s\n", request.Name)
@@ -456,12 +466,20 @@ func (m model) reviewForm() (tea.Model, tea.Cmd) {
 		fmt.Fprintf(&preview, "Public path: %s\nPrivate path (optional): %s\n", request.PublicPath, request.PrivatePath)
 	}
 	if request.Registration != "" {
-		fmt.Fprintf(&preview, "Registration ID to remove: %s\n", request.Registration)
+		label := strings.TrimSuffix(m.fixedOperationLabel(), " ["+request.Registration+"]")
+		fmt.Fprintf(&preview, "%s\nRegistration ID to remove: %s\n", label, request.Registration)
+		for _, registration := range m.view.State.Registrations {
+			if registration.ID == request.Registration {
+				fmt.Fprintf(&preview, "%s\n", m.keyLabel(registration.KeyID))
+			}
+		}
 	}
 	if request.Resume != "" {
+		fmt.Fprintf(&preview, "%s\n", m.fixedOperationLabel())
 		fmt.Fprintf(&preview, "Saved operation: %s\n", request.Resume)
 	}
 	if request.Bootstrap != "" {
+		preview.WriteString("\n" + detailHeading("Options") + "\n")
 		fmt.Fprintf(&preview, "Auth: %s\n", request.Bootstrap)
 		if request.Identity != "" {
 			fmt.Fprintf(&preview, "Authentication key path: %s\n", request.Identity)
@@ -470,76 +488,128 @@ func (m model) reviewForm() (tea.Model, tea.Cmd) {
 			fmt.Fprintf(&preview, "SSH configuration: %s\n", map[bool]string{false: "no", true: "yes"}[request.Configure])
 		}
 	}
-	preview.WriteString("\n" + m.expectedEffects() + "\nNo changes yet. Continue to review exact paths, fingerprints and any remote target before confirming in the terminal.\nAuthentication secrets are entered only in OpenSSH.")
-	m.content.SetContent(preview.String())
+	preview.WriteString("\n" + detailHeading("Expected changes") + "\n" + m.expectedEffects() +
+		"\n\nContinue in the terminal for exact checks and approvals.\nAuthentication secrets are entered only in OpenSSH.")
+	if label := m.formTargetLabel(); label != "" {
+		preview.WriteString("\n\n" + detailHeading("References") + "\n" + label)
+	}
+	m.setContent(preview.String())
 	m.content.GotoTop()
 	return m, nil
 }
 
 func (m model) formView() string {
-	m.content.SetContent(m.formBody())
+	m.setContent(m.formBody())
 	return m.content.View()
 }
 
 func (m model) formBody() string {
-	titles := map[string]string{"create": "Create Ed25519 key", "import": "Import existing key", "add": "Add destination", "register": "Register public key", "unregister": "Unregister public key", "delete": "Delete local key", "resume": "Resume saved operation"}
-	title := titles[m.action]
+	body, _, _ := m.formDocument()
+	return body
+}
+
+// Measure the actual wrapped document rather than guessing a fixed field height.
+// The active field has a textual focus marker; earlier fields stay in context.
+func (m model) formDocument() (string, int, int) {
+	title := actionTitle(m.action)
 	if m.action == "add" {
 		title = fmt.Sprintf("%s · step %d/3", []string{"Destination", "Key", "Access method/options"}[m.step], m.step+1)
 	}
+	width := max(1, m.width-2)
+	wrap := func(text string) string { return ansi.Wrap(text, width, "") }
 	var body strings.Builder
-	body.WriteString(title + "\n")
-	if m.removing() && m.width >= 60 {
-		body.WriteString("Fresh alternate authentication or manual instructions; local key files preserved.\n")
+	body.WriteString(detailHeading(wrap(title)) + "\n\n")
+	if m.removing() {
+		body.WriteString(wrap("Use alternate authentication or manual instructions; local key files remain.") + "\n\n")
 	}
-	count := max(1, (m.content.Height()-3)/3)
-	if m.formError != "" {
-		count = 1
-	}
-	start := m.focus
-	end := min(len(m.fields), start+count)
-	for i := start; i < end; i++ {
+	focusStart, focusEnd := 0, 0
+	for i := range m.fields {
 		f := m.fields[i]
+		label := f.label
+		if f.fixed {
+			switch f.name {
+			case "host":
+				label = "Destination"
+			case "key":
+				label = "Managed key"
+			case "registration":
+				label = "Registration to remove"
+			case "resume":
+				label = "Saved operation"
+			}
+		}
+		start := strings.Count(body.String(), "\n")
+		marker := "  "
+		if i == m.focus {
+			marker = "> "
+		}
 		if f.name == "continue" || f.name == "help" || f.name == "cancel" {
-			marker := "  "
+			control := marker + "[" + f.label + "]"
 			if i == m.focus {
-				marker = "> "
+				control = detailHeading(control)
 			}
-			body.WriteString(marker + "[" + f.label + "]\n")
-			continue
-		}
-		body.WriteString(ansi.Hardwrap(f.label, max(1, m.width-2), false) + "\n")
-		if f.name == "key" && m.action == "add" {
-			if k, ok := m.key(m.formTarget.Key); ok {
-				body.WriteString(ansi.Hardwrap(k.Name+" · "+k.ID+"\n"+k.Fingerprint+"\n"+keyAvailability(k), max(1, m.width-2), false))
-			} else {
-				body.WriteString("Enter: Choose managed key")
-			}
+			body.WriteString(control + "\n")
 		} else {
-			if f.fixed && f.name == "host" {
-				body.WriteString(ansi.Hardwrap(m.hostLabel(m.formTarget.Host), max(1, m.width-2), false))
-			} else if f.fixed && f.name == "key" {
-				body.WriteString(ansi.Hardwrap(m.keyLabel(m.formTarget.Key), max(1, m.width-2), false))
-			} else if f.fixed && (f.name == "registration" || f.name == "resume") {
-				body.WriteString(ansi.Hardwrap(m.fixedOperationLabel(), max(1, m.width-2), false))
-			} else {
-				body.WriteString(f.input.View())
-				if ansi.StringWidth(f.input.Value()) > max(8, m.width-4) {
-					body.WriteString("\nFull value:\n" + ansi.Hardwrap(f.input.Value(), max(1, m.width-2), false))
+			value := f.input.Value()
+			switch {
+			case f.name == "key":
+				if k, ok := m.key(m.formTarget.Key); ok {
+					value = k.Name + " [" + k.ID + "] · " + keyAvailability(k)
+				} else if m.action == "add" {
+					value = "Enter: Choose managed key"
 				}
+			case f.fixed && f.name == "host":
+				value = m.hostLabel(m.formTarget.Host)
+			case f.fixed && (f.name == "registration" || f.name == "resume"):
+				value = m.fixedOperationLabel()
 			}
-		}
-		body.WriteString("\n")
-		if m.formError != "" && m.errorField == f.name {
-			body.WriteString(ansi.Hardwrap(m.formError, max(1, m.width-2), false) + "\n")
+			if i == m.focus {
+				body.WriteString(detailHeading(wrap(marker+label)) + "\n")
+				if f.fixed {
+					body.WriteString(wrap("  "+value) + "\n")
+				} else {
+					body.WriteString(f.input.View() + "\n")
+				}
+			} else {
+				if value == "" {
+					value = "(empty)"
+				}
+				body.WriteString(wrap(label+": "+value) + "\n")
+			}
+			if m.formError != "" && m.errorField == f.name {
+				body.WriteString(detailEvidence(wrap(m.formError), "blocked") + "\n")
+			}
+			if i == m.focus {
+				if guidance := m.formGuidance(f.name); guidance != "" {
+					body.WriteString(wrap(guidance) + "\n")
+				}
+				// Keep orientation and guidance beside the caret. A complete copy
+				// follows them and remains part of the ordinary scrollable form.
+				if !f.fixed && ansi.StringWidth(value) > f.input.Width() {
+					focusStart, focusEnd = start, strings.Count(body.String(), "\n")
+					body.WriteString("Full value:\n" + ansi.Hardwrap(value, width, false) + "\n\n")
+					continue
+				}
+				body.WriteString("\n")
+			}
 		}
 		if i == m.focus {
-			body.WriteString(ansi.Hardwrap(m.formGuidance(f.name), max(1, m.width-2), false) + "\n")
+			focusStart, focusEnd = start, strings.Count(body.String(), "\n")
 		}
-		body.WriteString("\n")
 	}
-	body.WriteString(fmt.Sprintf("Field %d/%d", m.focus+1, len(m.fields)))
-	return body.String()
+	body.WriteString(fmt.Sprintf("\nField %d/%d", m.focus+1, len(m.fields)))
+	return body.String(), focusStart, focusEnd
+}
+
+func (m *model) revealFormFocus() {
+	body, start, end := m.formDocument()
+	m.setContent(body)
+	height := m.content.Height()
+	if start < m.content.YOffset() || end-start >= height {
+		m.content.SetYOffset(start)
+	} else if end > m.content.YOffset()+height {
+		m.content.SetYOffset(max(0, end-height))
+	}
 }
 
 func (m model) formGuidance(name string) string {

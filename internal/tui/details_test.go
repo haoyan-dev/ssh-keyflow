@@ -13,7 +13,7 @@ import (
 	"ssh-keyflow/internal/state"
 )
 
-func TestDetailPanelsAndSemanticColorsRetainTextLabels(t *testing.T) {
+func TestDetailSectionsAndSemanticColorsRetainTextLabels(t *testing.T) {
 	home, document := navigationHome(t)
 	document.Registrations[0].Status = "pending"
 	document.Registrations[0].Stage = "pending"
@@ -26,9 +26,8 @@ func TestDetailPanelsAndSemanticColorsRetainTextLabels(t *testing.T) {
 	screen := runSizedScreen(t, home, 100, 100, press(tea.KeyEnter))
 	for _, want := range []string{
 		"\x1b[1;36mSaved status", "\x1b[1;36mNext actions",
-		"\x1b[32m1 registered", "\x1b[32m1 verified previously",
-		"\x1b[33m1 awaiting registration", "\x1b[33m1 outcome unknown",
-		"┌", "┐", "└", "┘",
+		"\x1b[32mRegistration: registered", "\x1b[32mConnection: verified previously",
+		"\x1b[33mRegistration: awaiting registration", "\x1b[33mConnection: outcome unknown",
 	} {
 		if !strings.Contains(screen, want) {
 			t.Fatalf("missing visual cue %q:\n%q", want, screen)
@@ -64,7 +63,7 @@ func TestDetailPanelsAndSemanticColorsRetainTextLabels(t *testing.T) {
 	}
 }
 
-func TestDetailPanelsReflowAcrossResizedDocumentOrigins(t *testing.T) {
+func TestDetailSectionsReflowAcrossResizedDocumentOrigins(t *testing.T) {
 	home, document := navigationHome(t)
 	document.Hosts[0].Alias = strings.Repeat("東京", 20)
 	document.Keys[0].Name = strings.Repeat("公開鍵", 15)
@@ -97,12 +96,8 @@ func TestDetailPanelsReflowAcrossResizedDocumentOrigins(t *testing.T) {
 						t.Fatalf("resized origin differs (overlay %v):\nexpected=%s\nactual=%s", overlay, expected, actual)
 					}
 					plain := ansi.Strip(actual)
-					panelCount := 0
-					if widths[1] >= 60 {
-						panelCount = 2
-					}
-					if strings.Count(plain, "┌") != panelCount {
-						t.Fatalf("panels did not collapse or spread to related rows:\n%s", plain)
+					if !strings.Contains(plain, "Saved status") || !strings.Contains(plain, "Next actions") {
+						t.Fatalf("resized document lost its sections:\n%s", plain)
 					}
 					if lipgloss.Width(actual) > widths[1] || lipgloss.Height(actual) > 80 {
 						t.Fatalf("resized panel overflow:\n%s", actual)
@@ -147,7 +142,7 @@ func TestDetailOverviewsExplainIdentityEvidenceAndActions(t *testing.T) {
 		journey []tea.Msg
 		wants   []string
 	}{
-		{"destination", []tea.Msg{press(tea.KeyEnter)}, []string{"Destination: build-1", "alice@server-1.example:22", "Registration: 1 registered, 1 outcome unknown", "Connection: 1 verified previously, 1 failed at last check", "Key registrations", "Laptop", "Desktop"}},
+		{"destination", []tea.Msg{press(tea.KeyEnter)}, []string{"Destination: build-1", "alice@server-1.example:22", "Registration: registered", "Registration: outcome unknown", "Connection: verified previously", "Connection: failed at last check", "Key: Laptop", "Key: Desktop"}},
 		{"key", []tea.Msg{press(tea.KeyTab), press(tea.KeyEnter)}, []string{"Key: Laptop", "public only", "private-key verification unavailable", "Local deletion blocked", "Destinations"}},
 		{"registration", []tea.Msg{press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter)}, []string{"Registration: build-1 / Laptop", "Registration: outcome unknown", "Connection: failed at last check", "r Register this destination/key pair", "s Continue saved work"}},
 		{"task", []tea.Msg{press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press('/'), text("registration-1"), press(tea.KeyEnter), press(tea.KeyEnter)}, []string{"Task", "Destination: build-1", "Key: Laptop", "reconcile remote state before retry", "s Continue"}},
@@ -167,7 +162,7 @@ func TestDetailOverviewsExplainIdentityEvidenceAndActions(t *testing.T) {
 			if strings.Index(screen, "Saved status") > strings.Index(screen, "Next actions") {
 				t.Fatal("actions precede saved status")
 			}
-			if tc.name == "destination" && (strings.Count(screen, "Laptop · SHA256:") != 1 || strings.Count(screen, "Desktop · SHA256:") != 1 || strings.Contains(screen, "d delete")) {
+			if tc.name == "destination" && (strings.Count(screen, "Key: Laptop") != 1 || strings.Count(screen, "Key: Desktop") != 1 || strings.Contains(screen, "d delete")) {
 				t.Fatalf("repeated relationship or irrelevant deletion:\n%s", screen)
 			}
 			for _, size := range [][2]int{{80, 24}, {60, 18}, {32, 12}} {
@@ -176,7 +171,7 @@ func TestDetailOverviewsExplainIdentityEvidenceAndActions(t *testing.T) {
 					if lipgloss.Width(frame) > size[0] || lipgloss.Height(frame) > size[1] {
 						t.Fatalf("entry overflow at %v:\n%s", size, frame)
 					}
-					if tc.name == "task" && size[0] == 32 && len(journey) == len(tc.journey) && !strings.Contains(frame, "s Continue · v technical\n↑/↓ scroll · ? help") {
+					if tc.name == "task" && size[0] == 32 && len(journey) == len(tc.journey) && (!strings.Contains(frame, "s Continue · v technical\n") || !strings.Contains(frame, "↑/↓ scroll ")) {
 						t.Fatalf("compact task controls split across lines:\n%s", frame)
 					}
 				}

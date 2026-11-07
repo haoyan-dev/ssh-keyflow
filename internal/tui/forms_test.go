@@ -363,9 +363,21 @@ func TestFormsLongValuesAndErrorsAreVerticallyAccessible(t *testing.T) {
 		if !strings.Contains(top, "C:/begin-part/") {
 			t.Fatalf("path beginning requires horizontal scrolling at %v:\n%s", size, top)
 		}
-		screen := runSizedScreen(t, home, size[0], size[1], append(journey, press(tea.KeyPgDown), press(tea.KeyPgDown), press(tea.KeyPgDown))...)
-		if !strings.Contains(strings.ReplaceAll(screen, "\n", ""), "final-public-key.pub") || lipgloss.Width(screen) > size[0] || lipgloss.Height(screen) > size[1] {
-			t.Fatalf("long path inaccessible at %v:\n%s", size, screen)
+		scroll := append([]tea.Msg{}, journey...)
+		found := false
+		for page := 0; page < 12; page++ {
+			screen := runSizedScreen(t, home, size[0], size[1], scroll...)
+			if lipgloss.Width(screen) > size[0] || lipgloss.Height(screen) > size[1] {
+				t.Fatalf("long path overflow at %v:\n%s", size, screen)
+			}
+			if strings.Contains(strings.ReplaceAll(screen, "\n", ""), "final-public-key.pub") {
+				found = true
+				break
+			}
+			scroll = append(scroll, press(tea.KeyPgDown))
+		}
+		if !found {
+			t.Fatalf("long path tail inaccessible at %v", size)
 		}
 	}
 }

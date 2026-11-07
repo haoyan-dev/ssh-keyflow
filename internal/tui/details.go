@@ -26,13 +26,7 @@ func detailEvidence(text, status string) string {
 }
 
 func (m model) detailSection(title, body string) string {
-	text := detailHeading(title) + "\n" + strings.TrimSpace(body)
-	if m.width < 60 {
-		return text + "\n"
-	}
-	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).Padding(0, 1).
-		Width(m.width-2).Render(text) + "\n"
+	return detailHeading(title) + "\n" + strings.TrimSpace(body) + "\n"
 }
 
 func detailActionHints(text string) string {
@@ -65,24 +59,23 @@ func (m model) entityDetails(item entry) string {
 		}
 	}
 	var text strings.Builder
-	var status string
+	var status, configuration string
 	switch item.kind {
 	case "host":
 		if host, ok := m.host(item.id); ok {
-			fmt.Fprintf(&text, "%s\n%s · %s\n", detailHeading("Destination: "+host.Alias), login(host), host.OS)
+			fmt.Fprintf(&text, "%s\n%s\n", detailHeading("Destination: "+host.Alias), login(host))
 			if host.WindowsAccount != "" {
 				fmt.Fprintf(&text, "Windows account: %s\n", host.WindowsAccount)
 			}
-			status = m.relationshipSummary(item) + m.configurationSummary(host) + "\n"
+			configuration = "OS: " + host.OS + "\n" + m.configurationSummary(host)
 		}
 	case "key":
 		if key, ok := m.key(item.id); ok {
 			fmt.Fprintf(&text, "%s\n%s · %s\n", detailHeading("Key: "+key.Name), key.Origin, keyAvailability(key))
-			status = m.relationshipSummary(item)
 			if key.PrivatePath == "" {
-				status += "Public key only; private-key verification unavailable.\n"
+				configuration = "Public key only; private-key verification unavailable.\n"
 			} else {
-				status += "Private key available; connection checks are per destination.\n"
+				configuration = "Private-key path recorded; availability is rechecked in the terminal.\n"
 			}
 		}
 	case "registration":
@@ -94,21 +87,16 @@ func (m model) entityDetails(item entry) string {
 					return detailEvidence("Requires review: missing destination/key reference. v: Technical details.", "blocked")
 				}
 				fmt.Fprintf(&text, "%s\n%s\n", detailHeading("Registration: "+host.Alias+" / "+key.Name), login(host))
-				status = m.registrationSummary(reg) + m.configurationSummary(host) + "\n"
+				status = m.registrationSummary(reg)
+				configuration = m.configurationSummary(host)
 			}
 		}
 	}
 	if text.Len() == 0 {
 		return detailEvidence("Requires review: target no longer available. Refresh before continuing.", "blocked")
 	}
-	status += "Saved evidence only; not a live SSH check.\n"
-	fmt.Fprintf(&text, "\n%s\n%s", m.detailSection("Saved status", status), m.detailSection("Next actions", detailActionHints(m.detailActions(item))))
 	if item.kind == "host" || item.kind == "key" {
-		title := "Key registrations"
-		if item.kind == "key" {
-			title = "Destinations"
-		}
-		fmt.Fprintf(&text, "\n%s\n", detailHeading(title))
+		var relationships strings.Builder
 		found := false
 		for _, reg := range m.view.State.Registrations {
 			if !relatedRegistration(item, reg) {
@@ -117,21 +105,34 @@ func (m model) entityDetails(item entry) string {
 			found = true
 			if item.kind == "host" {
 				if key, ok := m.recordedKey(reg.KeyID); ok {
-					// A fingerprint hint distinguishes duplicate names; v retains the full value.
-					fmt.Fprintf(&text, "%s · %s\n", key.Name, fingerprintHint(key.Fingerprint))
+					fmt.Fprintf(&relationships, "Key: %s\n", m.keyChoiceEntry(key).title)
 				} else {
-					text.WriteString(detailEvidence("Requires review: key reference missing", "blocked") + "\n")
+					relationships.WriteString(detailEvidence("Requires review: key reference missing", "blocked") + "\n")
 				}
 			} else if host, ok := m.host(reg.HostID); ok {
-				fmt.Fprintf(&text, "%s · %s\n", host.Alias, login(host))
-				text.WriteString(m.configurationSummary(host) + "\n")
+				fmt.Fprintf(&relationships, "Destination: %s · %s\n", host.Alias, login(host))
 			} else {
-				text.WriteString(detailEvidence("Requires review: destination reference missing", "blocked") + "\n")
+				relationships.WriteString(detailEvidence("Requires review: destination reference missing", "blocked") + "\n")
 			}
-			text.WriteString(m.registrationSummary(reg) + "\n")
+			relationships.WriteString(m.registrationSummary(reg) + "\n")
 		}
 		if !found {
-			text.WriteString("No registrations recorded. Connection: not recorded.\nUse r to register a public key with a destination.\n")
+			relationships.WriteString("Registration: none recorded.\nConnection: not recorded.\n")
+		}
+		status = relationships.String()
+	}
+	fmt.Fprintf(&text, "%s%s\n%s", detailHeading("Saved status")+"\n", status, m.detailSection("Next actions", detailActionHints(m.detailActions(item))))
+	text.WriteString("Saved evidence only; not a live SSH check.\n")
+	if configuration != "" {
+		text.WriteString("\n" + configuration + "\n")
+	}
+	if item.kind == "key" {
+		for _, reg := range m.view.State.Registrations {
+			if relatedRegistration(item, reg) {
+				if host, ok := m.host(reg.HostID); ok {
+					text.WriteString(host.Alias + " · " + m.configurationSummary(host) + "\n")
+				}
+			}
 		}
 	}
 	history := 0
@@ -151,31 +152,6 @@ func fingerprintHint(fingerprint string) string {
 		return fingerprint[:23] + "…"
 	}
 	return fingerprint
-}
-
-func (m model) relationshipSummary(item entry) string {
-	registrations, connections := map[string]int{}, map[string]int{}
-	for _, reg := range m.view.State.Registrations {
-		if relatedRegistration(item, reg) {
-			registrations[registrationStatus(reg.Status)]++
-			connections[connectionStatus(reg.ConnectionCheck)]++
-		}
-	}
-	if len(registrations) == 0 {
-		return detailEvidence("Registration: none recorded.\nConnection: not recorded.", "not recorded") + "\n"
-	}
-	var registered, checked []string
-	for _, status := range []string{"registered", "removed", "awaiting registration", "attempt failed", "outcome unknown"} {
-		if count := registrations[status]; count > 0 {
-			registered = append(registered, detailEvidence(fmt.Sprintf("%d %s", count, status), status))
-		}
-	}
-	for _, status := range []string{"verified previously", "failed at last check", "not checked", "outcome unknown", "not recorded"} {
-		if count := connections[status]; count > 0 {
-			checked = append(checked, detailEvidence(fmt.Sprintf("%d %s", count, status), status))
-		}
-	}
-	return "Registration: " + strings.Join(registered, ", ") + ".\nConnection: " + strings.Join(checked, ", ") + ".\n"
 }
 
 func registrationStatus(status string) string {
@@ -208,8 +184,12 @@ func connectionStatus(status string) string {
 
 func (m model) registrationSummary(reg state.Registration) string {
 	registered, checked := registrationStatus(reg.Status), connectionStatus(reg.ConnectionCheck)
-	text := detailEvidence("Registration: "+registered+" (recorded)", registered) + "\n" +
-		detailEvidence("Connection: "+checked+" (recorded)", checked) + "\n"
+	suffix := " (recorded)"
+	if m.width < 60 {
+		suffix = "" // The enclosing Saved status heading labels this evidence.
+	}
+	text := detailEvidence("Registration: "+registered+suffix, registered) + "\n" +
+		detailEvidence("Connection: "+checked+suffix, checked) + "\n"
 	if key, ok := m.recordedKey(reg.KeyID); ok && key.PrivatePath == "" {
 		text += "Public key only; private-key verification unavailable.\n"
 	}
@@ -274,11 +254,18 @@ func (m model) detailActions(item entry) string {
 
 func (m model) taskDetails(task Task) string {
 	var text strings.Builder
-	title := task.Title
+	title := strings.Split(task.Title, " · ")[0]
 	if strings.HasPrefix(task.ID, "config:") {
 		title = "Requires review: configuration file"
 	}
-	fmt.Fprintf(&text, "%s\n%s\n", detailHeading("Task"), title)
+	// The reason precedes metadata and generic recovery explanations, including
+	// on a twelve-row terminal. Full original reasons remain in Technical details.
+	fmt.Fprintf(&text, "%s\n%s\n", detailHeading(title), taskReason(task))
+	if task.ResumeID == "" {
+		text.WriteString("Read-only; no supported continuation.\n")
+	} else {
+		text.WriteString("s Continue saved work; review first.\n")
+	}
 	if host, ok := m.host(task.HostID); ok {
 		fmt.Fprintf(&text, "Destination: %s · %s\n", host.Alias, login(host))
 	}

@@ -160,11 +160,8 @@ func (m model) resultControls() []string {
 		return []string{"Refresh", "Exit", "Help"}
 	}
 	controls := []string{}
-	for _, task := range m.resultTasks() {
-		if task.ResumeID != "" {
-			controls = append(controls, "Continue saved work")
-			break
-		}
+	if m.resultCanContinue() {
+		controls = append(controls, "Continue saved work")
 	}
 	if m.result.last(app.ReportManual).Outcome == app.OutcomeRequired && m.result.last(app.ReportManual).Operation == "register" {
 		if _, ok := m.host(m.result.target.HostID); ok {
@@ -179,11 +176,32 @@ func (m model) resultControls() []string {
 	if m.resultEntity().id != "" {
 		controls = append(controls, "View entity")
 	}
+	if m.result.diagnostics != "" {
+		controls = append(controls, "Instructions")
+	}
 	return append(controls, "Refresh", "Exit", "Help")
+}
+
+func (m model) resultCanContinue() bool {
+	for _, task := range m.resultTasks() {
+		if task.ResumeID != "" {
+			return true
+		}
+	}
+	return false
 }
 func (m model) resultFooter() string {
 	controls := m.resultControls()
-	return "enter: " + controls[m.resultControl%len(controls)] + "\ntab next · ? help · esc back · q exit"
+	footer := "enter: " + controls[m.resultControl%len(controls)]
+	position := fmt.Sprintf("%d/%d", m.resultControl%len(controls)+1, len(controls))
+	instructions := ""
+	if m.result.diagnostics != "" && !m.stale {
+		instructions = "o instructions · "
+	}
+	if m.width < 60 {
+		return footer + "\n" + instructions + "Tab " + position + "\n↑/↓ " + m.scrollPosition() + " · ? help · esc back"
+	}
+	return footer + " · " + instructions + "Tab " + position + "\n↑/↓ scroll · ? help · esc back · q exit"
 }
 func (m *model) resultAction(action string) {
 	if m.stale && action != "Refresh" && action != "Help" && action != "Exit" {
@@ -191,6 +209,11 @@ func (m *model) resultAction(action string) {
 		return
 	}
 	switch action {
+	case "Instructions":
+		if m.result.diagnostics == "" {
+			return
+		}
+		m.openDocument("instructions", entry{}, detailHeading("Diagnostics / instructions")+"\nSession output; not saved after exit.\n\n"+ansi.Strip(m.result.diagnostics))
 	case "Refresh":
 		m.refreshSnapshot()
 	case "Exit": // Handled by updateResult.
@@ -285,6 +308,8 @@ func (m model) updateResult(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		} else if m.stale {
 			m.status = "Saved state stale; F5 Refresh before changing anything"
 		}
+	case "o":
+		m.resultAction("Instructions")
 	default:
 		var cmd tea.Cmd
 		m.content, cmd = m.content.Update(message)
@@ -295,8 +320,15 @@ func (m model) updateResult(message tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 func (m *model) renderOperationResult() {
 	var text strings.Builder
-	m.status = m.result.summary()
-	fmt.Fprintf(&text, "Result: %s\n", m.status)
+	m.status = ""
+	fmt.Fprintf(&text, "%s\n", detailHeading("Result: "+m.result.summary()))
+	if host, ok := m.host(m.result.target.HostID); ok {
+		fmt.Fprintf(&text, "%s · %s\n", host.Alias, login(host))
+	}
+	if key, ok := m.recordedKey(m.result.target.KeyID); ok {
+		fmt.Fprintf(&text, "%s\n", key.Name)
+	}
+	text.WriteString("\n" + detailHeading("Next steps") + "\n")
 	if m.result.reloadErr != nil {
 		m.status = "Saved state stale; F5 Refresh / q Exit"
 		fmt.Fprintf(&text, "Reload failed: %v\nPrevious saved state is stale; mutations disabled until Refresh succeeds.\n", m.result.reloadErr)
@@ -317,14 +349,13 @@ func (m *model) renderOperationResult() {
 				text.WriteString("No additional follow-up is recorded.\n")
 			}
 		}
-	} else if !m.stale {
+	} else if !m.stale && m.resultCanContinue() {
 		text.WriteString("Next: Continue saved work or View task; reconcile before remote retry.\n")
+	} else if !m.stale {
+		text.WriteString("View task; no supported continuation. Inspect saved evidence and recovery guidance.\n")
 	}
-	fmt.Fprintf(&text, "Request: %s\n", m.result.request.Operation)
-	for _, item := range []struct{ label, id string }{{"Destination", m.result.target.HostID}, {"Key", m.result.target.KeyID}, {"Registration", m.result.target.RegistrationID}, {"Onboarding", m.result.target.OnboardingID}, {"Creation", m.result.target.CreationID}, {"Deletion", m.result.target.DeletionID}} {
-		if item.id != "" {
-			fmt.Fprintf(&text, "%s: %s\n", item.label, item.id)
-		}
+	if m.result.diagnostics != "" && !m.stale {
+		text.WriteString("o: Open session instructions / diagnostics.\n")
 	}
 	if m.result.err != nil {
 		fmt.Fprintf(&text, "Error: %v\n", m.result.err)
@@ -332,7 +363,7 @@ func (m *model) renderOperationResult() {
 	if len(m.result.reports) == 0 {
 		text.WriteString("Outcome unknown: no operation facts recorded.\n")
 	}
-	text.WriteString("Current operation facts:\n")
+	text.WriteString("\n" + detailHeading("Current operation facts:") + "\n")
 	for _, report := range m.result.reports {
 		if report.Kind == app.ReportResolvedTarget {
 			continue
@@ -349,7 +380,13 @@ func (m *model) renderOperationResult() {
 			text.WriteString("Main config unchanged by this request; Include/manual setup remains.\n")
 		}
 	}
-	text.WriteString("\nCheckpoint details:\n")
+	text.WriteString("\n" + detailHeading("Checkpoint details:") + "\n")
+	fmt.Fprintf(&text, "Request: %s\n", m.result.request.Operation)
+	for _, item := range []struct{ label, id string }{{"Destination", m.result.target.HostID}, {"Key", m.result.target.KeyID}, {"Registration", m.result.target.RegistrationID}, {"Onboarding", m.result.target.OnboardingID}, {"Creation", m.result.target.CreationID}, {"Deletion", m.result.target.DeletionID}} {
+		if item.id != "" {
+			fmt.Fprintf(&text, "%s: %s\n", item.label, item.id)
+		}
+	}
 	for _, report := range m.result.reports {
 		if report.Path != "" {
 			fmt.Fprintf(&text, "File: %s\n", report.Path)
@@ -358,7 +395,7 @@ func (m *model) renderOperationResult() {
 			fmt.Fprintf(&text, "Saved registration: %s / %s / %s; destination connection: %s\n", report.Operation, report.Status, report.Stage, report.ConnectionCheck)
 		}
 	}
-	text.WriteString("\nSaved evidence (may predate this operation; not a live probe):\n")
+	text.WriteString("\n" + detailHeading("Saved evidence") + "\nMay predate this operation; not a live probe.\n")
 	if m.stale {
 		text.WriteString("Previous view is stale; Refresh retries Snapshot only, never execution.\n")
 	}
@@ -367,6 +404,6 @@ func (m *model) renderOperationResult() {
 	} else {
 		text.WriteString("Entity not recorded; allocated IDs do not establish a saved entity.\n")
 	}
-	text.WriteString("\nDiagnostics / instructions\n" + ansi.Strip(m.result.diagnostics))
-	m.content.SetContent(text.String())
+	text.WriteString("\n" + detailHeading("Diagnostics / instructions") + "\n" + ansi.Strip(m.result.diagnostics))
+	m.setContent(text.String())
 }

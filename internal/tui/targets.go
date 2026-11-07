@@ -131,7 +131,7 @@ func (m *model) targetError(err error) {
 func (m model) keyChoices() []entry {
 	var choices []entry
 	for _, k := range m.view.State.Keys {
-		choices = append(choices, entry{kind: "key", id: k.ID, title: k.Name, description: k.Fingerprint + " · " + keyAvailability(k) + " · " + k.ID})
+		choices = append(choices, m.keyChoiceEntry(k))
 	}
 	return choices
 }

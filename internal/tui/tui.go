@@ -30,6 +30,7 @@ type model struct {
 	choices         list.Model
 	choiceEntries   []entry
 	choiceQuery     string
+	pickerContext   string
 	target          entry
 	origins         []returnContext
 	ctx             context.Context
@@ -46,6 +47,7 @@ type model struct {
 	page            string
 	status          string
 	content         viewport.Model
+	document        string
 	draft           map[string]string
 	step            int
 	formError       string
@@ -59,6 +61,7 @@ type model struct {
 
 type entry struct {
 	title, description, kind, id, searchText string
+	reference                                string
 	readOnly                                 bool
 }
 
@@ -91,7 +94,9 @@ func NewProgram(ctx context.Context, options app.Options, programOptions ...tea.
 	}
 	initial := model{ctx: ctx, options: options, view: view, width: 80, height: 24, page: "list",
 		content: viewport.New(viewport.WithWidth(76), viewport.WithHeight(15))}
-	initial.content.SoftWrap = true
+	// Pre-wrap documents using terminal cell width so the viewport's logical
+	// line count matches its rendered height, including long CJK values.
+	initial.content.SoftWrap = false
 	initial.search = textinput.New()
 	initial.search.CharLimit = 4096
 	initial.search.Prompt = "Search: "
@@ -124,7 +129,10 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = message.Width, message.Height
 		m.resizeBody()
 		for index := range m.fields {
-			m.fields[index].input.SetWidth(max(8, m.width-4))
+			m.fields[index].input.SetWidth(max(1, m.width-7))
+		}
+		if m.page == "form" {
+			m.revealFormFocus()
 		}
 	case tea.KeyPressMsg:
 		pressed := message.String()
@@ -271,11 +279,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if pressed == "g" && m.page != "help" {
-			notes := ""
-			if m.view.Review != "" {
-				notes = "Requires review: " + m.view.Review + "\n\n"
-			}
-			m.openDocument("discovery", entry{}, "Discovery (read-only; unmanaged files are not imported)\n\n"+notes+m.view.Discovery)
+			m.openDocument("discovery", entry{}, m.discoveryDetails())
 			return m, nil
 		}
 		if pressed == "?" {
@@ -361,7 +365,7 @@ func (m model) chrome() (string, string) {
 		footer = "v technical · h history · F5 refresh\n↑/↓ scroll · ? help · esc back · q quit"
 	case "technical":
 		footer = "↑/↓ scroll · Home/End · ? help\nesc overview · q quit"
-	case "history", "discovery", "result", "reload-error":
+	case "history", "discovery", "result", "reload-error", "instructions":
 		footer = "↑/↓ scroll · ? help · esc back · q quit"
 	case "help":
 		footer = "↑/↓ scroll · esc/? back · ctrl+c back"
@@ -382,7 +386,7 @@ func (m model) chrome() (string, string) {
 			footer = "v technical · F5 refresh\n↑/↓ scroll · ? help\nesc back · q quit"
 		case "technical":
 			footer = "↑/↓ scroll · ? help\nesc overview · q quit"
-		case "history", "discovery", "result", "reload-error":
+		case "history", "discovery", "result", "reload-error", "instructions":
 			footer = "↑/↓ scroll · ? help\nesc back · q quit"
 		case "picker":
 			footer = "enter choose · / search\n? help · esc back"
@@ -396,6 +400,9 @@ func (m model) chrome() (string, string) {
 	}
 	if m.page == "details" && m.target.kind == "task" {
 		footer = "v technical · ↑/↓ scroll\n? help · esc back · q quit"
+		if m.width < 60 {
+			footer = "v technical\n↑/↓ scroll · ? help\nesc back · q quit"
+		}
 		if !m.target.readOnly && !m.stale {
 			footer = "s Continue · " + footer
 			if m.width < 60 {
@@ -412,17 +419,40 @@ func (m model) chrome() (string, string) {
 	if m.searching {
 		footer = "enter filter · esc keep query"
 	}
+	if m.page == "list" && !m.searching {
+		actions := m.listActions()
+		footer = actions + "\n↑/↓ select · Enter details · / search · Tab category · ? help · q quit"
+		if m.width < 60 {
+			// Keep primary actions on one row; Help contains the rest.
+			actions = ansi.Truncate(actions, m.width, "…")
+			footer = "Enter details · / search\n" + actions + "\nTab category · ? help · q quit"
+		}
+	}
+	if m.page != "list" && m.page != "picker" && m.page != "form" && m.page != "discard" {
+		footer = strings.Replace(footer, "↑/↓ scroll", "↑/↓ scroll "+m.scrollPosition(), 1)
+	}
 	status := m.status
 	if m.stale {
 		status = "Saved state stale; F5 Refresh / q Exit"
 	}
-	if status == "" && m.view.Review != "" {
+	if status == "" && m.view.Review != "" && m.page == "list" {
 		status = "Requires review (g: details)"
+	}
+	if status == "" && m.view.Review != "" && m.page == "details" {
+		if m.width < 60 {
+			if m.target.kind == "task" && m.target.readOnly {
+				footer = strings.Replace(footer, "v technical\n", "v technical · g review\n", 1)
+			} else {
+				footer = strings.Replace(footer, "esc back · q quit", "g review · esc back · q quit", 1)
+			}
+		} else {
+			footer = strings.Replace(footer, "F5 refresh", "g review · F5 refresh", 1)
+		}
 	}
 	if status != "" {
 		footer = ansi.Truncate(status, max(1, m.width), "…") + "\n" + footer
 	}
-	return "SSH KeyFlow\n" + categories, ansi.Hardwrap(footer, max(1, m.width), false)
+	return detailHeading("SSH KeyFlow") + "\n" + ansi.Truncate(m.location(categories), max(1, m.width), "…"), ansi.Hardwrap(footer, max(1, m.width), false)
 }
 
 func (m *model) resizeBody() {
@@ -433,26 +463,25 @@ func (m *model) resizeBody() {
 	}
 	available := max(1, m.height-lipgloss.Height(header)-lipgloss.Height(footer)-extra)
 	m.search.SetWidth(max(1, m.width-10))
-	m.list.SetShowTitle(m.width >= 60)
-	m.list.SetShowStatusBar(false)
-	m.list.SetShowPagination(available >= 6)
-	m.list.SetSize(max(10, m.width-2), available)
 	m.content.SetHeight(available)
+	m.sizeSelection(&m.list)
 	width := max(10, m.width-2)
-	if m.page == "details" && m.content.Width() != width {
+	if m.content.Width() != width {
 		// Restored document origins may have been composed at an older width.
 		offset := m.content.YOffset()
-		m.content.SetContent(m.entityDetails(m.target))
 		m.content.SetWidth(width)
+		switch m.page {
+		case "details":
+			m.setContent(m.entityDetails(m.target))
+		case "form":
+			m.setContent(m.formBody())
+		default:
+			m.setContent(m.document)
+		}
 		m.content.SetYOffset(offset)
-	} else {
-		m.content.SetWidth(width)
 	}
 	if m.page == "picker" {
-		m.choices.SetShowTitle(m.width >= 60)
-		m.choices.SetShowStatusBar(false)
-		m.choices.SetShowPagination(available >= 6)
-		m.choices.SetSize(max(10, m.width-2), available)
+		m.sizeSelection(&m.choices)
 	}
 }
 
@@ -465,7 +494,7 @@ func (m model) View() tea.View {
 	}
 	m.resizeBody()
 	header, footer := m.chrome()
-	body := m.list.View()
+	body := m.selectionView(m.list)
 	if m.page == "list" && len(m.list.Items()) == 0 {
 		body = ansi.Hardwrap(m.emptyList(), max(1, m.width-2), false)
 	}
@@ -477,7 +506,7 @@ func (m model) View() tea.View {
 	if m.page == "form" {
 		body = m.formView()
 	} else if m.page == "picker" {
-		body = m.choices.View()
+		body = m.selectionView(m.choices)
 		if len(m.choices.Items()) == 0 {
 			body = "No matching eligible targets.\nx: Clear search · esc: Back"
 		}
@@ -487,6 +516,13 @@ func (m model) View() tea.View {
 		}
 	} else if m.page != "list" {
 		body = m.content.View()
+	}
+	if m.page == "list" || m.page == "picker" {
+		extra := 0
+		if m.searching || (m.page == "list" && m.queries[m.tab] != "") || (m.page == "picker" && m.choiceQuery != "") {
+			extra = 1
+		}
+		body = lipgloss.NewStyle().Height(m.content.Height() + extra).Render(body)
 	}
 	view := tea.NewView(header + "\n" + body + "\n" + footer)
 	view.AltScreen = true

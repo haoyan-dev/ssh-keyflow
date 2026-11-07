@@ -308,7 +308,7 @@ func TestResultCompactSizesAndUndersizeGuard(t *testing.T) {
 			session.returned(t)
 			session.send(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			screen := session.screen(t)
-			for _, want := range []string{"enter:", "tab next", "? help", "esc back"} {
+			for _, want := range []string{"enter:", "Tab 1/", "? help", "esc back"} {
 				if !strings.Contains(screen, want) {
 					t.Fatalf("missing result control %q at %v:\n%s", want, size, screen)
 				}

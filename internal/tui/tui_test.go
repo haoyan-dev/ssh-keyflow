@@ -173,7 +173,7 @@ func TestTUISelectedDetailsAndDiscoveryUseCurrentOperations(test *testing.T) {
 		test.Fatalf("selected key details unavailable: %s", details)
 	}
 	discovery := runScreen(test, home, press('g'))
-	if !strings.Contains(discovery, "Discovery (read-only") || strings.Contains(discovery, "use 1/r") {
+	if !strings.Contains(discovery, "Discovery · read-only") || strings.Contains(discovery, "use 1/r") {
 		test.Fatalf("discovery refers to removed menu: %s", discovery)
 	}
 	review := runScreen(test, home, press(tea.KeyTab), press(tea.KeyTab), press('r'), tea.KeyPressMsg(tea.Key{Code: 's', Mod: tea.ModCtrl}))
@@ -199,7 +199,7 @@ func TestTUIListAndScrollableHelpFitResizedTerminal(test *testing.T) {
 	}
 	top := runSizedScreen(test, home, 32, 12, press('?'))
 	bottom := runSizedScreen(test, home, 32, 12, press('?'), press(tea.KeyEnd))
-	if !strings.Contains(top, "Keyboard help") || !strings.Contains(bottom, "Discovery") || top == bottom {
+	if !strings.Contains(top, "Help: Destinations") || !strings.Contains(bottom, "Discovery") || top == bottom {
 		test.Fatalf("help not scrollable: top=%s bottom=%s", top, bottom)
 	}
 }
