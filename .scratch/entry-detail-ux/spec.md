@@ -1,6 +1,6 @@
 # Entry detail redesign
 
-Status: ready-for-agent
+Status: ready-for-human
 Review: [review.md](review.md)
 
 ## Objective and scope

@@ -396,3 +396,36 @@ with draft and prerelease both false.
 
 This documentation follow-up records publication without moving the tag or
 changing published binary assets.
+
+## Entry detail redesign (2026-11-08 JST)
+
+Final product/test source:
+`73fb603a2760207845bac607a8d2dd7e8b86423e` on local branch
+`feat/entry-detail-ux`, based on refreshed main
+`76d392826f757e8aa4cfdb72d2d7b5216660f0fc`.
+The completion follow-up changes evidence and ticket status only.
+
+- Windows 11 amd64, Go 1.26.2, clean source tree:
+  `go test -buildvcs=false ./... -count=1` PASS
+  (cmd 1.722s, app 41.832s, cli 2.202s, ssh 22.301s, tui 10.972s);
+  `go vet -buildvcs=false ./...` and native development build PASS.
+  Native fixtures used process-only PowerShell ExecutionPolicy Bypass.
+- `--version` reports `SSH KeyFlow dev`. Final executable SHA256:
+  `3c9d69822dbb3cbcfc0796cafc76b0ddd7aa87f0e3402cc8fef7fc343d92bb15`.
+- Native console inspection covered 80x24, 60x18 and 32x12 on preceding
+  `f6b6427c984146fd897342fe03e783c633372b8d`. The final source only refines
+  the below-60-column Task footer, its test and review record; its corrected
+  32x12 Task/technical/Help navigation was repeated natively. Public-event
+  tests cover all four overview and technical entry kinds at every size.
+- Synthetic public-only fixture state remained byte-identical through native
+  navigation. Separate local standards and specification review passes found
+  no unresolved issues. The review, specification and completed ticket are in
+  [entry-detail-ux](../.scratch/entry-detail-ux/spec.md); exact commands,
+  native source versions, hashes and review results are in the
+  [verification record](../.scratch/entry-detail-ux/verification.md).
+
+Linux/macOS/Windows arm64 native behavior, real SSH/server effects, elevated
+Windows shared administrator destinations and hosted CI remain untested for
+this change. Packaging/installer suites were not repeated; those sources and
+the state/CLI/backend contracts are unchanged. All work is committed locally;
+no push, merge, tag or release.

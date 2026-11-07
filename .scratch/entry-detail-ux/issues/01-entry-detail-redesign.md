@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: none
 
 # 01: Redesign entry details around readable saved evidence
@@ -16,12 +16,12 @@ shipped documentation. Work on `feat/entry-detail-ux`, based on refreshed
 
 ## Acceptance
 
-- [ ] AC01–AC03: readable identity, independently labelled saved facts,
+- [x] AC01–AC03: readable identity, independently labelled saved facts,
   compact relationships and honest empty/public-only/configuration states.
-- [ ] AC04: contextual actions and blockers, exact saved continuation.
-- [ ] AC05: complete read-only technical document; correct origin restoration.
-- [ ] AC06: all supported sizes, long values, refresh and navigation.
-- [ ] AC07: focused/full checks, native build, rendered inspection,
+- [x] AC04: contextual actions and blockers, exact saved continuation.
+- [x] AC05: complete read-only technical document; correct origin restoration.
+- [x] AC06: all supported sizes, long values, refresh and navigation.
+- [x] AC07: focused/full checks, native build, rendered inspection,
   documentation, separate standards/spec reviews and verification record.
 
 ## Comments
@@ -29,3 +29,10 @@ shipped documentation. Work on `feat/entry-detail-ux`, based on refreshed
 - 2026-11-08: User authorized review -> to-spec -> to-ticket -> implement
   autonomously. Review and specification completed before implementation.
   No remote publication is included.
+- 2026-11-08: Implemented and verified on source
+  `73fb603a2760207845bac607a8d2dd7e8b86423e`. Full uncached Go suite,
+  vet, native build and Windows console inspection pass. Separate local
+  [standards/specification reviews](../final-review.md) have no unresolved
+  findings. [Verification](../verification.md) records exact commands,
+  hashes, native source versions and platform limits. Ready for human review;
+  changes are committed locally on `feat/entry-detail-ux`.
