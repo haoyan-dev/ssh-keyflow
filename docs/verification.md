@@ -161,10 +161,58 @@ The tested script SHA256 values are:
   syntax, PowerShell 5.1/7 parsing and `git diff --check` passed. Both reviewers
   also cleared the final shell byte-offset change without additional findings.
 
-The three-OS CI matrix now runs both installer suites, but this source change
-has not been pushed or run on hosted CI. Native Linux/macOS and ARM64 runtime
-execution remain unverified locally; shell fixtures substitute platform identity
-under Git Bash. Tests use isolated homes and loopback release fixtures and do
-not modify real user SSH data, profiles, persistent PATH or remote registrations.
-The source-hosted commands become available only after publication to `main`;
-no commit, push, tag or publication was performed in this task.
+At the local implementation checkpoint, the three-OS CI matrix included both
+installer suites but had not run this change on hosted CI. Native Linux/macOS
+and ARM64 runtime execution had not been checked locally; shell fixtures
+substitute platform identity under Git Bash. Tests use isolated homes and
+loopback release fixtures and do not modify real user SSH data, profiles,
+persistent PATH or remote registrations. Publication was subsequently authorized
+and verified as recorded below.
+
+## v0.2.1 published release (2026-11-07)
+
+Release [SSH KeyFlow v0.2.1](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.2.1)
+was published on 2026-11-07 at 07:32:13 UTC (16:32:13 JST). Annotated tag
+`v0.2.1` (tag object `bd71f741a1d3418cabe43d2a50a03355832637b1`) points to
+implementation commit `3e5674430cf7d0a2e031aa1c214a70af5c666982`.
+GitHub's latest release API returned `v0.2.1`, with draft and prerelease both
+false. The release title and notes include the one-line installation commands,
+usage, update behavior and verification limits.
+
+- [Release workflow 42351144039](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42351144039)
+  succeeded on the tagged commit: Ubuntu, macOS and Windows Go tests, Portable
+  tests, installer/profile tests, six-target crossbuilds, Linux amd64 version
+  injection, and the publish job all passed.
+- [Main workflow 42351143967](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42351143967)
+  also passed on the same implementation commit.
+- Each OS ran all five Portable tests. Windows executed all 50 installer and
+  30 profile cases with no skips. Ubuntu and macOS each executed 24 shell
+  installer and 14 shell profile cases; their 26 Windows installer and
+  16 Windows profile cases were correctly skipped.
+- Downloaded all seven published assets with `gh release download v0.2.1`.
+  Verified the exact six expected archive names, six unique manifest entries,
+  every archive SHA256, exactly two regular members, executable/notice names,
+  tagged notice bytes and Unix permissions (0755 executable, 0644 notices).
+  Notice comparison used the tag's Git blob, avoiding local Windows checkout
+  newline conversion. The downloaded manifest SHA256 was
+  `95d9dda43ceaacb80097f7a5037e5aec82418e50659e3d6ae0c3ef8c3b149faa`.
+- The Windows amd64 ZIP SHA256 was
+  `720c2bcc3992374ab69aa8564cda7ddfc61030234f069ae3aaf4ab7878c7d4eb`.
+  Its extracted executable reported `SSH KeyFlow v0.2.1`.
+- Downloaded `install.sh` and `install.ps1` from the public raw `main` URLs.
+  Both matched their tagged Git blobs and the script hashes recorded above.
+- The downloaded PowerShell installer installed pinned v0.2.1 through Windows
+  PowerShell 5.1, updated through latest-stable resolution with PowerShell 7 and
+  explicit PATH consent, and uninstalled through PowerShell 5.1. This used only
+  an isolated installation directory and profile under the workspace `.tmp/`.
+  Both installed binaries reported `SSH KeyFlow v0.2.1`. Noninteractive install
+  preserved the profile, explicit consent added the owned stanza, and removal
+  restored the exact original profile bytes and left the install directory
+  empty. Verification fixtures were removed after the checks.
+
+Hosted Linux/macOS shell tests provide native installer-fixture evidence.
+Execution of the published ARM64 binaries, interactive Linux/macOS TUI behavior,
+live SSH-server operations and elevated Windows shared administrator targets
+remain unverified. No real user SSH data, profiles or remote registrations were
+modified. A documentation-only follow-up records these results on main without
+moving the released tag.

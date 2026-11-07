@@ -32,3 +32,14 @@ available when the scripts are published to main.
 to main and release v0.2.1 through the existing workflow. The release phase in
 ../spec.md supersedes the earlier no-publication scope; published verification
 will be recorded after the workflow completes.
+
+2026-11-07: Released v0.2.1 from `3e5674430cf7d0a2e031aa1c214a70af5c666982`
+and confirmed it is the latest stable release. Release workflow 42351144039 and
+main workflow 42351143967 passed on this commit. Downloaded and verified all
+seven published assets, the tagged notices, six archive checksums and both raw
+installer URLs. Actual published v0.2.1 Windows amd64 install (PowerShell 5.1),
+latest update/PATH setup (PowerShell 7) and uninstall (PowerShell 5.1) passed
+using isolated paths; the exact original profile bytes were restored. Public
+release notes include installation and usage. Details and remaining validation
+limits are in docs/verification.md. The released tag remains on the tested
+implementation commit; the final documentation update is a separate commit.
