@@ -107,3 +107,12 @@ Source commit `b045f7c` (parent `97ec7f9`) fixes the three subsequent PR review 
 - `go test -buildvcs=false ./...`, `go vet -buildvcs=false ./...` and `python scripts/test_portable.py -v` (5 tests) pass for the corrected source. The initial full run took app 71.866s and ssh 30.451s; the final layout adjustment was also covered by the targeted TUI suite.
 
 Six-target final release generation remains an integration check after these fixes are merged. The native PTY regression deliberately skips in ordinary nonterminal CI; its direct Windows execution above supplies the missing descriptor condition. Live remote authentication and native Linux/macOS terminal checks remain outside this follow-up.
+
+### Integration completion (2026-11-07)
+
+- Integrated cleanly by fast-forward at `9177555`; executable source/tests are `b045f7c`, with subsequent changes confined to documentation.
+- Independent Standards and Spec re-reviews found no remaining findings. Focused app tests independently covered missing/refused/approved manual consent and unknown-result reconciliation. Four TUI regressions and additional public-entry 32x12 probes covered list/help, form validation, review scrolling and back/toggle controls. The compiled CLI regression passed directly in a Windows PTY.
+- `python scripts/package_release.py --version v0.2.0 --output .tmp/release-v0.2.0-final-b045f7c` rebuilt all six actual CGO-disabled target binaries from the integrated code. Inspection passed for seven assets, all six SHA256 values, exact archive members, notices bytes and Unix executable/document permissions.
+- The extracted final Windows amd64 binary reported `SSH KeyFlow v0.2.0`; `keys list --json` succeeded with valid JSON, no diagnostic output and no `.ssh` directory created in the isolated home.
+
+Earlier hosted CI at `97ec7f9` passed the Ubuntu, macOS and Windows jobs plus cross-builds. That result predates these code fixes; final-head hosted CI is tracked separately on PR #1. Hosted native tests and cross-builds do not establish interactive Linux/macOS TUI or live SSH-server behavior. No user SSH data or remote server was accessed, and no release was published.
