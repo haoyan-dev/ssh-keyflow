@@ -96,3 +96,14 @@ ticket05の統合コミットは `331c2fe`。`python scripts/test_installers.py 
 
 - Linux/macOS/Windowsの実SSHサーバーへの登録・接続・解除：ユーザーが検証対象を指定した後に確認する。
 - 各OS・CPUでのネイティブ実行：クロスビルドの成功とは区別する。
+
+## PR #1 follow-up verification (2026-11-07)
+
+Source commit `b045f7c` (parent `97ec7f9`) fixes the three subsequent PR review findings. Verification ran on Windows amd64 with Go 1.26.2, Python 3.12, isolated temporary homes and external-process fixtures; no real user SSH files or servers were used.
+
+- Manual/default structured unregister: a public `app.Run` regression failed for missing/refused/approved callbacks before the fix. Afterward it checks exact target visibility before consent, unchanged state bytes on refusal/missing callback, and approved unknown unregister evidence plus manual guidance.
+- Terminal stdin with redirected stdout: `go test` gives its child nonterminal stdin, so the terminal-dependent regression skips there. Built `internal/cli` with `go test -c -buildvcs=false -o .tmp/cli-regression.test.exe ./internal/cli`, then ran the executable directly under the native Windows PTY with `-test.run=TestTerminalInputWithRedirectedOutputShowsHelp -test.v`. Before the fix it failed with exit 2 and empty stdout; afterward it passed with help/status 0. Explicit `tui` still rejects redirected stdout with status 2.
+- Public Bubble Tea event tests fail before the layout fix at 32x12 (13 rendered lines), then pass for empty/populated lists, full help with page scrolling, and resize in both directions. Existing focused-form and review/selection tests also pass. The helper explicitly delivers WindowSizeMsg before interaction, avoiding startup event scheduling as a source of false evidence.
+- `go test -buildvcs=false ./...`, `go vet -buildvcs=false ./...` and `python scripts/test_portable.py -v` (5 tests) pass for the corrected source. The initial full run took app 71.866s and ssh 30.451s; the final layout adjustment was also covered by the targeted TUI suite.
+
+Six-target final release generation remains an integration check after these fixes are merged. The native PTY regression deliberately skips in ordinary nonterminal CI; its direct Windows execution above supplies the missing descriptor condition. Live remote authentication and native Linux/macOS terminal checks remain outside this follow-up.
