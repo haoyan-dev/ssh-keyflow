@@ -363,7 +363,7 @@ func (m *model) renderOperationResult() {
 		text.WriteString("Previous view is stale; Refresh retries Snapshot only, never execution.\n")
 	}
 	if item := m.resultEntity(); item.id != "" {
-		text.WriteString(m.entityDetails(item))
+		text.WriteString(m.technicalDetails(item))
 	} else {
 		text.WriteString("Entity not recorded; allocated IDs do not establish a saved entity.\n")
 	}

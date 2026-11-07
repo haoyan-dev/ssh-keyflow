@@ -189,13 +189,13 @@ func (m model) configurationDetails(host state.Host) string {
 	return text.String()
 }
 
-func (m model) entityDetails(item entry) string {
+func (m model) technicalDetails(item entry) string {
 	var text strings.Builder
 	switch item.kind {
 	case "task":
 		for _, task := range ProjectTasks(m.view) {
 			if task.ID == item.id {
-				return m.taskDetails(task)
+				return m.taskTechnicalDetails(task)
 			}
 		}
 	case "registration":
@@ -250,6 +250,9 @@ func (m model) entityDetails(item entry) string {
 		return "Requires review: target no longer available. Refresh before continuing."
 	}
 	text.WriteString("\nConfiguration file evidence (global; not proof of alias activation):\n")
+	if len(m.view.State.Configs) == 0 && len(m.view.State.ConfigEdits) == 0 {
+		text.WriteString("No shared configuration file evidence recorded.\n")
+	}
 	for _, config := range m.view.State.Configs {
 		fmt.Fprintf(&text, "Path: %s\nSaved digest: %s\nPending digest: %s\n", config.Path, config.SHA256, config.PendingSHA256)
 	}
@@ -257,7 +260,7 @@ func (m model) entityDetails(item entry) string {
 		fmt.Fprintf(&text, "Include edit: %s\nComplete: %t\nBackup: %s\n", edit.Path, edit.Complete, edit.BackupPath)
 	}
 	text.WriteString("Include activation: not established by a saved binding alone\nHistory: h opens recorded events and completed local work\n")
-	return text.String()
+	return detailHeading("Technical details") + "\n\n" + text.String()
 }
 
 func (m model) historyDetails(target entry) string {
@@ -375,6 +378,9 @@ func (m *model) refreshSnapshot() {
 }
 
 func (m model) helpText() string {
+	if m.page == "technical" {
+		return "Technical details help\n\nThis document shows the displayed entry's full saved IDs, fingerprints, paths and checkpoints. Configuration file records are shared evidence, not proof of alias activation or current remote access. It is read-only; return to the overview for actions or F5 Refresh.\n\nArrows/PgUp/PgDn and Home/End scroll full values. Esc returns to the same overview position; ?/Esc closes Help and restores this document."
+	}
 	if m.page == "result" {
 		return "Result help\n\nTab/Shift+Tab select the labelled result controls; Enter opens the focused action. s Continue saved work, t View task and v View entity use the exact result IDs. r Register again is offered only for manual registration with a saved destination and key. Multiple eligible continuations require a picker. No navigation executes an operation.\n\nArrows/PgUp/PgDn and Home/End scroll all facts, paths and diagnostics. ?/Esc closes Help and restores the result viewport. Esc leaves the result; q exits. F5 Refresh reloads Snapshot only; it never replays an operation or confirms remote state. A stale result permits Refresh/Help/Exit only.\n\nSaved checkpoints are independent facts, not completion. Saved evidence may predate this operation. Uncertain remote effects require reconciliation before retry. Manual instructions and Include follow-up may have no saved recovery task."
 	}
@@ -391,7 +397,7 @@ func (m model) helpText() string {
 		return "Form help\n\nTab/Shift+Tab move fields and controls. Enter advances; Ctrl+S validates all steps. Esc returns one step; from the first step it invokes Cancel. Cancel or Ctrl+C returns clean drafts directly and asks before discarding changed drafts, with Keep editing selected. PgUp/PgDn scroll full values and errors. q, ? and action letters remain text in inputs. Esc closes Help and retains draft/focus.\n\nExisting and new keys are exclusive. Import existing files separately before destination setup. Manual instructions and configuration=no are defaults. Bootstrap credentials register the selected public key; passwords/passphrases stay in OpenSSH. Configuration is only requested: backend eligibility and terminal approvals decide alias/Include setup. Public-only keys cannot verify with a specified private key.\n\nUnregister uses fresh alternate authentication excluding the target fingerprint, or manual instructions. Local key files are preserved. Local creation/deletion resume has no remote authentication or configuration options. Native checks and approvals remain authoritative."
 	}
 	var text strings.Builder
-	text.WriteString("Keyboard help\n\n/ Search names, login, fingerprints and IDs\nSearch: enter accepts; esc keeps query\nx Clear search\ntab/shift+tab Category (lists/entities)\nenter Details / choose related target\nF5 Refresh saved state only (no SSH probe)\nh History (read-only)\nesc Back\n? Help / return to origin\nctrl+c Closes help first\nq Quit outside help and text input\n\n")
+	text.WriteString("Keyboard help\n\n/ Search names, login, fingerprints and IDs\nSearch: enter accepts; esc keeps query\nx Clear search\ntab/shift+tab Category (lists/entities)\nenter Overview / choose related target\nv Technical details from an overview (read-only)\nF5 Refresh saved state only (no SSH probe)\nh History (read-only)\nesc Back\n? Help / return to origin\nctrl+c Closes help first\nq Quit outside help and text input\n\n")
 	text.WriteString("Actions (advisory; locked backend checks still decide):\n")
 	if m.page != "list" && m.page != "details" {
 		text.WriteString("This view is read-only. Go back to a current entity for actions.\n")

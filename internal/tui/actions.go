@@ -74,14 +74,7 @@ func (m *model) beginAction(action string) {
 		}
 		m.openPicker("Choose related destination/key", choices)
 	case "unregister":
-		var choices []entry
-		for _, reg := range m.view.State.Registrations {
-			if (target.kind == "host" && reg.HostID == target.id) || (target.kind == "key" && reg.KeyID == target.id) || (target.kind == "registration" && reg.ID == target.id) {
-				if key, active := m.key(reg.KeyID); active && !(reg.Status == "removed" && reg.Stage == "complete" && reg.Operation == "unregister") {
-					choices = append(choices, entry{kind: "registration", id: reg.ID, title: m.registrationLabel(reg), description: reg.Status + " · " + key.Fingerprint + " · " + reg.ID, searchText: reg.HostID + " " + reg.KeyID})
-				}
-			}
-		}
+		choices := m.unregisterChoices(target)
 		if len(choices) == 0 {
 			m.status = "No current eligible registration; select a registered destination/key"
 			return
@@ -93,27 +86,9 @@ func (m *model) beginAction(action string) {
 		}
 		m.openPicker("Choose registration to unregister", choices)
 	case "delete":
-		if target.kind != "key" {
-			m.status = "Delete requires a current managed key; open Keys"
+		if blocker := m.deleteBlocker(target); blocker != "" {
+			m.status = blocker
 			return
-		}
-		for _, reg := range m.view.State.Registrations {
-			if reg.KeyID == target.id && !(reg.Status == "removed" && reg.Stage == "complete" && reg.Operation == "unregister") {
-				m.status = "Unregister outstanding recorded registrations first; local files preserved"
-				return
-			}
-		}
-		for _, deletion := range m.view.State.Deletions {
-			if deletion.Stage == "pending" && deletion.KeyID != target.id {
-				m.status = "Requires review: resume unfinished deletion " + deletion.ID + " first"
-				return
-			}
-		}
-		for _, edit := range m.view.State.ConfigEdits {
-			if !edit.Complete {
-				m.status = "Requires review: unfinished Include edit; preserve configuration before deletion"
-				return
-			}
 		}
 		m.formTarget.Key = target.id
 		m.openForm(action)
@@ -130,6 +105,40 @@ func (m *model) beginAction(action string) {
 		}
 		m.openPicker("Choose saved operation to continue", choices)
 	}
+}
+
+func (m model) unregisterChoices(target entry) []entry {
+	var choices []entry
+	for _, reg := range m.view.State.Registrations {
+		if relatedRegistration(target, reg) {
+			if key, active := m.key(reg.KeyID); active && !(reg.Status == "removed" && reg.Stage == "complete" && reg.Operation == "unregister") {
+				choices = append(choices, entry{kind: "registration", id: reg.ID, title: m.registrationLabel(reg), description: reg.Status + " · " + key.Fingerprint + " · " + reg.ID, searchText: reg.HostID + " " + reg.KeyID})
+			}
+		}
+	}
+	return choices
+}
+
+func (m model) deleteBlocker(target entry) string {
+	if target.kind != "key" {
+		return "Delete requires a current managed key; open Keys"
+	}
+	for _, reg := range m.view.State.Registrations {
+		if reg.KeyID == target.id && !(reg.Status == "removed" && reg.Stage == "complete" && reg.Operation == "unregister") {
+			return "Unregister outstanding recorded registrations first; local files preserved"
+		}
+	}
+	for _, deletion := range m.view.State.Deletions {
+		if deletion.Stage == "pending" && deletion.KeyID != target.id {
+			return "Requires review: resume unfinished deletion " + deletion.ID + " first"
+		}
+	}
+	for _, edit := range m.view.State.ConfigEdits {
+		if !edit.Complete {
+			return "Requires review: unfinished Include edit; preserve configuration before deletion"
+		}
+	}
+	return ""
 }
 
 func keyAvailability(key state.Key) string {

@@ -113,6 +113,35 @@ Results expose keyboard-focusable continuation, View task, View entity, Refresh,
 
 Arrows/PgUp/PgDn and Home/End expose full wrapped values, errors and instructions without horizontal-only access. Layout reserves header/status/controls and keeps focused content usable at 80x24, 60x18 and minimum 32x12. Below minimum, only resize guidance and exit are available; drafts/focus remain and mutation/handoff cannot start. Resize restores the previous screen without execution. Labels supplement color. Native Windows evidence, automated event checks, exact source commits and remaining gates are recorded in `.scratch/tui-ux/coverage-06.md` and `docs/verification.md`. Native Linux/macOS and real remote SSH behavior remain unverified by these fixture tests.
 
+## Entry detail overview and technical disclosure
+
+Enter on a destination, managed key, registration or Task opens an overview.
+Identity precedes Saved status and Next actions; related registration rows
+show readable names/login/fingerprint hints without recursively embedding
+full diagnostic documents. Destination/key totals summarize saved registration
+and per-destination connection evidence independently. Verified previously,
+failed at last check, not checked and outcome unknown refer to saved evidence,
+never a live SSH probe. Public-only verification limits remain explicit.
+A saved alias binding identifies its key separately from Include activation.
+
+Contextual actions reuse existing unregister eligibility, local-deletion
+blockers and saved Task continuations. Only a managed key offers local deletion;
+read-only review Tasks offer no Continue control. Hints are advisory and never
+replace the shared locked backend checks. Composing an overview uses detail
+context even when invoked from a list or result, so unrelated category-list
+recovery cannot become an entry action.
+
+`v` on an overview opens a read-only technical document for that exact visible
+entry. Full IDs, fingerprints, paths, provenance, saved operation stages, Task
+source IDs and configuration digests remain vertically accessible. Shared
+configuration evidence is explicitly global and cannot establish alias
+activation. Esc restores the overview viewport, and Help restores its own
+origin/scroll. Technical documents cannot run actions using an underlying
+entry; return to the overview for actions or F5 Snapshot refresh. Result `v`
+continues to open the target's overview; a subsequent `v` opens technical
+details. Result evidence/diagnostics retain their complete saved facts.
+No state schema, CLI or execution boundary changes.
+
 ## Optional operation reporting (TUI UX ticket 01)
 
 `app.Options.Report func(app.Report)` adds synchronous informational facts to the existing `app.Run(ctx, Options) error` boundary. The sink receives authoritative target/checkpoint facts for import, creation, onboarding, registration, verification, alias, Include, manual guidance, confirmation and execution. It is not an approval callback or executor; consumers must not mutate/reenter operations from it, including while the operation lock is held. It contains identities, paths and typed evidence, never credentials/key contents/native input. `Saved` means successful checkpoint persistence, including pending/unknown evidence, not whole-operation completion. An allocated target identity before a failed save is not itself durable recovery evidence. Absent facts mean not recorded. Reports supplement returned errors/diagnostics and read-only Snapshot without parsing stdout. Without a sink, CLI output, exit behavior, requests, exact confirmations and version-1 state schema are preserved.

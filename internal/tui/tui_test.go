@@ -168,7 +168,7 @@ func TestTUISelectedDetailsAndDiscoveryUseCurrentOperations(test *testing.T) {
 			test.Fatalf("populated narrow overflow: %s", screen)
 		}
 	}
-	details := runScreen(test, home, press(tea.KeyTab), press(tea.KeyEnter))
+	details := runScreen(test, home, press(tea.KeyTab), press(tea.KeyEnter), press('v'))
 	if !strings.Contains(details, "Managed example") || !strings.Contains(details, "fingerprint") || !strings.Contains(details, "imported") {
 		test.Fatalf("selected key details unavailable: %s", details)
 	}

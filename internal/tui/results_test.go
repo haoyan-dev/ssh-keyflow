@@ -274,12 +274,12 @@ func TestResultAutomaticRegistrationOutcomeMatrix(t *testing.T) {
 				t.Fatal("wrong main config effects", err, string(current))
 			}
 			calls := runner.calls.Load()
-			session.send(press(tea.KeyHome), press('v'))
+			session.send(press(tea.KeyHome), press('v'), press('v'))
 			if !strings.Contains(session.screen(t), view.State.Registrations[0].ID) {
 				t.Fatal("result entity link has wrong target")
 			}
 			if scenario == "verify-failed" {
-				session.send(press(tea.KeyEscape), press('s'), reviewKey())
+				session.send(press(tea.KeyEscape), press(tea.KeyEscape), press('s'), reviewKey())
 				review := session.screen(t)
 				if !strings.Contains(review, "Review resume") || !strings.Contains(review, view.State.Registrations[0].ID) {
 					t.Fatalf("wrong verification follow-up:\n%s", review)

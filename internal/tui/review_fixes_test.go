@@ -94,6 +94,8 @@ func TestReviewFixPasteFiltersListAndPickerAtCaret(t *testing.T) {
 			journey = append(journey, press('/'), text(prefix+"x"), press(tea.KeyLeft), tea.PasteMsg{Content: "7"}, press(tea.KeyDelete), press(tea.KeyEnter), press(tea.KeyEnter))
 			if picker {
 				journey = append(journey, reviewKey())
+			} else {
+				journey = append(journey, press('v'))
 			}
 			screen := runScreen(t, home, journey...)
 			if !strings.Contains(screen, want) {
@@ -148,7 +150,7 @@ func TestReviewFixPasteBelowMinimumRetainsFormAndSearch(t *testing.T) {
 			}
 			journey = append(journey, tea.WindowSizeMsg{Width: 31, Height: 11}, tea.PasteMsg{Content: "ignored"}, reviewKey(), press(tea.KeyEnter), tea.WindowSizeMsg{Width: 80, Height: 24})
 			if search {
-				journey = append(journey, press(tea.KeyEnter), press(tea.KeyEnter))
+				journey = append(journey, press(tea.KeyEnter), press(tea.KeyEnter), press('v'))
 			} else {
 				journey = append(journey, reviewKey())
 			}

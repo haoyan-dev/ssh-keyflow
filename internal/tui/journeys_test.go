@@ -79,7 +79,7 @@ func TestJourneyUnregisterReconciliationUnlocksDeletionWithoutRevivingOnboarding
 	}
 
 	// The result link must identify this registration; deletion is a fresh session.
-	session.send(press('v'))
+	session.send(press('v'), press('v'))
 	if screen := session.screen(t); !strings.Contains(screen, registration.ID) {
 		t.Fatalf("result linked to a different registration:\n%s", screen)
 	}

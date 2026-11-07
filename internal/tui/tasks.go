@@ -278,10 +278,10 @@ func uniqueSorted(values []string) []string {
 func (m model) taskEntry(t Task) entry {
 	return entry{kind: "task", id: t.ID, title: t.Title, description: strings.Join(t.SourceIDs, " · "), searchText: strings.Join(t.Reasons, " ") + " " + m.hostLabel(t.HostID) + " " + m.keyLabel(t.KeyID), readOnly: t.ResumeID == ""}
 }
-func (m model) taskDetails(t Task) string {
+func (m model) taskTechnicalDetails(t Task) string {
 	action := "Read-only review; no supported saved continuation"
 	if t.ResumeID != "" {
-		action = "s: Continue saved operation [" + t.ResumeID + "]"
+		action = "s: Continue saved operation [" + t.ResumeID + "] from the overview"
 	}
-	return t.Title + "\n" + action + "\nSource IDs: " + strings.Join(t.SourceIDs, ", ") + "\n\n" + strings.Join(t.Reasons, "\n\n") + "\n\nHistory remains read-only. No Mark done or automatic remote retry."
+	return detailHeading("Technical details: saved task") + "\n\n" + t.Title + "\nSource IDs: " + strings.Join(t.SourceIDs, ", ") + "\n\n" + strings.Join(t.Reasons, "\n\n") + "\n\n" + action + ".\nHistory remains read-only. No Mark done or automatic remote retry."
 }

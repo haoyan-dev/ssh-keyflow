@@ -282,6 +282,10 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			m.openDocument("help", entry{}, m.helpText())
 			return m, nil
 		}
+		if pressed == "v" && m.page == "details" {
+			m.openDocument("technical", m.target, m.technicalDetails(m.target))
+			return m, nil
+		}
 		if m.page == "result" {
 			return m.updateResult(message)
 		}
@@ -354,7 +358,9 @@ func (m model) chrome() (string, string) {
 	footer := "↑/↓ select · enter details · / search · x Clear search\n? help · h history · g discovery · F5 refresh · q quit"
 	switch m.page {
 	case "details":
-		footer = "↑/↓ scroll · r register · u unregister · d delete\n? help · h history · F5 refresh · esc back · q quit"
+		footer = "v technical · h history · F5 refresh\n↑/↓ scroll · ? help · esc back · q quit"
+	case "technical":
+		footer = "↑/↓ scroll · Home/End · ? help\nesc overview · q quit"
 	case "history", "discovery", "result", "reload-error":
 		footer = "↑/↓ scroll · ? help · esc back · q quit"
 	case "help":
@@ -372,7 +378,11 @@ func (m model) chrome() (string, string) {
 		switch m.page {
 		case "list":
 			footer = "/ search · enter details\n? help · q quit"
-		case "details", "history", "discovery", "result", "reload-error":
+		case "details":
+			footer = "v technical · F5 refresh\n↑/↓ scroll · ? help\nesc back · q quit"
+		case "technical":
+			footer = "↑/↓ scroll · ? help\nesc overview · q quit"
+		case "history", "discovery", "result", "reload-error":
 			footer = "↑/↓ scroll · ? help\nesc back · q quit"
 		case "picker":
 			footer = "enter choose · / search\n? help · esc back"
@@ -385,7 +395,10 @@ func (m model) chrome() (string, string) {
 		}
 	}
 	if m.page == "details" && m.target.kind == "task" {
-		footer = "s Continue · ↑/↓ scroll\n? help · esc back · q quit"
+		footer = "v technical · ↑/↓ scroll\n? help · esc back · q quit"
+		if !m.target.readOnly && !m.stale {
+			footer = "s Continue · " + footer
+		}
 	}
 	if m.page == "result" {
 		footer = m.resultFooter()
