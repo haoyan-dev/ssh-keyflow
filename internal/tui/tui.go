@@ -437,8 +437,17 @@ func (m *model) resizeBody() {
 	m.list.SetShowStatusBar(false)
 	m.list.SetShowPagination(available >= 6)
 	m.list.SetSize(max(10, m.width-2), available)
-	m.content.SetWidth(max(10, m.width-2))
 	m.content.SetHeight(available)
+	width := max(10, m.width-2)
+	if m.page == "details" && m.content.Width() != width {
+		// Restored document origins may have been composed at an older width.
+		offset := m.content.YOffset()
+		m.content.SetContent(m.entityDetails(m.target))
+		m.content.SetWidth(width)
+		m.content.SetYOffset(offset)
+	} else {
+		m.content.SetWidth(width)
+	}
 	if m.page == "picker" {
 		m.choices.SetShowTitle(m.width >= 60)
 		m.choices.SetShowStatusBar(false)

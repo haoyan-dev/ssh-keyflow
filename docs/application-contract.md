@@ -124,6 +124,16 @@ failed at last check, not checked and outcome unknown refer to saved evidence,
 never a live SSH probe. Public-only verification limits remain explicit.
 A saved alias binding identifies its key separately from Include activation.
 
+Saved status and Next actions use thin bordered panels at 60 columns or wider,
+with terminal-default backgrounds. Narrower views use plain headings. Cyan
+headings/action hints, green successful saved evidence, yellow unknown,
+unchecked or unfinished evidence and red failures/blockers supplement explicit
+text labels. Removed registrations remain neutral. Supporting text inherits
+the terminal foreground; Bubble Tea's renderer respects its detected color
+profile, including NO_COLOR. Panels reflow on width changes, including an
+overview restored from resized Help or technical details; scroll offsets are
+retained subject to the new document bounds.
+
 Contextual actions reuse existing unregister eligibility, local-deletion
 blockers and saved Task continuations. Only a managed key offers local deletion;
 read-only review Tasks offer no Continue control. Hints are advisory and never

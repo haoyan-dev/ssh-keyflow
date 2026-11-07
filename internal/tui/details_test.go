@@ -1,6 +1,7 @@
 package tui_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,125 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"ssh-keyflow/internal/state"
 )
+
+func TestDetailPanelsAndSemanticColorsRetainTextLabels(t *testing.T) {
+	home, document := navigationHome(t)
+	document.Registrations[0].Status = "pending"
+	document.Registrations[0].Stage = "pending"
+	document.Registrations[0].ConnectionCheck = "unknown"
+	document.Registrations = append(document.Registrations, state.Registration{
+		ID: "registration-extra", HostID: "host-1", KeyID: "key-2",
+		Status: "registered", Operation: "register", Stage: "complete", ConnectionCheck: "verified",
+	})
+	saveNavigationState(t, home, document)
+	screen := runSizedScreen(t, home, 100, 100, press(tea.KeyEnter))
+	for _, want := range []string{
+		"\x1b[1;36mSaved status", "\x1b[1;36mNext actions",
+		"\x1b[32m1 registered", "\x1b[32m1 verified previously",
+		"\x1b[33m1 awaiting registration", "\x1b[33m1 outcome unknown",
+		"┌", "┐", "└", "┘",
+	} {
+		if !strings.Contains(screen, want) {
+			t.Fatalf("missing visual cue %q:\n%q", want, screen)
+		}
+	}
+	plain := ansi.Strip(screen)
+	for _, want := range []string{"Registration:", "Connection:", "Saved evidence only; not a live SSH check.", "Next actions", "r Register public key", "Saved work unfinished"} {
+		if !strings.Contains(plain, want) {
+			t.Fatalf("monochrome lost meaning %q:\n%s", want, plain)
+		}
+	}
+	key := runSizedScreen(t, home, 100, 100, press(tea.KeyTab), press(tea.KeyEnter))
+	if !strings.Contains(key, "\x1b[31mLocal deletion blocked:") {
+		t.Fatalf("blocked action lost red cue:\n%q", key)
+	}
+	document.Registrations[0].Status = "failed"
+	document.Registrations[0].ConnectionCheck = "failed"
+	saveNavigationState(t, home, document)
+	failed := runSizedScreen(t, home, 100, 100, press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter))
+	for _, want := range []string{"\x1b[31mRegistration: attempt failed", "\x1b[31mConnection: failed at last check"} {
+		if !strings.Contains(failed, want) {
+			t.Fatalf("failed evidence lost cue %q:\n%q", want, failed)
+		}
+	}
+	document.Registrations[0].Status = "removed"
+	document.Registrations[0].Operation = "unregister"
+	document.Registrations[0].Stage = "complete"
+	saveNavigationState(t, home, document)
+	removed := runSizedScreen(t, home, 100, 100, press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter))
+	if !strings.Contains(removed, "Registration: removed (recorded)") ||
+		strings.Contains(removed, "\x1b[32mRegistration: removed") {
+		t.Fatalf("removed registration gained success coloring:\n%q", removed)
+	}
+}
+
+func TestDetailPanelsReflowAcrossResizedDocumentOrigins(t *testing.T) {
+	home, document := navigationHome(t)
+	document.Hosts[0].Alias = strings.Repeat("東京", 20)
+	document.Keys[0].Name = strings.Repeat("公開鍵", 15)
+	document.Hosts[0].ConfigKeyID = document.Keys[0].ID
+	saveNavigationState(t, home, document)
+	path := filepath.Join(state.Directory(home), "state.json")
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for tabs := 0; tabs < 4; tabs++ {
+		var open []tea.Msg
+		for i := 0; i < tabs; i++ {
+			open = append(open, press(tea.KeyTab))
+		}
+		open = append(open, press(tea.KeyEnter))
+		for _, widths := range [][2]int{{100, 60}, {80, 59}, {80, 32}, {32, 80}} {
+			t.Run(fmt.Sprintf("kind%d/%dto%d", tabs, widths[0], widths[1]), func(t *testing.T) {
+				resize := tea.WindowSizeMsg{Width: widths[1], Height: 80}
+				expected := runSizedScreen(t, home, widths[1], 80, open...)
+				for _, overlay := range [][]tea.Msg{nil, {press('?')}, {press('v'), press('?')}} {
+					journey := append([]tea.Msg{}, open...)
+					journey = append(journey, overlay...)
+					journey = append(journey, resize)
+					for range overlay {
+						journey = append(journey, press(tea.KeyEscape))
+					}
+					actual := runSizedScreen(t, home, widths[0], 80, journey...)
+					if actual != expected {
+						t.Fatalf("resized origin differs (overlay %v):\nexpected=%s\nactual=%s", overlay, expected, actual)
+					}
+					plain := ansi.Strip(actual)
+					panelCount := 0
+					if widths[1] >= 60 {
+						panelCount = 2
+					}
+					if strings.Count(plain, "┌") != panelCount {
+						t.Fatalf("panels did not collapse or spread to related rows:\n%s", plain)
+					}
+					if lipgloss.Width(actual) > widths[1] || lipgloss.Height(actual) > 80 {
+						t.Fatalf("resized panel overflow:\n%s", actual)
+					}
+					compact := strings.Join(strings.Fields(plain), "")
+					// Borders are layout, not characters in a wrapped saved value.
+					compact = strings.ReplaceAll(compact, "│", "")
+					if tabs < 3 && !strings.Contains(compact, document.Keys[0].Name) {
+						t.Fatalf("wrapped Unicode key name lost:\n%s", plain)
+					}
+				}
+			})
+		}
+	}
+	// Returning from a resized overlay retains the same scroll offset as a
+	// direct resize, rather than jumping back to the overview's identity.
+	open := []tea.Msg{press(tea.KeyEnter), press(tea.KeyPgDown)}
+	resize := tea.WindowSizeMsg{Width: 32, Height: 12}
+	direct := runSizedScreen(t, home, 80, 24, append(append([]tea.Msg{}, open...), resize)...)
+	back := runSizedScreen(t, home, 80, 24, append(open, press('v'), press('?'), resize, press(tea.KeyEscape), press(tea.KeyEscape))...)
+	if back != direct {
+		t.Fatalf("resized overlay lost scroll:\ndirect=%s\nback=%s", direct, back)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || string(before) != string(after) {
+		t.Fatal("panel/resize navigation rewrote saved state")
+	}
+}
 
 func TestDetailOverviewsExplainIdentityEvidenceAndActions(t *testing.T) {
 	home, document := navigationHome(t)
@@ -66,9 +186,9 @@ func TestDetailOverviewsExplainIdentityEvidenceAndActions(t *testing.T) {
 }
 
 func TestDetailConnectionStatesRemainDestinationSpecific(t *testing.T) {
-	for _, tc := range []struct{ saved, want string }{
-		{"verified", "verified previously"}, {"failed", "failed at last check"},
-		{"unverified", "not checked"}, {"unknown", "outcome unknown"},
+	for _, tc := range []struct{ saved, want, color string }{
+		{"verified", "verified previously", "32"}, {"failed", "failed at last check", "31"},
+		{"unverified", "not checked", "33"}, {"unknown", "outcome unknown", "33"},
 	} {
 		t.Run(tc.saved, func(t *testing.T) {
 			home, document := navigationHome(t)
@@ -77,7 +197,11 @@ func TestDetailConnectionStatesRemainDestinationSpecific(t *testing.T) {
 			document.Keys[0].PrivateSHA256 = strings.Repeat("a", 64)
 			document.Registrations[0].ConnectionCheck = tc.saved
 			saveNavigationState(t, home, document)
-			screen := ansi.Strip(runScreen(t, home, press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter)))
+			styled := runScreen(t, home, press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter))
+			screen := ansi.Strip(styled)
+			if !strings.Contains(styled, "\x1b["+tc.color+"mConnection: "+tc.want) {
+				t.Fatalf("connection evidence lost color:\n%q", styled)
+			}
 			if !strings.Contains(screen, "Registration: registered (recorded)") ||
 				!strings.Contains(screen, "Connection: "+tc.want+" (recorded)") ||
 				!strings.Contains(screen, "not a live SSH check") {
