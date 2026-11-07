@@ -216,3 +216,59 @@ live SSH-server operations and elevated Windows shared administrator targets
 remain unverified. No real user SSH data, profiles or remote registrations were
 modified. A documentation-only follow-up records these results on main without
 moving the released tag.
+
+## v0.2.2 release verification (2026-11-07)
+
+Annotated tag `v0.2.2` (tag object
+`03f7df3d339a180b432fae54367afaf76e23e9ab`) identifies commit
+`1a6d7d8829322cf3fd985c46a2100495d4d606d0`, the merge of PR #2.
+Changes since v0.2.1 are limited to development policies and verification
+records; application and installer source are unchanged.
+
+- Before tagging, [main CI 42353432984](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42353432984)
+  passed Go, Portable, installer and profile tests on Ubuntu, macOS and
+  Windows, plus six-target crossbuilds and Linux amd64 version injection.
+- Local verification used Windows 11 amd64, Go 1.26.2 and Python 3.12.14.
+  `go vet -buildvcs=false ./...` passed. Built all six release targets with
+  `v0.2.2` injected and verified the seven-asset set, all archive checksums,
+  exact two-member archive contents, notice bytes and Unix modes. The
+  extracted Windows amd64 binary reported `SSH KeyFlow v0.2.2`.
+- Downloaded `install.sh` and `install.ps1` from their public raw `main`
+  URLs and compared their bytes with Git blobs at
+  `1a6d7d8829322cf3fd985c46a2100495d4d606d0`. SHA256 values were
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f`
+  and `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`,
+  respectively. This check downloaded source only; it did not execute an
+  installer or modify user SSH data, profiles or PATH.
+
+Release [SSH KeyFlow v0.2.2](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.2.2)
+was published on 2026-11-07 at 08:25:28 UTC (17:25:28 JST). GitHub's latest
+release API returned `v0.2.2`, with draft and prerelease both false.
+
+- [Release workflow 42354854403](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42354854403)
+  succeeded on the exact tagged commit. Ubuntu, macOS and Windows passed Go,
+  Portable, installer and profile tests; six-target crossbuilds, Linux amd64
+  version injection and publication also passed.
+- The remote annotated tag object and peeled commit matched the identities
+  above. Downloaded all seven published assets with `gh release download
+  v0.2.2` and confirmed the exact six archive names and `SHA256SUMS`.
+- Verified six unique manifest entries, every archive SHA256, exactly two
+  regular members per archive, executable/notice names, tagged notice bytes
+  and Unix modes (0755 executable, 0644 notices, tar uid/gid zero). Notice
+  comparison used the tag's Git blob to avoid checkout newline conversion.
+  The downloaded manifest SHA256 was
+  `3a9c2c522842d8e70ec786280f69e1c3fc017b67184b266f90ebc73efbf2ad0c`.
+- The published Windows amd64 ZIP SHA256 was
+  `3b176d44778676cb27cc6bde004a37becc852fc547763f671a09c83ff8701251`.
+  Its extracted executable reported `SSH KeyFlow v0.2.2` on Windows 11 amd64.
+  The temporary executable was removed after this check.
+- Release notes describe the documentation changes, installation/update
+  instructions, successful publication checks and verification limits.
+
+Native execution of the published Linux/macOS and ARM64 binaries, live
+SSH-server operations, interactive Linux/macOS TUI behavior and elevated
+Windows shared administrator targets remain unverified. The v0.2.2 checks
+did not exercise a native install/update/removal cycle; hosted installer
+tests used isolated fixtures. No real user SSH data, profiles, persistent
+PATH or remote registrations were modified. This documentation-only follow-up
+records publication without moving the released tag or changing binary assets.
