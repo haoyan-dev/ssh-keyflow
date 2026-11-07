@@ -429,3 +429,34 @@ Windows shared administrator destinations and hosted CI remain untested for
 this change. Packaging/installer suites were not repeated; those sources and
 the state/CLI/backend contracts are unchanged. All work is committed locally;
 no push, merge, tag or release.
+
+## Local detail colors and panels (2026-11-08 JST)
+
+Product/test source `6fb51e850ef39fa76afeb4024df37e2dfab87246` on
+`feat/entry-detail-ux`, verified from a clean source tree. The subsequent
+completion commit records evidence and local ticket status only.
+
+- Windows 11 amd64 / Go 1.26.2: full uncached
+  `go test -buildvcs=false ./... -count=1` PASS (cmd 3.892s, app 47.215s,
+  cli 2.799s, ssh 25.705s, tui 13.790s), `go vet -buildvcs=false ./...`
+  PASS and native development build PASS. Native fixtures used process-only
+  PowerShell ExecutionPolicy Bypass.
+- Final binary reports `SSH KeyFlow dev`; SHA256:
+  `55661fba7db5cc71b624f5a12ac715ee7a26a986de26d725f6a3ed03e18f19d4`.
+- Native color inspection on that executable: destination panels at 80x24,
+  key panels and wrapped deletion blocker at 60x18, registration/Task plain
+  headings at 32x12, scrolling and Task technical/Help/back restoration.
+  Earlier exploratory inherited NO_COLOR inspection retained readable labels.
+  Color-enabled settings were process-local.
+- Automated checks cover semantic colors, ANSI-stripped labels, all four
+  overview/technical kinds at supported sizes, 59-column threshold behavior,
+  width reflow through Help/technical origins, Unicode, scrolling, unchanged
+  saved state and no external commands. Separate local standards/specification
+  reviews have no unresolved findings.
+
+Review → specification → ticket → implementation artifacts, exact native
+conditions, fixture hash and platform limits are in the
+[panel verification record](../.scratch/entry-detail-ux/panel-verification.md)
+and [ticket 02](../.scratch/entry-detail-ux/issues/02-detail-color-panels.md).
+Native resize itself, other OS/CPU targets, live SSH and hosted CI were not
+tested; packaging/installer suites were not repeated. All work remains local.

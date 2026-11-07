@@ -1,7 +1,8 @@
 # Local color and panel final review
 
 Separate local passes by the implementing agent on 2026-11-08. The exact
-tested source commit and execution results belong in panel-verification.md.
+tested source commit is `6fb51e850ef39fa76afeb4024df37e2dfab87246`;
+execution results are in [panel-verification.md](panel-verification.md).
 
 ## Standards compliance pass
 
@@ -32,7 +33,7 @@ No unresolved standards findings.
 | VP01 | Cyan bold headings and action hints; green saved successes, yellow unknown/unchecked/unfinished, red failure/blocker labels. Tests cover all connection outcomes and neutral removal; native color and inherited NO_COLOR inspected. |
 | VP02 | Exactly two thin panels at >=60; none at 59 or 32. Related entries remain rows. Panels inherit terminal background, supporting text the terminal foreground. |
 | VP03 | All four kinds resize across 100→60, 80→59, 80→32 and 32→80 directly and via Help/technical origins. Tests compare resulting frames, preserve wrapped Unicode names and compare scrolled direct/overlay paths. |
-| VP04 | Existing 80x24/60x18/32x12 matrix remains; focused checks pass. Full tests/vet, final native build/source, state hash and limits are recorded in panel-verification.md after verification. README and application contract describe behavior. |
+| VP04 | Existing 80x24/60x18/32x12 matrix remains; focused and full tests/vet pass. Final native build/source, state hash and limits are recorded in panel-verification.md. README and application contract describe behavior. |
 
 Review adjustment: panel width reflow originally restored the offset before
 applying the new viewport height. The height is now applied first, so clamping

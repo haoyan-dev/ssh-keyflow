@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: none
 
 # 02: Add local overview colors and panels
@@ -8,10 +8,10 @@ Review: [panel-review.md](../panel-review.md).
 
 ## Acceptance
 
-- [ ] VP01: Semantic colors supplement explicit saved-evidence labels.
-- [ ] VP02: Thin panels for status/actions; compact related rows and narrow fallback.
-- [ ] VP03: Width changes and resized overlay origins reflow correctly.
-- [ ] VP04: Automated/native verification, docs and separate review passes.
+- [x] VP01: Semantic colors supplement explicit saved-evidence labels.
+- [x] VP02: Thin panels for status/actions; compact related rows and narrow fallback.
+- [x] VP03: Width changes and resized overlay origins reflow correctly.
+- [x] VP04: Automated/native verification, docs and separate review passes.
 
 ## Comments
 
@@ -19,3 +19,9 @@ Review: [panel-review.md](../panel-review.md).
   color/panel design. Continue on `feat/entry-detail-ux`; base `762acdc`.
   Review and specification recorded before implementation. No remote
   publication is included.
+- 2026-11-08: Implemented and verified on
+  `6fb51e850ef39fa76afeb4024df37e2dfab87246`. Full Go suite, vet, native
+  development build and Windows console checks pass. Separate local
+  [standards/specification reviews](../panel-final-review.md) have no
+  unresolved findings. [Verification](../panel-verification.md) records
+  exact commands, native profiles, source SHA, hashes and limits.
