@@ -17,6 +17,16 @@ import (
 	"ssh-keyflow/internal/tui"
 )
 
+func fixtureTempDir(test *testing.T) string {
+	test.Helper()
+	// macOS temporary directories can have a symlinked /var ancestor.
+	directory, err := filepath.EvalSymlinks(test.TempDir())
+	if err != nil {
+		test.Fatal(err)
+	}
+	return directory
+}
+
 func runScreen(test *testing.T, home string, messages ...tea.Msg) string {
 	return runSizedScreen(test, home, 80, 24, messages...)
 }

@@ -309,3 +309,9 @@ coordinatorの最終ネイティブ証跡は同じ本体0be6を使い、手動Re
 現在のAC01–12受入状況は [coverage](../.scratch/tui-ux/coverage-06.md)、独立レビューは [final review](../.scratch/tui-ux/final-review.md)、操作順・state hashは [native verification](../.scratch/tui-ux/native-verification.md)。全6件ready-for-human、未チェック受入条件なし。
 
 Linux/macOS/Windows arm64のnative、実SSH認証・ホスト鍵・サーバー登録/解除、Windows管理者共有先の昇格実行、hosted CIは未検証。fake Runnerやcross-buildをその証明とは扱わない。実ユーザーの鍵・設定・プロフィール・接続先、mainは変更せず、push/tag/release/転送なし。
+
+## PR CI fixture correction (2026-11-08 JST)
+
+Public PR: https://github.com/haoyan-dev/ssh-keyflow/pull/4. Initial public head `55f92ae6da8116e974444369ddb3cd21afb1bad0` reproduced macOS TUI failures in push run `42391651145` and PR run `42391960644`: creation/configuration guards rejected the `/var` symlink ancestor in `t.TempDir()` paths before the intended test scenario ran. Ubuntu and crossbuild passed in the push run.
+
+The correction resolves only the handoff/result fixture homes and interrupted-creation fixture to their physical paths with `filepath.EvalSymlinks`, matching the existing app fixture pattern. Production guards, behavior, test assertions and fake external boundaries are unchanged. Windows local `go test -count=1 ./internal/tui` PASS (9.447s), `go vet ./internal/tui` PASS, Herdr t73 exit0. The correction commit and full hosted CI results are tracked in PR #4; previous product/native evidence remains applicable, while the published test source now additionally contains this fixture correction. No release/tag publication.

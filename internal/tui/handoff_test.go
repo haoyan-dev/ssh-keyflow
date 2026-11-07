@@ -56,7 +56,7 @@ func (n *handoffIO) Write(p []byte) (int, error) {
 
 func handoffHome(t *testing.T) (string, app.View) {
 	t.Helper()
-	home := t.TempDir()
+	home := fixtureTempDir(t)
 	source := filepath.Join(home, "source.pub")
 	if err := os.WriteFile(source, []byte("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB fixture"), 0600); err != nil {
 		t.Fatal(err)
@@ -281,7 +281,7 @@ func (r *interruptedCreation) Run(_ context.Context, command app.Command) error 
 	return context.Canceled
 }
 func TestHandoffInterruptedCreationRetainsSavedCheckpointAndOriginalInput(t *testing.T) {
-	home := t.TempDir()
+	home := fixtureTempDir(t)
 	native := &handoffIO{answer: strings.NewReader("yes\n")}
 	runner := &interruptedCreation{input: native}
 	var reports []app.Report

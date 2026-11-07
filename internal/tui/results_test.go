@@ -63,7 +63,7 @@ func (r *resultRunner) Run(_ context.Context, c app.Command) error {
 }
 func resultHome(t *testing.T, private bool) (string, *resultRunner) {
 	t.Helper()
-	home := t.TempDir()
+	home := fixtureTempDir(t)
 	public := filepath.Join(home, "fixture.pub")
 	companion := ""
 	if err := os.WriteFile(public, []byte(resultPublic), 0600); err != nil {
