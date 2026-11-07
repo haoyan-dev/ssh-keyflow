@@ -117,17 +117,41 @@ func createKey(ctx context.Context, options Options, store *state.LockedStore, d
 			return state.Key{}, fmt.Errorf("requires review: creation onboarding identity missing")
 		}
 	}
-	if err := store.Save(*document); err != nil {
+	options.target = ReportTarget{KeyID: keyID, CreationID: creationID, OnboardingID: onboardingID}
+	if onboardingID != "" {
+		for _, job := range document.Onboardings {
+			if job.ID == onboardingID {
+				options.target.HostID = job.HostID
+			}
+		}
+	}
+	if err := options.saveReport(store, *document, Report{Kind: ReportCreation, Outcome: OutcomePending, Stage: "planned", Path: privatePath}); err != nil {
 		return state.Key{}, err
+	}
+	if onboardingID != "" {
+		options.report(Report{Kind: ReportOnboarding, Outcome: OutcomePending, Stage: "key_pending", Saved: true})
 	}
 	return finishCreation(ctx, options, store, document, len(document.Creations)-1)
 }
 
-func finishCreation(ctx context.Context, options Options, store *state.LockedStore, document *state.State, creationIndex int) (state.Key, error) {
+func finishCreation(ctx context.Context, options Options, store *state.LockedStore, document *state.State, creationIndex int) (result state.Key, err error) {
+	creation := &document.Creations[creationIndex]
+	options.target = ReportTarget{KeyID: creation.KeyID, CreationID: creation.ID}
+	for _, job := range document.Onboardings {
+		if job.CreationID == creation.ID {
+			options.target.HostID, options.target.OnboardingID = job.HostID, job.ID
+		}
+	}
+	options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
+	fact := Report{Kind: ReportCreation, Outcome: OutcomeRequiresReview, Path: creation.PrivatePath}
+	defer func() {
+		if err != nil {
+			options.report(fact)
+		}
+	}()
 	if err := integrity(*document); err != nil {
 		return state.Key{}, err
 	}
-	creation := &document.Creations[creationIndex]
 	if err := creationLocation(options.Home, *creation); err != nil {
 		return state.Key{}, err
 	}
@@ -135,7 +159,8 @@ func finishCreation(ctx context.Context, options Options, store *state.LockedSto
 		return state.Key{}, err
 	}
 	creation.Stage = "pending"
-	if err := store.Save(*document); err != nil {
+	fact.Outcome = OutcomeUnknown
+	if err := options.saveReport(store, *document, Report{Kind: ReportCreation, Outcome: OutcomePending, Stage: creation.Stage, Path: creation.PrivatePath}); err != nil {
 		return state.Key{}, err
 	}
 	if creation.PrivateSHA256 == "" && creation.Fingerprint != "" {
@@ -146,7 +171,7 @@ func finishCreation(ctx context.Context, options Options, store *state.LockedSto
 		if err := observeCreation(creation); err != nil {
 			return state.Key{}, err
 		}
-		if err := store.Save(*document); err != nil {
+		if err := options.saveReport(store, *document, Report{Kind: ReportCreation, Outcome: OutcomePending, Stage: creation.Stage, Path: creation.PrivatePath}); err != nil {
 			return state.Key{}, err
 		}
 		if generationErr != nil {
@@ -197,7 +222,7 @@ func finishCreation(ctx context.Context, options Options, store *state.LockedSto
 	}
 	key := state.Key{ID: creation.KeyID, Name: creation.Name, PublicPath: creation.PublicPath, PrivatePath: creation.PrivatePath, PrivateSHA256: creation.PrivateSHA256, Fingerprint: creation.Fingerprint, Origin: "created", CreatedAt: creation.CreatedAt, ConnectionCheck: "unverified"}
 	document.Keys = append(document.Keys, key)
-	if err := store.Save(*document); err != nil {
+	if err := options.saveReport(store, *document, Report{Kind: ReportCreation, Outcome: OutcomeApplied, Stage: creation.Stage, Path: creation.PrivatePath}); err != nil {
 		return state.Key{}, err
 	}
 	fmt.Fprintln(options.Output, "Created", key.Name, key.Fingerprint, "connection=unverified")

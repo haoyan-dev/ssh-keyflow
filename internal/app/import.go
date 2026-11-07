@@ -24,18 +24,25 @@ func prompt(options Options, label string) (string, error) {
 			return "", fmt.Errorf("structured operation requires an explicit field instead of a menu prompt")
 		}
 		if options.Confirm == nil {
+			options.report(Report{Kind: ReportConfirmation, Outcome: OutcomeRequiresReview})
 			return "", fmt.Errorf("explicit confirmation is required")
 		}
 		approved, err := options.Confirm(label)
 		if err != nil {
+			options.report(Report{Kind: ReportConfirmation, Outcome: OutcomeUnknown})
 			return "", err
 		}
 		if !approved {
+			options.report(Report{Kind: ReportConfirmation, Outcome: OutcomeDeclined})
 			return "", ErrCancelled
 		}
 		return "yes", nil
 	}
-	return readLine(options.Input)
+	answer, err := readLine(options.Input)
+	if strings.Contains(label, "Type yes") && (err != nil || answer != "yes") {
+		options.report(Report{Kind: ReportConfirmation, Outcome: approvalOutcome(err)})
+	}
+	return answer, err
 }
 
 func fingerprint(data []byte) (string, error) {
@@ -222,7 +229,8 @@ func importLocked(ctx context.Context, options Options, store *state.LockedStore
 			return err
 		}
 		document.Keys = append(document.Keys, key)
-		return store.Save(document)
+		options.target = ReportTarget{KeyID: key.ID}
+		return options.saveReport(store, document, Report{Kind: ReportImport, Outcome: OutcomeApplied, Path: key.PublicPath})
 	}()
 	if err == nil {
 		fmt.Fprintln(options.Output, "Imported", name)

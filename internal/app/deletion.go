@@ -10,7 +10,7 @@ import (
 )
 
 func deleteLocal(options Options) error {
-	return state.WithLock(options.Home, func(store *state.LockedStore) error {
+	return state.WithLock(options.Home, func(store *state.LockedStore) (err error) {
 		document, err := store.Load()
 		if err != nil {
 			return err
@@ -37,6 +37,19 @@ func deleteLocal(options Options) error {
 		}
 		keyIndex := selectedIndex
 		key := document.Keys[keyIndex]
+		options.target = ReportTarget{KeyID: key.ID}
+		for _, deletion := range document.Deletions {
+			if deletion.KeyID == key.ID && deletion.Stage != "complete" {
+				options.target.DeletionID = deletion.ID
+			}
+		}
+		options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
+		fact := Report{Kind: ReportDeletion, Outcome: OutcomeRequiresReview}
+		defer func() {
+			if err != nil {
+				options.report(fact)
+			}
+		}()
 		for _, registration := range document.Registrations {
 			if registration.KeyID == key.ID && (registration.Status != "removed" || registration.Stage != "complete" || registration.Operation != "unregister") {
 				return fmt.Errorf("recorded registration %s is not confirmed removed; unregister with alternate authentication or manual guidance; local files preserved", registration.ID)
@@ -91,8 +104,10 @@ func deleteLocal(options Options) error {
 		fmt.Fprintf(options.Output, "Only recorded destinations are known; keys might be registered elsewhere. Separate local deletion never revokes remote access.\nDelete %s [%s]\nFingerprint: %s\nPublic: %s\nPrivate: %s\nRetain stable IDs, registration history and deletion tombstone.\n", key.Name, key.ID, key.Fingerprint, key.PublicPath, key.PrivatePath)
 		answer, err := prompt(options, "Type yes to delete only these managed local files (or resume the saved deletion)")
 		if err != nil || answer != "yes" {
+			fact.Outcome = approvalOutcome(err)
 			return err
 		}
+		fact.Outcome = OutcomeUnknown
 		if deletionIndex < 0 {
 			identifier, err := newID("deletion")
 			if err != nil {
@@ -100,7 +115,8 @@ func deleteLocal(options Options) error {
 			}
 			document.Deletions = append(document.Deletions, state.LocalDeletion{ID: identifier, KeyID: key.ID, Stage: "pending", CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), PublicSHA256: configDigest(public), PrivateSHA256: key.PrivateSHA256, PrivateRemoved: key.PrivatePath == ""})
 			deletionIndex = len(document.Deletions) - 1
-			if err := store.Save(document); err != nil {
+			options.target.DeletionID = identifier
+			if err := options.saveReport(store, document, Report{Kind: ReportDeletion, Outcome: OutcomePending, Stage: "pending"}); err != nil {
 				return err
 			}
 		}
@@ -115,6 +131,7 @@ func deleteLocal(options Options) error {
 			if target.path == "" {
 				continue
 			}
+			fact.Path = target.path
 			current, err := plainConfig(target.path)
 			if err != nil {
 				return err
@@ -128,14 +145,14 @@ func deleteLocal(options Options) error {
 				}
 			}
 			*target.removed = true
-			if err := store.Save(document); err != nil {
+			if err := options.saveReport(store, document, Report{Kind: ReportDeletion, Outcome: OutcomePending, Stage: "pending", Path: target.path}); err != nil {
 				return err
 			}
 		}
 		deletion.Stage = "complete"
 		document.DeletedKeys = append(document.DeletedKeys, state.DeletedKey{Key: key, DeletionID: deletion.ID, DeletedAt: time.Now().UTC().Format(time.RFC3339Nano)})
 		document.Keys = append(document.Keys[:keyIndex], document.Keys[keyIndex+1:]...)
-		if err := store.Save(document); err != nil {
+		if err := options.saveReport(store, document, Report{Kind: ReportDeletion, Outcome: OutcomeApplied, Stage: "complete"}); err != nil {
 			return err
 		}
 		fmt.Fprintln(options.Output, "Managed local files deleted; identity tombstone and history retained")

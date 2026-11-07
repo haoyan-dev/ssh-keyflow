@@ -68,12 +68,33 @@ func ownedConfig(options Options, document *state.State) ([]byte, int, error) {
 	return nil, -1, nil
 }
 
-func configureRegistration(options Options, store *state.LockedStore, document *state.State, host state.Host, key state.Key) error {
+func configureRegistration(options Options, store *state.LockedStore, document *state.State, host state.Host, key state.Key) (err error) {
+	options.target = pairTarget(document, host.ID, key.ID)
+	path := filepath.Join(state.Directory(options.Home), "config")
+	fact := Report{Kind: ReportAlias, Outcome: OutcomeRequiresReview, Path: path}
+	aliasDone := false
+	defer func() {
+		if err != nil && !aliasDone {
+			options.report(fact)
+			options.report(Report{Kind: ReportInclude, Outcome: OutcomeSkipped, Path: filepath.Join(options.Home, ".ssh", "config")})
+		}
+	}()
+	skipInclude := func() {
+		options.report(Report{Kind: ReportInclude, Outcome: OutcomeSkipped, Path: filepath.Join(options.Home, ".ssh", "config")})
+	}
 	if options.Request != nil && !options.Request.Configure {
+		fact.Outcome = OutcomeSkipped
+		options.report(fact)
+		skipInclude()
 		return nil
 	}
 	answer, err := prompt(options, "Generate SSH alias configuration? Type yes to approve:")
 	if err != nil || answer != "yes" {
+		fact.Outcome = approvalOutcome(err)
+		if err == nil {
+			options.report(fact)
+			skipInclude()
+		}
 		return err
 	}
 	previous, configIndex, err := ownedConfig(options, document)
@@ -81,11 +102,13 @@ func configureRegistration(options Options, store *state.LockedStore, document *
 		return err
 	}
 	if key.PrivatePath == "" {
+		fact.Outcome = OutcomeSkipped
+		options.report(fact)
+		skipInclude()
 		fmt.Fprintln(options.Output, "Public-only key: no usable IdentityFile; alias remains manual until a private key is explicitly imported.")
 		return nil
 	}
 	ownedPath := ""
-	path := filepath.Join(state.Directory(options.Home), "config")
 	if configIndex >= 0 {
 		ownedPath = path
 	}
@@ -115,7 +138,8 @@ func configureRegistration(options Options, store *state.LockedStore, document *
 		configIndex = len(document.Configs) - 1
 	}
 	document.Configs[configIndex].PendingSHA256 = configDigest(data)
-	if err := store.Save(*document); err != nil {
+	fact.Outcome = OutcomeUnknown
+	if err := options.saveReport(store, *document, Report{Kind: ReportAlias, Outcome: OutcomePending, Path: path}); err != nil {
 		return err
 	}
 	if err := replaceConfig(path, previous, data); err != nil {
@@ -123,9 +147,10 @@ func configureRegistration(options Options, store *state.LockedStore, document *
 	}
 	document.Configs[configIndex].SHA256 = configDigest(data)
 	document.Configs[configIndex].PendingSHA256 = ""
-	if err := store.Save(*document); err != nil {
+	if err := options.saveReport(store, *document, Report{Kind: ReportAlias, Outcome: OutcomeApplied, Path: path}); err != nil {
 		return err
 	}
+	aliasDone = true
 	return includeConfig(options, store, document)
 }
 
@@ -155,7 +180,13 @@ func managedConfiguration(document state.State) ([]byte, error) {
 	return []byte(generated.String()), nil
 }
 
-func removeKeyConfiguration(options Options, store *state.LockedStore, document *state.State, keyID, hostID string) error {
+func removeKeyConfiguration(options Options, store *state.LockedStore, document *state.State, keyID, hostID string) (err error) {
+	fact := Report{Kind: ReportAlias, Outcome: OutcomeRequiresReview, Operation: "remove", Path: filepath.Join(state.Directory(options.Home), "config")}
+	defer func() {
+		if err != nil {
+			options.report(fact)
+		}
+	}()
 	previous, configIndex, err := ownedConfig(options, document)
 	if err != nil {
 		return err
@@ -169,6 +200,7 @@ func removeKeyConfiguration(options Options, store *state.LockedStore, document 
 		if len(document.Configs) != 0 {
 			return fmt.Errorf("requires review: configuration ownership path mismatch")
 		}
+		options.report(Report{Kind: ReportAlias, Outcome: OutcomeSkipped, Operation: "remove", Path: fact.Path})
 		return nil
 	}
 	for index := range document.Hosts {
@@ -181,14 +213,15 @@ func removeKeyConfiguration(options Options, store *state.LockedStore, document 
 		return err
 	}
 	document.Configs[configIndex].PendingSHA256 = configDigest(data)
-	if err := store.Save(*document); err != nil {
+	fact.Outcome = OutcomeUnknown
+	if err := options.saveReport(store, *document, Report{Kind: ReportAlias, Outcome: OutcomePending, Operation: "remove", Path: fact.Path}); err != nil {
 		return err
 	}
 	if err := replaceConfig(document.Configs[configIndex].Path, previous, data); err != nil {
 		return err
 	}
 	document.Configs[configIndex].SHA256, document.Configs[configIndex].PendingSHA256 = configDigest(data), ""
-	return store.Save(*document)
+	return options.saveReport(store, *document, Report{Kind: ReportAlias, Outcome: OutcomeApplied, Operation: "remove", Path: fact.Path})
 }
 
 func replaceConfig(path string, before, after []byte) error {
@@ -226,8 +259,14 @@ func replaceConfig(path string, before, after []byte) error {
 	return os.Rename(temporary.Name(), path)
 }
 
-func includeConfig(options Options, store *state.LockedStore, document *state.State) error {
+func includeConfig(options Options, store *state.LockedStore, document *state.State) (err error) {
 	path := filepath.Join(options.Home, ".ssh", "config")
+	fact := Report{Kind: ReportInclude, Outcome: OutcomeRequiresReview, Path: path}
+	defer func() {
+		if err != nil {
+			options.report(fact)
+		}
+	}()
 	original, err := plainConfig(path)
 	if err != nil {
 		return err
@@ -258,7 +297,8 @@ func includeConfig(options Options, store *state.LockedStore, document *state.St
 				return fmt.Errorf("requires review: interrupted Include backup missing")
 			}
 			document.ConfigEdits[index].Complete = true
-			if err := store.Save(*document); err != nil {
+			fact.Outcome = OutcomeUnknown
+			if err := options.saveReport(store, *document, Report{Kind: ReportInclude, Outcome: OutcomeReconciled, Path: path}); err != nil {
 				return err
 			}
 			fmt.Fprintln(options.Output, "Interrupted Include reconciled from exact config and backup digests; no files rewritten")
@@ -270,6 +310,7 @@ func includeConfig(options Options, store *state.LockedStore, document *state.St
 		pendingIndex = index
 	}
 	if strings.HasPrefix(string(original), directive) {
+		options.report(Report{Kind: ReportInclude, Outcome: OutcomeReconciled, Path: path})
 		fmt.Fprintln(options.Output, "Managed Include already active at top level; unchanged")
 		return nil
 	}
@@ -278,12 +319,17 @@ func includeConfig(options Options, store *state.LockedStore, document *state.St
 		return err
 	}
 	if included {
+		options.report(fact)
 		fmt.Fprintln(options.Output, "Existing Include may be scoped or ordered differently; manual review required; no duplicate added")
 		return nil
 	}
 	fmt.Fprintf(options.Output, "Include preview %s (prepend before every Host/Match; generated aliases take precedence):\n+ %sManually add this line at the beginning of %s if declined.\n", path, directive, path)
 	answer, err := prompt(options, "Type yes to approve changing this existing/unowned config after an exact backup; any other answer keeps manual setup:")
 	if err != nil || answer != "yes" {
+		fact.Outcome = approvalOutcome(err)
+		if err == nil {
+			options.report(fact)
+		}
 		return err
 	}
 	if _, _, err := ownedConfig(options, document); err != nil {
@@ -315,7 +361,8 @@ func includeConfig(options Options, store *state.LockedStore, document *state.St
 	} else {
 		backupPath = document.ConfigEdits[pendingIndex].BackupPath
 	}
-	if err := store.Save(*document); err != nil {
+	fact.Outcome = OutcomeUnknown
+	if err := options.saveReport(store, *document, Report{Kind: ReportInclude, Outcome: OutcomePending, Path: path}); err != nil {
 		return err
 	}
 	backupBytes := []byte(nil)
@@ -347,7 +394,7 @@ func includeConfig(options Options, store *state.LockedStore, document *state.St
 		return err
 	}
 	document.ConfigEdits[pendingIndex].Complete = true
-	if err := store.Save(*document); err != nil {
+	if err := options.saveReport(store, *document, Report{Kind: ReportInclude, Outcome: OutcomeApplied, Path: path}); err != nil {
 		return err
 	}
 	fmt.Fprintln(options.Output, "Include saved; original bytes backed up when present")

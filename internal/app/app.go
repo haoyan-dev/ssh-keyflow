@@ -45,6 +45,10 @@ func (SystemRunner) Run(ctx context.Context, command Command) error {
 }
 
 type Options struct {
+	// Report receives synchronous informational facts; it must not mutate storage
+	// or run operations (the operation lock may be held). Nil preserves CLI behavior.
+	Report  func(Report)
+	target  ReportTarget
 	Home    string
 	Input   io.Reader
 	Output  io.Writer
@@ -53,7 +57,29 @@ type Options struct {
 	Confirm func(string) (bool, error)
 }
 
-func Run(ctx context.Context, options Options) error {
+func Run(ctx context.Context, options Options) (err error) {
+	if options.Report != nil && options.Request != nil {
+		sink := options.Report
+		var target ReportTarget
+		effectsPossible := false
+		options.Report = func(report Report) {
+			if report.ReportTarget != (ReportTarget{}) {
+				target = report.ReportTarget
+			}
+			if report.Kind == ReportConfirmation && report.Outcome == OutcomeDeclined {
+				report.NoChanges = !effectsPossible
+			}
+			if report.Saved || report.Outcome == OutcomeUnknown {
+				effectsPossible = true
+			}
+			sink(report)
+		}
+		defer func() {
+			if err != nil {
+				sink(Report{ReportTarget: target, Kind: ReportExecution, Outcome: OutcomeStopped})
+			}
+		}()
+	}
 	if options.Home == "" {
 		return fmt.Errorf("Home is required")
 	}

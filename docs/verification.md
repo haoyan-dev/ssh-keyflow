@@ -272,3 +272,46 @@ did not exercise a native install/update/removal cycle; hosted installer
 tests used isolated fixtures. No real user SSH data, profiles, persistent
 PATH or remote registrations were modified. This documentation-only follow-up
 records publication without moving the released tag or changing binary assets.
+
+## TUI UX統合実装のローカル検証（2026-11-08 JST）
+
+検証対象はクリーンな `284a00bcf7078042f072804a5ea36da725a4fd11`（`test/06-tui-journeys`）。開始時のintegrationは `58148f57f0ca1ad336ed210be0fabba3dd35f39d`、最新の文書更新 `a7319738c6adf050fd632e111f90dd8069a2a5a8` まで取り込み済み。本体は `0be6ae68a2f983877fa89c21b6cc019f6e5b354d` と同一で、06の `internal/` 変更は公開TUI境界の横断テスト1件だけ。後続の証跡文書更新は実装・テストのソースを変えない。
+
+環境はWindows amd64、Go1.26.2、Windows PowerShell5.1.26100.9711、既存CPython3.12.13。Pythonの実体は `C:\Users\haoyan-ts\AppData\Roaming\uv\python\cpython-3.12.13-windows-x86_64-none\python.exe`。Herdrのローカル専用端末で独立コマンドを実行し、全件exit0を確認した。
+
+| 検証 | コマンド・成功結果 |
+| --- | --- |
+| Go全体 | `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'go test -buildvcs=false ./... -count=1'`：cmd2.239秒、app46.640秒、cli2.564秒、ssh27.857秒、tui11.024秒。stateはテストなし。既存native fixtureのためプロセス限定ポリシーを指定し、永続設定は変更していない。 |
+| 静的確認 | `go vet -buildvcs=false ./...` 成功。 |
+| Portable | `python scripts/test_portable.py -v`：5件、5.376秒。 |
+| Installer | `python scripts/test_installers.py -v`：50件、226.021秒。 |
+| Profile | `python scripts/test_installer_profiles.py -v`：30件、109.056秒。 |
+| 本体ビルド | `go build -buildvcs=false -o .tmp/ux06-verification/ssh-keyflow.exe ./cmd/ssh-keyflow` と `--version`：`SSH KeyFlow dev`。 |
+| 実配布物 | `python scripts/package_release.py --version v0.2.0 --output .tmp/ux06-verification/package`：CGO無効の6対象クロスビルド、6アーカイブとSHA256SUMSの7配布物。ローカル検証用でタグ・公開なし。 |
+| 配布物監査 | 全6件のSHA256、各アーカイブの実行ファイル＋元と同一のライセンス文書のみ、Unix0755/0644、uid/gid0、実行形式とGOOS/GOARCH/CGO/trimpath情報を確認。展開したWindows amd64の `--version` は `SSH KeyFlow v0.2.0`。help・読取JSONも成功し、隔離ホームの `.ssh` は作られなかった。残る5対象の実バイナリ実行は未確認。 |
+
+追加の `TestJourneyUnregisterReconciliationUnlocksDeletionWithoutRevivingOnboarding` は、削除阻止から登録解除の不在照合、再起動後の古い追加作業抑制、別セッションでの保護付きローカル削除、墓標・履歴の保持までを既存fixtureで確認した。既存の手動案内、未知結果、接続確認失敗、別名とIncludeの別承認、stale再読込、Tasks投影のテストも全体実行に含む。実SSHの成功をfake Runnerから推定しない。
+
+coordinatorの最終ネイティブ証跡は同じ本体0be6を使い、手動Registerの未記録／以前検証済みの組と再起動、32x12の未知登録Task、60x18の実中断済み鍵作成Task、Ctrl+C後の最終結果と同一プロセスの承認拒否、20個の長い日本語別名、80x24／32x12の検索・縦スクロール、実31x11→60x18の入力保持・変更操作阻止・復帰が成功した。最終ナビゲーション／リサイズの記録はa731973で、古い02／04の同項目を置き換える。実ssh-keygenのパスフレーズ入力待ちをCtrl+Cで中断し鍵ファイルなしで復帰した証拠は、別の旧ソース6fdc973として保持し、最終ソースでの再実行とは扱わない。
+
+受入条件ごとのテスト名、ネイティブ証跡の正確なSHA、ローカル配布物の全ハッシュ、独立レビューと貼り付け修正の未完了ゲートは [06 coverage](../.scratch/tui-ux/coverage-06.md)、引き継ぎは [handoff-06](../.scratch/tui-ux/handoff-06.md) を参照。現時点で全ACの完了承認はしていない。Linux/macOSネイティブ、実SSHサーバーへの認証・ホスト鍵ハンドシェイク・登録・解除、Windows管理者共有先の昇格実行、ホストCIはこの06作業では未検証。実ユーザーの鍵・SSH設定・プロファイル、実接続先は変更していない。
+
+## TUI UX 最終レビュー後の検証（2026-11-08 JST）
+
+製品・テストの確定SHAは `26269049b747db02988ad00db2b62dcff22119f0`、fresh mergerによる最終統合は `c155e2adf6c0b0963fb68085c9d036286f188539`。後続変更は完了証跡文書のみ。Windows amd64 / Go1.26.2 / PowerShell5.1 / CPython3.12.13 / Herdr0.1.18。プロセス限定ExecutionPolicy Bypassを用い永続設定は変更していない。
+
+- `go test -buildvcs=false ./... -count=1`: PASS（cmd2.028秒、app41.354秒、cli2.343秒、ssh23.251秒、tui10.282秒）。focused TUI9.037秒、`go vet -buildvcs=false ./...`、native dev build / versionもPASS。統合mergeでfocused TUIを再実行しPASS（8.910秒、01:13:11.764–01:13:22.216 JST）。
+- `python -X utf8 scripts/package_release.py --version v0.2.0 --output .tmp/ux-review-ac11-verification/package`: 6対象クロスビルドと7配布物PASS。ローカルsmoke版番号でありtag・公開なし。全ハッシュ、各archiveの実行ファイル＋同一notices、Unix mode/uid/gid、CPU/Go metadata、展開Windows amd64のversion/help/read-only JSONを検査。残り5対象は実行していない。全digestは [handoff](../.scratch/tui-ux/handoff-review-fixes.md) に保存。
+- Portable5 / Installer50 / Profile30の先行284a00b PASSは変更のないscript契約に引き続き適用。TUI修正に対して全Goと実packageは確定SHAで再検証した。
+- 独立した規約・仕様レビューを別々に再確認し、S1/P1–P5をすべて解決。最後のP5は32x12で長いパス末尾を1200msのカーソル点滅後も保持し、実カーソル移動・編集時の欄復帰を確認。native binary SHA256は `8038c3a6537f128d4e69f083d39941f66f3d0562a3db2592bdc7153699342c1f`。
+- ba0f69dで実貼り付け、Help/Review/dirty draft、実31x11→60x18復帰、保存済み各種TaskのReview、結果リンクのF5/scroll保持、実Windows ssh-keygen中断と再起動を確認。パスフレーズは入力していない。P5の本体差分はviewport条件だけなので、不変部分のnative証拠はその正確なSHAを保持する。
+
+現在のAC01–12受入状況は [coverage](../.scratch/tui-ux/coverage-06.md)、独立レビューは [final review](../.scratch/tui-ux/final-review.md)、操作順・state hashは [native verification](../.scratch/tui-ux/native-verification.md)。全6件ready-for-human、未チェック受入条件なし。
+
+Linux/macOS/Windows arm64のnative、実SSH認証・ホスト鍵・サーバー登録/解除、Windows管理者共有先の昇格実行、hosted CIは未検証。fake Runnerやcross-buildをその証明とは扱わない。実ユーザーの鍵・設定・プロフィール・接続先、mainは変更せず、push/tag/release/転送なし。
+
+## PR CI fixture correction (2026-11-08 JST)
+
+Public PR: https://github.com/haoyan-dev/ssh-keyflow/pull/4. Initial public head `55f92ae6da8116e974444369ddb3cd21afb1bad0` reproduced macOS TUI failures in push run `42391651145` and PR run `42391960644`: creation/configuration guards rejected the `/var` symlink ancestor in `t.TempDir()` paths before the intended test scenario ran. Ubuntu and crossbuild passed in the push run.
+
+The correction resolves only the handoff/result fixture homes and interrupted-creation fixture to their physical paths with `filepath.EvalSymlinks`, matching the existing app fixture pattern. Production guards, behavior, test assertions and fake external boundaries are unchanged. Windows local `go test -count=1 ./internal/tui` PASS (9.447s), `go vet ./internal/tui` PASS, Herdr t73 exit0. The correction commit and full hosted CI results are tracked in PR #4; previous product/native evidence remains applicable, while the published test source now additionally contains this fixture correction. No release/tag publication.
