@@ -56,6 +56,9 @@ func TestDetailOverviewsExplainIdentityEvidenceAndActions(t *testing.T) {
 					if lipgloss.Width(frame) > size[0] || lipgloss.Height(frame) > size[1] {
 						t.Fatalf("entry overflow at %v:\n%s", size, frame)
 					}
+					if tc.name == "task" && size[0] == 32 && len(journey) == len(tc.journey) && !strings.Contains(frame, "s Continue · v technical\n↑/↓ scroll · ? help") {
+						t.Fatalf("compact task controls split across lines:\n%s", frame)
+					}
 				}
 			}
 		})

@@ -53,7 +53,9 @@ Finding P03: expanding the layout matrix to every entry kind exposed an
 existing 33-column Registrations header at minimum width. Native 32x12
 inspection also showed clipping. Resolved by shortening the compact category
 hint to “(tab: switch)”; all four overview and technical pages are included
-in the layout regression check.
+in the layout regression check. Native inspection also exposed the resumable
+Task footer splitting “scroll” across lines at 32 columns. Its compact control
+groups now use explicit line breaks, covered by the same public-event test.
 
 No unresolved specification findings. Native/live-platform limits are stated
 in the verification record and are not treated as evidence from fake Runners.

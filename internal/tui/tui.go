@@ -398,6 +398,9 @@ func (m model) chrome() (string, string) {
 		footer = "v technical · ↑/↓ scroll\n? help · esc back · q quit"
 		if !m.target.readOnly && !m.stale {
 			footer = "s Continue · " + footer
+			if m.width < 60 {
+				footer = "s Continue · v technical\n↑/↓ scroll · ? help\nesc back · q quit"
+			}
 		}
 	}
 	if m.page == "result" {
