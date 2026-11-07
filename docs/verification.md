@@ -315,3 +315,84 @@ Linux/macOS/Windows arm64のnative、実SSH認証・ホスト鍵・サーバー�
 Public PR: https://github.com/haoyan-dev/ssh-keyflow/pull/4. Initial public head `55f92ae6da8116e974444369ddb3cd21afb1bad0` reproduced macOS TUI failures in push run `42391651145` and PR run `42391960644`: creation/configuration guards rejected the `/var` symlink ancestor in `t.TempDir()` paths before the intended test scenario ran. Ubuntu and crossbuild passed in the push run.
 
 The correction resolves only the handoff/result fixture homes and interrupted-creation fixture to their physical paths with `filepath.EvalSymlinks`, matching the existing app fixture pattern. Production guards, behavior, test assertions and fake external boundaries are unchanged. Windows local `go test -count=1 ./internal/tui` PASS (9.447s), `go vet ./internal/tui` PASS, Herdr t73 exit0. The correction commit and full hosted CI results are tracked in PR #4; previous product/native evidence remains applicable, while the published test source now additionally contains this fixture correction. No release/tag publication.
+
+## v0.3.0 release verification (2026-11-08 JST)
+
+The release candidate is `85be65b0dbd29bdf2add37806b898069581c2815`,
+the merge of PR #4 into main. Origin/main and tags were refreshed before
+preparation; v0.3.0 was unused locally and remotely. The candidate worktree
+was clean during all local checks. Its tree is identical to the final PR
+head `be53dee0e48750d493be92b57b2b600367f92c0f`, which passed separate
+Standards and Specification reviews with no remaining material findings.
+
+- [Main CI 42392798662](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42392798662)
+  passed on this exact candidate: Ubuntu, macOS and Windows Go, Portable,
+  installer and profile tests, plus six-target crossbuilds and Linux amd64
+  version injection. Both final push and PR CI also passed.
+- Before tagging, local Windows 11 amd64 (10.0.26300), Go 1.26.2,
+  CPython 3.12.13 and Windows PowerShell 5.1 ran from an isolated release
+  worktree. Uncached `go test -buildvcs=false ./... -count=1` passed
+  (cmd 1.924s, app 42.475s, cli 2.271s, ssh 23.027s, tui 10.021s);
+  `go vet -buildvcs=false ./...` passed. Process-only ExecutionPolicy
+  Bypass supported native test fixtures without changing persistent policy.
+- `python -X utf8 scripts/package_release.py --version v0.3.0` built all
+  six targets from the clean candidate with the intended release version.
+  Local artifact audit verified exactly seven assets, six unique manifest
+  rows, all SHA256 values, exactly two regular members per archive, notice
+  bytes, Unix 0755/0644 and uid/gid zero, executable format/CPU, and
+  GOOS/GOARCH/CGO-disabled/trimpath build metadata. Windows amd64 reported
+  `SSH KeyFlow v0.3.0`; help and all three read-only JSON lists passed
+  under a temporary home without creating `.ssh`.
+  The local manifest SHA256 was
+  `87c86f75bfa93d7b04c3a16b5eeeed96fa25ef1fd0be094c1923c322f0c2fad8`;
+  local Windows amd64 ZIP SHA256 was
+  `7bcb34fa55c6803b79a197eb3f90020c03202cc6c6b8b8d3d9a4211da9b8b035`.
+  Local archives use Windows checkout notice bytes; published workflow
+  archives are audited separately against the candidate's Git blob.
+
+Release notes cover the TUI changes since v0.2.2, installation/update,
+continued version-1 state compatibility and verification limits. Native
+interactive Windows TUI evidence remains in the preceding implementation
+sections. Linux/macOS interactive TUI, Windows arm64 execution, live SSH
+authentication/host-key/registration/revocation and elevated Windows shared
+administrator targets remain unverified. Crossbuilds and fixture tests do
+not establish those behaviors. Verification uses isolated data; real user
+SSH data, persistent PATH, profiles and remote registrations are preserved.
+
+Release [SSH KeyFlow v0.3.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.3.0)
+was published at 2026-11-07T17:16:18Z. Annotated tag object
+`3657d9b6e56d0e1ba07089f5c84254bdca6ce658` and its remote peeled commit
+both match the intended candidate. GitHub's latest API returned v0.3.0,
+with draft and prerelease both false.
+
+- [Release workflow 42394936168](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42394936168)
+  passed on the exact tagged commit: three-OS Go, Portable, installer and
+  profile tests, six-target crossbuild, Linux amd64 version smoke, and
+  the publish job all succeeded.
+- Downloaded all seven published assets and repeated the archive audit
+  against the candidate's Git-blob notices. Every checksum, exact member
+  set, Unix mode/uid/gid, executable format/CPU and Go build setting passed.
+  Published manifest SHA256:
+  `5068b8e389a8ecfde317d9d64d98f4ea8d6091f8fdefb2037c1f36ee679050be`.
+  Published Windows amd64 ZIP SHA256:
+  `bbcabb4a9d9e0093542efe8862d87e723ce3971abf8834dbfdf923593d2f2295`.
+- Extracted published Windows amd64 reported `SSH KeyFlow v0.3.0`;
+  help and three read-only JSON lists passed under a temporary home,
+  without creating `.ssh`. The other five published binaries were not
+  executed locally.
+- Downloaded the two source-hosted installers from raw main before
+  publication and compared them byte-for-byte with main commit
+  `85be65b0dbd29bdf2add37806b898069581c2815`.
+  `install.sh` SHA256:
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f`;
+  `install.ps1` SHA256:
+  `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`.
+  This was source comparison only. No native install/update/removal cycle
+  was repeated for this release; hosted installer tests used isolated
+  fixtures. The evidence follow-up changes documentation only.
+- Separate read-only Standards and Specification reviews found no
+  material preparation issues. Release notes include the successful
+  publication checks and the remaining native/live-server limits above.
+
+This documentation follow-up records publication without moving the tag or
+changing published binary assets.
