@@ -460,3 +460,37 @@ conditions, fixture hash and platform limits are in the
 and [ticket 02](../.scratch/entry-detail-ux/issues/02-detail-color-panels.md).
 Native resize itself, other OS/CPU targets, live SSH and hosted CI were not
 tested; packaging/installer suites were not repeated. All work remains local.
+
+## Whole-TUI readability redesign (2026-11-08 JST)
+
+Product/test source `280ccebb61d539590c55c019595d4e2029c5d4be` on local
+`feat/entry-detail-ux`, based on refreshed main
+`76d392826f757e8aa4cfdb72d2d7b5216660f0fc`. The completion follow-up changes
+documentation and ticket status only.
+
+- Windows 11 amd64 / Go1.26.2: full uncached
+  `go test -buildvcs=false ./... -count=1` PASS (cmd1.837s, app43.903s,
+  cli2.256s, ssh24.045s, tui16.363s), `go vet -buildvcs=false ./...` PASS,
+  native build PASS. Native test fixtures used process-only PowerShell
+  ExecutionPolicy Bypass.
+- Binary reports `SSH KeyFlow dev`; SHA256:
+  `e4f8c6541d0f6b711783db99db3413d3085c43ec2e72888a7139468befd9b337`.
+- Final source generated54 page captures across80×24,60×18,32×12. Public-event
+  regressions cover shared paging/selected IDs, same-name discrimination,
+  long-value form context, resized overlay focus, picker origin, supported result
+  actions, session instructions and history scope. Existing safety/handoff
+  journeys remain passing.
+- Native final-binary inspection covered32×12 with explicit `NO_COLOR` and80×24
+  with color enabled. The isolated synthetic state remained byte-identical.
+  Astra's separate standards/safety and specification/UI reviews have no
+  remaining blocking finding.
+
+The [local preview](../.scratch/tui-readability/preview.md),
+[design](../.scratch/tui-readability/design.md),
+[review resolutions](../.scratch/tui-readability/review-resolutions.md), and
+[exact verification record](../.scratch/tui-readability/verification.md) document
+the review → spec → ticket → implementation workflow and remaining platform
+limits. Native60×18 and runtime resize, other OS/CPU targets, live SSH and hosted
+CI were not repeated; automated WindowSize journeys cover resizing and all three
+sizes. Packaging/installer sources were unchanged and their suites were not
+repeated. All work remains local.

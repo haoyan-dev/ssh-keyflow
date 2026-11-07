@@ -1,6 +1,6 @@
 # TUI readability specification
 
-Status: ready-for-agent
+Status: ready-for-human
 Date: 2026-11-08
 Sources: [review](review.md), user authorization for autonomous local redesign.
 
@@ -19,3 +19,10 @@ Sources: [review](review.md), user authorization for autonomous local redesign.
 ## Dependencies and delivery
 
 Review and Astra recommendations → concrete [page design](design.md) → ticket01 common layout/lists → ticket02 forms/review → ticket03 results/documents → ticket04 verification/review. Work remains local; no remote push, merge, release, schema or SSH-capability changes.
+
+## Completion
+
+Implemented and verified locally on 2026-11-08 at source commit
+`280ccebb61d539590c55c019595d4e2029c5d4be`. All four tickets are complete.
+See the [actual page previews](preview.md), [Astra review resolutions](review-resolutions.md)
+and [verification record](verification.md) for acceptance evidence and execution limits.

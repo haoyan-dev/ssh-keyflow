@@ -93,7 +93,7 @@ At32×12 use `[Continue] Edit Cancel Help` plus two short key rows. The first bo
 
 Entity overviews use identity → pair-specific Saved status → Next actions → configuration → History. Related key/destination identity immediately precedes its independent registration and connection labels. Multiple relationships remain separately readable; no aggregate replaces pair evidence. Technical details contains full references.
 
-Task overview adds **Why this needs attention** with the saved human reasons ahead of technical recovery data. Show whether continuation exists; `s Continue` opens a retained-ID draft and never executes directly. Missing references and unsupported config-only recovery remain read-only.
+Task overview starts with the saved human reason ahead of technical recovery data. The list gives the reason two lines so an actual failure is visible before opening it. Show whether continuation exists; `s Continue` opens a retained-ID draft and never executes directly. Missing references and unsupported config-only recovery remain read-only.
 
 ## Results
 
