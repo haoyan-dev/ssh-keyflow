@@ -1,8 +1,95 @@
-# Application contract (tickets 01–04)
+# Application contract
 
-## Public application boundary
+## v0.2.0 Portable release (ticket 04)
 
-Module: `ssh-keyflow` (Go 1.26; standard library only).
+`scripts/package_release.py --version <tag> [--output <empty-directory>]` builds Windows/Linux/macOS amd64/arm64 with CGO disabled, VCS stamping disabled, trimpath and injected `main.version`. Existing nonempty output is refused. `--binaries <directory>` instead packages six prebuilt OS_ARCH binaries for artifact tests. Assets are staged before publication to the output directory.
+
+The release contains exactly six archives and `SHA256SUMS` (seven assets), with no installer. Windows archives are zip; Linux/macOS archives are tar.gz. Each contains only its platform executable and `THIRD_PARTY_NOTICES.txt`. Unix executable mode is 0755, notice mode is 0644, tar uid/gid are zero. The manifest has six unique archive basenames with SHA256, two spaces, and LF. Notices retain dependency license/copyright text including platform-specific modules and Unicode data; collection evidence is in `docs/third-party-notices.md`.
+
+Portable means freely placed executables. Storage remains `<Home>/.ssh/ssh-keyflow`; moving/replacing/removing the executable neither migrates data nor changes SSH keys, state, config, remote registrations, PATH, profiles or installer receipts. End users need OS OpenSSH, not Go. They exit the application before manual replacement/removal and retain the notice document when redistributing the binary.
+
+Old v0.1.0 installers require one archive member and therefore reject the new archives. Manual binary replacement also invalidates the old ownership digest, so old-script updates/removal may be rejected. README documents manual maintenance and optional manual cleanup of the exact owned PATH stanza; no automatic receipt/profile repair is added.
+
+CI runs Go and Portable artifact tests on three OSes plus actual six-target crossbuilds. Release workflow uploads the seven staged assets after CI; implementation itself does not tag/push/publish. Fixture artifact tests and crossbuilds do not establish native runtime behavior on every target.
+
+## v0.2.0 CLI (ticket 02)
+
+`cli.Run(ctx, args, cli.Options{Home, Version, Input, Output, Error, Runner, RunTUI}) int` is the command entry point. `cmd/ssh-keyflow` supplies the release version and exits with its result. Cobra v1.10.2 provides command parsing, flag validation, help and version output. `github.com/charmbracelet/x/term` v0.2.2 checks actual terminal descriptors, including rejecting nonterminal character devices. Home resolution is deferred until an operation actually needs it.
+
+| Command | Inputs |
+| --- | --- |
+| `hosts list` | Optional `--json` |
+| `keys list` | Optional `--json` |
+| `registrations list` | Optional `--json` |
+| `keys create` | Required `--name` |
+| `keys import` | Required `--name`, `--public`; optional `--private` for a pair. Files remain at their existing paths. |
+| `keys delete` | Required `--key` fixed ID or unique exact management name |
+| `hosts add` | Required `--alias`, `--hostname`, `--user`, `--os`; `--port` defaults to 22; exactly one of `--key` or `--new-key`; Windows requires `--windows-account standard|administrator` |
+| `register` | Required `--host` fixed ID or case-insensitive alias, and `--key` fixed ID or unique exact name |
+| `unregister` | Required `--registration` fixed ID |
+| `resume` | Required `--id` creation, onboarding, registration or pending local deletion ID shown by a list |
+| `tui` | No operation arguments; terminal input and output required |
+
+`hosts add`, `register`, `unregister`, and `resume` accept `--auth manual|password|key` (default `manual`) and `--identity` (required for `key`, path only). For unregister these mean fresh alternate authentication, never the key being revoked. `hosts add`, `register`, and `resume` also accept `--configure`, which offers managed configuration after successful registration and preserves separate Include consent.
+
+All mutation commands require a real terminal before home initialization, storage writes or command execution. They use `app.Run` with a structured request, retaining the real input stream for OpenSSH. Confirmation reads one byte at a time without buffering ahead; only exact `yes` after trimming surrounding whitespace approves. No `--yes` or credential flags are provided.
+
+Exit statuses are success 0, execution failure/cancellation 1 and usage/argument failure 2. Argument failures include incomplete/invalid options and ambiguous or missing managed targets (`app.ErrInvalidInput`). Usage errors include the selected command's usage on stderr. Runtime diagnostics have no usage text. Explicitly requested manual guidance succeeds while recorded registration/connection state remains unknown/unverified. Unexpected fallback from an automatic operation fails.
+
+`--help` and `--version` resolve no home, check no SSH dependencies and initialize nothing. Version output is `SSH KeyFlow <version>`. No-argument invocation prints help and exits 0 when either input or output is nonterminal, including terminal stdin with redirected stdout; explicit `tui` requires both terminal descriptors and otherwise fails with status 2. When both descriptors are terminals, no-argument invocation and `tui` call `Options.RunTUI(ctx, app.Options)` with resolved home, original input/output and runner; the executable supplies `tui.Run` as that callback. No legacy menu is launched from the executable.
+
+Lists call `app.Snapshot` without SSH checks or writable-storage probes. Plain output is a table of the selected records and saved progress. JSON output is one object followed by a newline:
+
+- `hosts list`: `hosts`, `onboardings`, `discovery`.
+- `keys list`: `keys`, `creations`, `deletions`, `deleted_keys`, `discovery`.
+- `registrations list`: `registrations`, `history`.
+
+Record arrays use the documented persisted field names and are empty arrays rather than null. `discovery` contains read-only unmanaged candidates and Include review notes; managed records are in their corresponding arrays. It is advisory text rather than an additional structured API. Ordinary `keys list` and `hosts list` also print this information under a labelled discovery section after their managed records. Record and file metadata can include private-key paths and digests, never private-key contents or credentials. Integrity review warnings go only to stderr while validated records remain readable. Invalid schema/state fails with status 1, no JSON, and preserves the source state.
+
+## v0.2.0 TUI (ticket 03)
+
+`tui.Run(ctx, app.Options) error` is the terminal UI entry supplied to `cli.Options.RunTUI` by the executable. `tui.NewProgram(ctx, options, ...tea.ProgramOption)` exposes the same entry through Bubble Tea's public Program for embedding and event-driven tests. Bubble Tea v2.1.1, Bubbles v2.2.1 and Lip Gloss v2.0.6 provide terminal lifecycle, lists, text inputs, help, scrollable content and styling. Startup reads `app.Snapshot` without initializing SSH storage.
+
+Tab/shift-tab switch between hosts, keys, and registrations/history. Arrow keys select records; enter opens their saved metadata. `g` opens read-only discovery, unmanaged candidates and integrity review notes. `?` opens a dedicated scrollable help viewport; arrows or page-up/page-down reach the remaining bindings, and `?` or escape returns to the list. Actions are `c` create, `i` import, `a` add destination, `r` register, `u` unregister, `d` delete local key and `s` resume. Selected records prefill applicable IDs, including pending operations and the host/key pair for a saved registration. Authentication defaults to manual guidance.
+
+Bubbles text inputs collect structured request fields rather than numbered answers. A new destination's OS starts empty and requires an explicit linux, macos or windows value before review. Tab/shift-tab move focus; enter advances or opens review at the final field; ctrl+s opens review directly. Review shows the target and requested values before any mutation. Escape cancels forms/review without running the application operation. Enter on review releases the terminal through `tea.Exec` and calls shared `app.Run` with the request. Its existing exact approvals, remote safety checks and locks still apply. `app.ReadConfirmation(io.Reader)` is shared with CLI and reads only the confirmation line without reading ahead into native credential input.
+
+OpenSSH receives the original terminal input. No password or passphrase field exists in the TUI. Bubble Tea restores its terminal after successful, failed or interrupted execution; the application reloads persisted state and presents a scrollable operation result. Captured output contains application diagnostics and metadata, not native credential input. Pending operation IDs remain available for resume. `q` exits outside input forms; ctrl+c cancels a form or exits the UI, while native execution uses its normal interrupt handling. Resize events measure the wrapped header/status/controls before allocating list and viewport height. The list uses the shared footer instead of embedding expanding help. At 32 columns by 12 rows, empty/populated lists and help fit the screen; help remains scrollable and narrow forms keep the focused input and controls visible.
+
+Public-entry tests cover read-only startup, cancellation, discovery return, narrow layout, selected details and registration prefilling. Actual Windows PTY checks separately cover terminal/no-argument startup, native Ed25519 generation, Ctrl-C interruption during native passphrase entry, same-ID resume, execution failure, resize and clean exit. Native Linux/macOS terminal behavior and live remote SSH authentication remain external validation.
+
+## v0.2.0 structured operations (ticket 01)
+
+`app.Run(ctx, app.Options{Home, Input, Output, Runner, Request, Confirm})` is the common application entry for CLI and TUI. A non-nil `Request` selects one operation directly; it does not supply simulated menu answers. The legacy nil-Request menu remains temporarily available while the CLI and TUI tickets replace its entry point.
+
+`Request.Validate()` checks argument completeness and supported authentication without accessing storage or invoking commands. Request fields:
+
+| Operation | Inputs |
+| --- | --- |
+| `list` | No mutation inputs; prints the read-only discovery listing |
+| `import` | `Name`, `PublicPath`, optional `PrivatePath`; the public path is explicit even for private-pair imports |
+| `create` | `Name` |
+| `add` | `Destination` (alias, hostname, user, port, OS, Windows account), exactly one of existing `Key` or new-key `Name`; port 0 defaults to 22 |
+| `register` | `Host`, `Key` |
+| `unregister` | `Registration` fixed ID |
+| `delete` | `Key` |
+| `resume` | `Resume` fixed creation, onboarding, registration or pending local deletion ID |
+
+`Key` resolves a fixed ID first, otherwise a unique exact management name. Duplicate names require a fixed ID. `Host` resolves a fixed ID first, otherwise a case-insensitive alias. `Destination` is the existing `state.Host` shape; new host IDs are allocated by the application.
+
+For `add`, `register`, `unregister` and `resume`, `Bootstrap` is `manual` (also the default), `password` or `key`. `Identity` is required for `key` and contains only a private-key path, never a secret. `Configure` offers generation of the managed SSH configuration after successful registration; Include changes require their own confirmation.
+
+`Confirm func(message string) (bool, error)` handles approvals for structured operations. The output stream contains the target/preview printed immediately before each approval. Creation/onboarding resume previews include saved IDs, stages, key names and paths, the destination and available key fingerprint, and the work to resume before requesting consent. A missing callback fails closed. A false answer returns `app.ErrCancelled`; this is not success and does not imply that earlier completed steps were rolled back. Confirmation input is distinct from the original `Input` passed unchanged to native OpenSSH. Structured operation arguments are copied at entry so resume dispatch does not modify the caller's request.
+
+`app.Snapshot(app.Options{Home}) (app.View, error)` exposes validated persisted `State`, read-only `Discovery` text and an optional `Review` integrity warning. It does not initialize storage, probe SSH commands or require a writable home. Schema errors fail rather than returning an empty view. Integrity warnings preserve read access and do not authorize mutation. JSON consumers should select their documented output fields from this view; it contains provenance and file metadata, never private-key contents.
+
+All existing mutation-wide locks, intent checkpoints, remote reconciliation, alternate-authentication checks and ownership guards remain in the shared implementations. An explicitly requested manual registration/revocation returns guidance with unknown state preserved. Manual/default structured unregister first confirms the exact user, host, port, fingerprint and removal target before recording unregister intent/history. Missing or refused consent leaves persisted state unchanged; approved guidance records unknown remote outcome. Automatic fallback after a remote attempt continues to retain uncertainty evidence. An automatic operation that falls back to guidance returns its error to structured callers instead of reporting automatic success. If specified-key connection verification fails or does not return its success marker, the completed registration and failed connection evidence remain saved; the operation returns an error before configuration generation. CLI reports status 1 and TUI presents the stopped operation.
+
+The shared-operation ticket needs no new dependency; CLI/TUI libraries will be added and pinned by the tickets that use them.
+
+## Legacy regression entry and shared process boundary
+
+Module: `ssh-keyflow` (Go 1.26). The shared application uses the standard library; the executable CLI adds the dependencies documented above. The nil-Request number menu described below remains only as a legacy regression entry; the executable uses the v0.2.0 CLI.
 
 `app.Run(ctx context.Context, options app.Options) error` in `internal/app` is the application boundary for subsequent tickets and tests. `Options` accepts `Home` (required), `Input io.Reader`, `Output io.Writer`, and `Runner app.Runner`. Nil streams default to the process terminal streams; a nil runner selects `SystemRunner`. Tests use temporary homes and replace only the external process boundary. Extend this application package for tickets 02–04; keep behavior tests in `package app_test`, calling `Run` and observing CLI output and user-visible file effects.
 
@@ -12,7 +99,7 @@ CLI menu choices are 1 add/register, 2 list, 3 register another public key, 4 un
 
 `5/c` confirms a management name and automatic Ed25519 path, then gives the original terminal to native `ssh-keygen -t ed25519 -f <path>`. Passphrases, including an empty passphrase, stay in the native process. `5/r` resumes a numbered creation after confirmation. `1/n` collects alias, hostname/IP/Tailscale name, login user, port (default 22), explicit Linux/macOS/Windows selection and Windows account type, then offers a managed key or a new key and confirms the destination. It immediately offers password/keyboard-interactive bootstrap, an existing private key, or manual guidance; automatic registration continues through target confirmation, specified-key verification and the configuration offer in the same operation. `1/r` resumes a numbered saved onboarding and offers bootstrap authentication or manual guidance again. Unicode display names, aliases and users are supported. `1/a` selects a saved onboarding for automatic registration. Menu 3 selects an existing host and managed key, confirms the fingerprint and destination, and uses the same registration flow without duplicating the host/onboarding. Manual guidance and creation resume remain available.
 
-`cmd/ssh-keyflow` starts this boundary without arguments. `--version` prints `SSH KeyFlow <version>` without discovering the home, checking dependencies or initializing storage. `main.version` defaults to `dev`; release builds inject it with `-ldflags "-X main.version=<version>"`. Other arguments fail with usage and exit status 2.
+`main.version` defaults to `dev`; release builds inject it with `-ldflags "-X main.version=<version>"`. The executable's arguments and dispatch now follow the v0.2.0 CLI contract above.
 
 ## Persisted schema
 

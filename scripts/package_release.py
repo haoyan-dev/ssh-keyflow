@@ -22,6 +22,9 @@ def main():
     arguments = parser.parse_args()
     if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?', arguments.version):
         parser.error('Use a release tag such as v1.2.3.')
+    notices = ROOT / 'THIRD_PARTY_NOTICES.txt'
+    if not notices.is_file() or notices.is_symlink():
+        parser.error('Missing regular THIRD_PARTY_NOTICES.txt.')
     output = arguments.output.resolve()
     if output.exists() and any(output.iterdir()):
         parser.error('Output directory must be empty; existing files are preserved.')
@@ -47,6 +50,7 @@ def main():
             if system == 'windows':
                 with zipfile.ZipFile(assets / (name + '.zip'), 'w', compression=zipfile.ZIP_DEFLATED) as bundle:
                     bundle.write(binary, executable)
+                    bundle.write(notices, 'THIRD_PARTY_NOTICES.txt')
             else:
                 with tarfile.open(assets / (name + '.tar.gz'), 'w:gz') as bundle:
                     entry = bundle.gettarinfo(str(binary), arcname=executable)
@@ -55,14 +59,18 @@ def main():
                     entry.uname = entry.gname = ''
                     with binary.open('rb') as source:
                         bundle.addfile(entry, source)
-        for installer in ('install.sh', 'install.ps1'):
-            shutil.copyfile(ROOT / installer, assets / installer)
+                    notice_entry = bundle.gettarinfo(str(notices), arcname='THIRD_PARTY_NOTICES.txt')
+                    notice_entry.mode = 0o644
+                    notice_entry.uid = notice_entry.gid = 0
+                    notice_entry.uname = notice_entry.gname = ''
+                    with notices.open('rb') as source:
+                        bundle.addfile(notice_entry, source)
         manifest = ''.join(hashlib.sha256(asset.read_bytes()).hexdigest() + '  ' + asset.name + '\n' for asset in sorted(assets.iterdir()))
         (assets / 'SHA256SUMS').write_text(manifest, encoding='ascii', newline='\n')
         output.mkdir(exist_ok=True)
         for asset in assets.iterdir():
             shutil.move(str(asset), output / asset.name)
-    print('Packaged six targets and installers in ' + str(output))
+    print('Packaged six Portable targets and SHA256SUMS in ' + str(output))
 
 
 if __name__ == '__main__':

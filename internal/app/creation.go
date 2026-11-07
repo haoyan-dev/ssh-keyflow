@@ -28,7 +28,7 @@ func newID(prefix string) (string, error) {
 func createKey(ctx context.Context, options Options, store *state.LockedStore, document *state.State, name, onboardingID string) (state.Key, error) {
 	for _, creation := range document.Creations {
 		if creation.Stage != "complete" {
-			return state.Key{}, fmt.Errorf("unfinished creation %s at %s; choose r to resume before allocating another pair", creation.ID, creation.PrivatePath)
+			return state.Key{}, fmt.Errorf("unfinished creation %s at %s; resume this saved operation before allocating another pair", creation.ID, creation.PrivatePath)
 		}
 	}
 	if strings.TrimSpace(name) == "" || strings.ContainsAny(name, "\x00\r\n") {

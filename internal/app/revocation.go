@@ -26,15 +26,27 @@ func unregister(ctx context.Context, options Options) error {
 		for index, registration := range document.Registrations {
 			fmt.Fprintf(options.Output, "%d: registration %s key=%s host=%s status=%s operation=%s stage=%s\n", index+1, registration.ID, registration.KeyID, registration.HostID, registration.Status, registration.Operation, registration.Stage)
 		}
-		choice, err := prompt(options, "Registration number to unregister; 0: Back")
-		if err != nil || choice == "0" {
-			return err
+		index := -1
+		if options.Request != nil {
+			for candidateIndex, registration := range document.Registrations {
+				if registration.ID == options.Request.Registration {
+					index = candidateIndex
+				}
+			}
+			if index < 0 {
+				return fmt.Errorf("%w: registration %q not found", ErrInvalidInput, options.Request.Registration)
+			}
+		} else {
+			choice, err := prompt(options, "Registration number to unregister; 0: Back")
+			if err != nil || choice == "0" {
+				return err
+			}
+			selection, err := strconv.Atoi(choice)
+			if err != nil || selection < 1 || selection > len(document.Registrations) {
+				return fmt.Errorf("invalid registration selection")
+			}
+			index = selection - 1
 		}
-		selection, err := strconv.Atoi(choice)
-		if err != nil || selection < 1 || selection > len(document.Registrations) {
-			return fmt.Errorf("invalid registration selection")
-		}
-		index := selection - 1
 		registration := &document.Registrations[index]
 		var host state.Host
 		var key state.Key
@@ -68,16 +80,28 @@ func unregister(ctx context.Context, options Options) error {
 			if err := recordRegistration(store, &document, index); err != nil {
 				return err
 			}
-			fmt.Fprintf(options.Output, "Automatic revocation stopped: %s\nManual revocation for %s@%s:%d, fingerprint %s, target %s:\nKeep local files and an existing session. Independently authenticate without this fingerprint, confirm the server's effective configuration and account, then run this same script on the server. Re-run menu 4 for read-only reconciliation before local deletion. POSIX requires Perl. Shared administrator targets affect every administrator; do not elevate or reset existing ACLs.\n%s\n", reason, host.User, host.Hostname, host.Port, key.Fingerprint, plan.Target, plan.Script)
+			fmt.Fprintf(options.Output, "Automatic revocation stopped: %s\nManual revocation for %s@%s:%d, fingerprint %s, target %s:\nKeep local files and an existing session. Independently authenticate without this fingerprint, confirm the server's effective configuration and account, then run this same script on the server. Resume this registration for read-only reconciliation before local deletion. POSIX requires Perl. Shared administrator targets affect every administrator; do not elevate or reset existing ACLs.\n%s\n", reason, host.User, host.Hostname, host.Port, key.Fingerprint, plan.Target, plan.Script)
+			if options.Request != nil && options.Request.Bootstrap != "" && options.Request.Bootstrap != "manual" {
+				return fmt.Errorf("%s", reason)
+			}
 			return nil
 		}
-		mode, err := prompt(options, "Fresh alternate authentication excluding target fingerprint: p: Password/keyboard-interactive; k: Distinct private key; 0: Manual guidance")
+		mode, err := "", error(nil)
+		if options.Request != nil {
+			mode, err = bootstrapMode(options.Request.Bootstrap)
+		} else {
+			mode, err = prompt(options, "Fresh alternate authentication excluding target fingerprint: p: Password/keyboard-interactive; k: Distinct private key; 0: Manual guidance")
+		}
 		if err != nil {
 			return err
 		}
 		identity, alternateDigest, alternateFingerprint := "", "", ""
 		if mode == "k" {
-			identity, err = prompt(options, "Alternate private key path (passphrase stays in native ssh-keygen)")
+			if options.Request != nil {
+				identity = options.Request.Identity
+			} else {
+				identity, err = prompt(options, "Alternate private key path (passphrase stays in native ssh-keygen)")
+			}
 			if err != nil {
 				return err
 			}
@@ -96,6 +120,15 @@ func unregister(ctx context.Context, options Options) error {
 				return fallback("alternate key must exclude target fingerprint and certificates, even at another path")
 			}
 		} else if mode != "p" {
+			if options.Request != nil {
+				answer, err := prompt(options, fmt.Sprintf("Type yes to record manual unregister intent for %s@%s:%d, fingerprint %s, target %s; remote removal remains unverified", host.User, host.Hostname, host.Port, key.Fingerprint, plan.Target))
+				if err != nil {
+					return err
+				}
+				if answer != "yes" {
+					return ErrCancelled
+				}
+			}
 			return fallback("no alternate authentication selected; local files preserved")
 		}
 		probe, err := sshops.RegistrationProbe(host.OS, host.WindowsAccount, host.User)
@@ -177,7 +210,7 @@ func unregister(ctx context.Context, options Options) error {
 		if err := recordRegistration(store, &document, index); err != nil {
 			return err
 		}
-		fmt.Fprintln(options.Output, "Public key removed; local files preserved; use separate menu 6 for guarded local deletion")
+		fmt.Fprintln(options.Output, "Public key removed; local files preserved; use the separate guarded local deletion operation")
 		return removeKeyConfiguration(options, store, &document, key.ID, host.ID)
 	})
 }

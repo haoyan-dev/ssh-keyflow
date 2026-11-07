@@ -2,7 +2,22 @@
 
 本書は SSH KeyFlow の仕様に対する完了確認に使う。成功した検証だけを記録し、外部環境が必要な確認は区別する。
 
-## 検証環境
+## v0.2.0の検証（2026-11-06）
+
+仕様は `.scratch/v0.2.0/spec.md`。以下のv0.1.0記録は過去の証拠として保持し、現行のPortable配布・CLI契約とは区別する。
+
+- 最終完了記録：[v0.2.0-review.md](v0.2.0-review.md)。レビュー修正後の `158bd2a` から6対象を再ビルドし、`.tmp/release-v0.2.0-final-158bd2a` に6アーカイブとSHA256SUMSを生成した。許可メンバー・同梱文書・Unix権限・全チェックサムを検算し、最終Windows ZIPの展開起動と読取JSON、保存先未作成を確認した。
+- 共通処理：構造化要求とSnapshot、既存データ・排他・意図保存・照合・承認・別認証・所有設定保護の公開境界テスト成功。
+- CLI：Cobraのヘルプ・版表示、非端末時の分岐、JSONと診断の分離、終了コード、入力・対象解決、直接操作を検証。Windows amd64実PTYと隔離USERPROFILEでネイティブEd25519生成が終了0、JSONで生成完了・接続未確認を確認。削除を拒否すると終了1で鍵ペアと状態を保持し、削除墓標なし。
+- TUI：Bubble Tea/Bubbles/Lip Glossの公開Program境界で読取起動、一覧・詳細・発見・フォーム取消・狭い画面を検証。Windows実PTYで明示/引数なし起動、実OpenSSH鍵生成、パスフレーズ入力中Ctrl-C、同じID/パスで再開、取込失敗後の状態ハッシュ保持、80×24→32×12→50×18のリサイズ、終了0を確認。
+- Portable：Python生成物テスト5件成功。6アーカイブ+SHA256SUMSの7件、実行ファイル+同梱文書、Unix0755/文書0644、チェックサム、失敗時の未公開・既存出力保持を確認。Windows amd64実バイナリの版注入・展開起動・ヘルプ・JSON一覧が成功。実行ファイルの移動・差し替え・削除後も一時ホームの鍵・状態・SSH設定・プロファイル・旧所有記録をバイト比較で保持。
+- ビルド・全体検証：`go test -buildvcs=false ./...` 全件成功（app 65.426秒、ssh 25.301秒）、`go vet -buildvcs=false ./...` 成功。`python scripts/package_release.py --version v0.2.0 --output .tmp/release-ticket04-final` によるCGO無効6対象の実クロスビルド成功。実アーカイブのメンバー・同梱文書・権限・SHA256全6件を検算し、Windows amd64展開後の版表示は `SSH KeyFlow v0.2.0`。この配布物はローカルのみで未公開。
+- ライセンス：6対象の実行用依存を照合し、固定モジュール版・Go・Unicodeの本文を同梱。詳細は [third-party-notices.md](third-party-notices.md)。
+- レビュー修正：指定鍵の接続確認拒否・成功マーカー欠落をエラーとして返し、登録済み記録と接続失敗履歴を保持する公開操作テストに成功。作成・接続先追加・鍵作成途中の再開では、保存済み対象を承認前に表示し、拒否時に状態を保持することを確認。TUIはOS未入力を拒否し、明示指定後にレビューへ進む。通常のCLI一覧とJSONの管理対象外表示、元ファイル保持、SSH非実行を確認した。各修正はテスト失敗を先に確認してから実装した。修正後のGo全体テスト（app 71.624秒、ssh 33.872秒）、Portableテスト5件、vetが成功した。最終6対象アーカイブは統合後のコードから別途再生成する。
+
+実ユーザーのSSH領域、永続PATH、プロファイル、接続先は変更していない。Windows amd64以外のネイティブ端末・実バイナリ実行、実SSHサーバーへの認証・登録・解除、Windows管理者共有登録先の昇格動作は未確認。クロスビルド成功はこれらの実機確認を代替しない。CI定義は3 OSのテストを行うが、この作業でホストCIを実行した証拠ではない。
+
+## v0.1.0の検証環境
 
 - 開発環境：Windows amd64、Go 1.26.2、PowerShell 7、Git for Windows。
 - 実際のユーザーのSSH設定・鍵や、未指定の接続先はテストで変更しない。
@@ -48,7 +63,7 @@
 | 29–30 | 認証値保護、正常JSON保存、排他 | 元端末を渡す外部プロセス境界と全操作を覆う排他、書込拒否・正常バックアップ・不正状態拒否 |
 | 31–34 | 6対象、インストール、更新、アンインストール | ticket05の24件の配布fixture・6対象実ビルド・所有PATHだけの削除・SSHデータ保持 |
 
-Tailscaleは通常のSSH経路として扱い、端末探索・Tailscale SSHのポリシー変更・全ディスク探索は含めない。取り込んだ既存鍵は方式と元パスを保持し、管理名と別名とは別の固定IDで履歴を参照する。記録だけを外す操作、自動更新、エージェント用の非対話JSON APIは追加していない。
+Tailscaleは通常のSSH経路として扱い、端末探索・Tailscale SSHのポリシー変更・全ディスク探索は含めない。取り込んだ既存鍵は方式と元パスを保持し、管理名と別名とは別の固定IDで履歴を参照する。記録だけを外す操作、自動更新、v0.1.0ではエージェント用の非対話JSON APIは追加していない。v0.2.0では直接CLIと読取一覧JSONを追加した。
 
 ## 統合時の検証と外部環境の制約
 
@@ -81,3 +96,23 @@ ticket05の統合コミットは `331c2fe`。`python scripts/test_installers.py 
 
 - Linux/macOS/Windowsの実SSHサーバーへの登録・接続・解除：ユーザーが検証対象を指定した後に確認する。
 - 各OS・CPUでのネイティブ実行：クロスビルドの成功とは区別する。
+
+## PR #1 follow-up verification (2026-11-07)
+
+Source commit `b045f7c` (parent `97ec7f9`) fixes the three subsequent PR review findings. Verification ran on Windows amd64 with Go 1.26.2, Python 3.12, isolated temporary homes and external-process fixtures; no real user SSH files or servers were used.
+
+- Manual/default structured unregister: a public `app.Run` regression failed for missing/refused/approved callbacks before the fix. Afterward it checks exact target visibility before consent, unchanged state bytes on refusal/missing callback, and approved unknown unregister evidence plus manual guidance.
+- Terminal stdin with redirected stdout: `go test` gives its child nonterminal stdin, so the terminal-dependent regression skips there. Built `internal/cli` with `go test -c -buildvcs=false -o .tmp/cli-regression.test.exe ./internal/cli`, then ran the executable directly under the native Windows PTY with `-test.run=TestTerminalInputWithRedirectedOutputShowsHelp -test.v`. Before the fix it failed with exit 2 and empty stdout; afterward it passed with help/status 0. Explicit `tui` still rejects redirected stdout with status 2.
+- Public Bubble Tea event tests fail before the layout fix at 32x12 (13 rendered lines), then pass for empty/populated lists, full help with page scrolling, and resize in both directions. Existing focused-form and review/selection tests also pass. The helper explicitly delivers WindowSizeMsg before interaction, avoiding startup event scheduling as a source of false evidence.
+- `go test -buildvcs=false ./...`, `go vet -buildvcs=false ./...` and `python scripts/test_portable.py -v` (5 tests) pass for the corrected source. The initial full run took app 71.866s and ssh 30.451s; the final layout adjustment was also covered by the targeted TUI suite.
+
+Six-target final release generation remains an integration check after these fixes are merged. The native PTY regression deliberately skips in ordinary nonterminal CI; its direct Windows execution above supplies the missing descriptor condition. Live remote authentication and native Linux/macOS terminal checks remain outside this follow-up.
+
+### Integration completion (2026-11-07)
+
+- Integrated cleanly by fast-forward at `9177555`; executable source/tests are `b045f7c`, with subsequent changes confined to documentation.
+- Independent Standards and Spec re-reviews found no remaining findings. Focused app tests independently covered missing/refused/approved manual consent and unknown-result reconciliation. Four TUI regressions and additional public-entry 32x12 probes covered list/help, form validation, review scrolling and back/toggle controls. The compiled CLI regression passed directly in a Windows PTY.
+- `python scripts/package_release.py --version v0.2.0 --output .tmp/release-v0.2.0-final-b045f7c` rebuilt all six actual CGO-disabled target binaries from the integrated code. Inspection passed for seven assets, all six SHA256 values, exact archive members, notices bytes and Unix executable/document permissions.
+- The extracted final Windows amd64 binary reported `SSH KeyFlow v0.2.0`; `keys list --json` succeeded with valid JSON, no diagnostic output and no `.ssh` directory created in the isolated home.
+
+Earlier hosted CI at `97ec7f9` passed the Ubuntu, macOS and Windows jobs plus cross-builds. That result predates these code fixes; final-head hosted CI is tracked separately on PR #1. Hosted native tests and cross-builds do not establish interactive Linux/macOS TUI or live SSH-server behavior. No user SSH data or remote server was accessed, and no release was published.

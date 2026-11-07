@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: go test ./...
-      - run: python scripts/test_installers.py -v
+      - run: python scripts/test_portable.py -v
   crossbuild:
     runs-on: ubuntu-latest
     steps:
