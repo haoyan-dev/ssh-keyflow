@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"unicode"
 
@@ -59,8 +58,16 @@ type SetupGuide struct {
 
 // PrepareGuide validates identities before producing any copyable scripts.
 func PrepareGuide(home, hostReference, keyReference string) (SetupGuide, error) {
+	return PrepareGuideWithOptions(home, hostReference, keyReference, GuideOptions{})
+}
+
+// PrepareGuideWithOptions selects the terminals independently of the app's OS.
+func PrepareGuideWithOptions(home, hostReference, keyReference string, options GuideOptions) (SetupGuide, error) {
 	if home == "" {
 		return SetupGuide{}, fmt.Errorf("Home is required")
+	}
+	if err := options.Validate(); err != nil {
+		return SetupGuide{}, err
 	}
 	document, err := state.Load(home)
 	if err != nil {
@@ -71,6 +78,19 @@ func PrepareGuide(home, hostReference, keyReference string) (SetupGuide, error) 
 		return SetupGuide{}, err
 	}
 	host := document.Hosts[hostIndex]
+	if options.RemoteOS != "" && options.RemoteOS != host.OS {
+		host.OS, host.WindowsAccount = options.RemoteOS, ""
+	}
+	if options.WindowsAccount != "" {
+		if host.OS != "windows" {
+			return SetupGuide{}, fmt.Errorf("%w: Windows account applies only to a Windows destination", ErrInvalidInput)
+		}
+		host.WindowsAccount = options.WindowsAccount
+	}
+	localOS := options.LocalOS
+	if localOS == "" {
+		localOS = LocalPlatform()
+	}
 	key, err := usableKey(document, keyReference)
 	if err != nil {
 		return SetupGuide{}, err
@@ -82,17 +102,22 @@ func PrepareGuide(home, hostReference, keyReference string) (SetupGuide, error) 
 	guide := SetupGuide{}
 	var text strings.Builder
 	fmt.Fprintf(&text, "Copy-paste setup: %s (%s@%s:%d)\nKey: %s [%s]\nFingerprint: %s\nRemote registration and connection: not checked.\nCopying this guide changes no files and records no success.\n\nPublic key (copy this complete line):\n%s\n\n", host.Alias, host.User, host.Hostname, host.Port, key.Name, key.ID, key.Fingerprint, public)
+	fmt.Fprintf(&text, "Local platform: %s\nDestination platform: %s", localOS, host.OS)
+	if host.OS == "windows" {
+		fmt.Fprintf(&text, " (%s)", host.WindowsAccount)
+	}
+	text.WriteString("\n\n")
 	var placement GuideStep
 	switch host.OS {
 	case "linux", "macos":
 		placement = posixPlacement(host, public)
 	case "windows":
 		if host.WindowsAccount != "administrator" && host.WindowsAccount != "standard" {
-			return SetupGuide{}, fmt.Errorf("confirm the destination Windows account type before preparing guidance")
+			return SetupGuide{}, fmt.Errorf("%w: confirm the destination Windows account type before preparing guidance", ErrInvalidInput)
 		}
 		placement = windowsPlacement(host, public)
 	default:
-		return SetupGuide{}, fmt.Errorf("confirm the destination OS before preparing guidance")
+		return SetupGuide{}, fmt.Errorf("%w: confirm the destination OS before preparing guidance", ErrInvalidInput)
 	}
 	placement.Instructions += "\nCheck effective AuthorizedKeysFile/Match settings if customized. An SSH server and network access must already be available. Existing keys are preserved; an already present key is not appended again.\nManual removal: keep another working access method, then remove only the matching public-key line from the destination file. SSH KeyFlow does not verify removal."
 	guide.Steps = append(guide.Steps, placement)
@@ -101,6 +126,14 @@ func PrepareGuide(home, hostReference, keyReference string) (SetupGuide, error) 
 		notice = "Public-only key: use the matching private key on your client. No usable IdentityFile or connection command can be generated here.\n"
 	} else {
 		path := filepath.ToSlash(key.PrivatePath)
+		if options.IdentityFile != "" {
+			path = options.IdentityFile
+			if localOS == "windows" {
+				path = strings.ReplaceAll(path, "\\", "/")
+			}
+		} else if localOS != LocalPlatform() {
+			return SetupGuide{}, fmt.Errorf("%w: a different local OS requires identity-file, the matching private-key path in that terminal", ErrInvalidInput)
+		}
 		for _, character := range path {
 			if unicode.IsControl(character) {
 				return SetupGuide{}, fmt.Errorf("private path contains control characters; cannot prepare a snippet")
@@ -113,9 +146,13 @@ func PrepareGuide(home, hostReference, keyReference string) (SetupGuide, error) 
 			configPath := strings.NewReplacer("%", "%%", "\\", "\\\\", "\"", "\\\"").Replace(path)
 			configUser := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(host.User)
 			config := fmt.Sprintf("Host %s\n    HostName %s\n    User \"%s\"\n    Port %d\n    IdentityFile \"%s\"\n    IdentitiesOnly yes\n", host.Alias, host.Hostname, configUser, host.Port, configPath)
-			guide.Steps = append(guide.Steps, clientSetup(host, config, runtime.GOOS), GuideStep{
-				Title:        "LOCAL terminal — connect (POSIX shell / PowerShell)",
-				Instructions: "Run on this computer after completing the destination step and local config step. This opens an SSH connection; SSH KeyFlow does not run it or verify success.",
+			local := clientSetup(host, config, localOS)
+			if options.IdentityFile != "" {
+				local.Instructions += "\nIdentityFile is the path you supplied for this terminal. Ensure it refers to the matching private key; SSH KeyFlow has not checked that path or copied a key."
+			}
+			guide.Steps = append(guide.Steps, local, GuideStep{
+				Title:        fmt.Sprintf("LOCAL terminal — %s — connect (POSIX shell / PowerShell)", localOS),
+				Instructions: "Run in the selected local terminal after completing the destination step and local config step. This opens an SSH connection; SSH KeyFlow does not run it or verify success.",
 				Script:       fmt.Sprintf("ssh %s\n", host.Alias),
 			})
 		}

@@ -15,6 +15,7 @@ var ErrInvalidInput = errors.New("invalid operation input")
 type Request struct {
 	Operation, Name, PublicPath, PrivatePath, Key, Host, Resume string
 	Destination                                                 Destination
+	GuideOptions                                                GuideOptions
 }
 type Destination = state.Host
 
@@ -74,6 +75,9 @@ func (request Request) Validate() error {
 		if request.Host == "" || request.Key == "" {
 			return fmt.Errorf("%s requires a destination and managed key", request.Operation)
 		}
+		if request.Operation == "guide" {
+			return request.GuideOptions.Validate()
+		}
 	case "public":
 		if request.Key == "" {
 			return fmt.Errorf("public requires a managed key")
@@ -115,7 +119,9 @@ func execute(ctx context.Context, options Options) error {
 		if request.Operation == "public" {
 			text, err = PublicKey(options.Home, request.Key)
 		} else {
-			text, err = Guide(options.Home, request.Host, request.Key)
+			var guide SetupGuide
+			guide, err = PrepareGuideWithOptions(options.Home, request.Host, request.Key, request.GuideOptions)
+			text = guide.Text
 		}
 		if err != nil {
 			return err

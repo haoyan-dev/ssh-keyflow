@@ -120,6 +120,10 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 			associate := operationCommand("associate", "Save a key association; remote registration is not verified", associateRequest, options)
 			guideRequest := &app.Request{Operation: "guide"}
 			guide := readCommand("guide", "Print copy-paste setup and removal instructions without changing files", guideRequest, options)
+			guide.Flags().StringVar(&guideRequest.GuideOptions.LocalOS, "local-os", "", "Local terminal OS: linux, macos, windows (default: running app OS)")
+			guide.Flags().StringVar(&guideRequest.GuideOptions.RemoteOS, "remote-os", "", "Destination OS: linux, macos, windows (default: saved destination)")
+			guide.Flags().StringVar(&guideRequest.GuideOptions.WindowsAccount, "windows-account", "", "Destination Windows account: standard or administrator (default: saved account)")
+			guide.Flags().StringVar(&guideRequest.GuideOptions.IdentityFile, "identity-file", "", "Matching private-key path in the local terminal (required when local OS differs)")
 			for command, request := range map[*cobra.Command]*app.Request{associate: associateRequest, guide: guideRequest} {
 				command.Flags().StringVar(&request.Host, "host", "", "Destination fixed ID or alias (required)")
 				command.Flags().StringVar(&request.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
@@ -252,7 +256,9 @@ func readCommand(name, description string, request *app.Request, options Options
 			if request.Operation == "public" {
 				text, err = app.PublicKey(home, request.Key)
 			} else {
-				text, err = app.Guide(home, request.Host, request.Key)
+				var guide app.SetupGuide
+				guide, err = app.PrepareGuideWithOptions(home, request.Host, request.Key, request.GuideOptions)
+				text = guide.Text
 			}
 			if err != nil {
 				return asExecutionError(err)

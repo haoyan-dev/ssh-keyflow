@@ -183,6 +183,10 @@ func TestGuidePickerUsesFixedIDsAndCopyIsReadOnly(t *testing.T) {
 		t.Fatal("guide did not bind destination")
 	}
 	m = update(m, press(tea.KeyEnter))
+	if m.page != "form" || m.fields[0].input.Value() != app.LocalPlatform() || m.fields[1].input.Value() != "linux" {
+		t.Fatal("guide platform defaults are not visible")
+	}
+	m = update(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	if m.page != "document" || m.request.Key != "key-one" {
 		t.Fatal("guide did not bind key")
 	}
@@ -219,7 +223,7 @@ func TestReloadInvalidatesDocumentCopyIncludingHelpOrigins(t *testing.T) {
 					if document == "public" {
 						m = update(m, press('p'))
 					} else {
-						m = update(m, press(tea.KeyTab), press('g'), press(tea.KeyEnter))
+						m = update(m, press(tea.KeyTab), press('g'), press(tea.KeyEnter), tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 					}
 					if m.page != "document" || m.copyText == "" {
 						t.Fatal("missing copyable document")
@@ -515,7 +519,7 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 	m.view.State.Keys[0].PrivatePath = path
 	m.view.State.Keys[0].PrivateSHA256 = fmt.Sprintf("%x", digest)
 	saveFixture(t, m)
-	m = update(m, press(tea.KeyTab), press('g'), press(tea.KeyEnter))
+	m = update(m, press(tea.KeyTab), press('g'), press(tea.KeyEnter), tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	if len(m.guideSteps) != 3 || !strings.Contains(m.document, "Step 1/3: DESTINATION") {
 		t.Fatal("guide did not start at destination setup", m.document)
 	}
@@ -549,5 +553,67 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 	}
 	if strings.Contains(m.document, string(private)) {
 		t.Fatal("guide disclosed private key material")
+	}
+}
+
+func TestGuidePlatformFormValidationEditingAndCancel(t *testing.T) {
+	m := fixture(t)
+	private := []byte("private fixture")
+	path := filepath.Join(m.options.Home, "private")
+	if err := os.WriteFile(path, private, 0600); err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(private)
+	m.view.State.Keys[0].PrivatePath = path
+	m.view.State.Keys[0].PrivateSHA256 = fmt.Sprintf("%x", digest)
+	saveFixture(t, m)
+	before, _ := os.ReadFile(filepath.Join(state.Directory(m.options.Home), "state.json"))
+	m = update(m, press(tea.KeyTab), press('g'), press(tea.KeyEnter))
+	m.fields[0].input.SetValue("invalid")
+	m = update(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.page != "form" || m.formError == "" || m.copyText != "" || len(m.guideSteps) != 0 {
+		t.Fatal("invalid platforms produced a copyable guide")
+	}
+	local, pathInTerminal := "linux", "/home/alice/.ssh/key"
+	if app.LocalPlatform() != "windows" {
+		local, pathInTerminal = "windows", `C:\Users\alice\.ssh\key`
+	}
+	m.fields[0].input.SetValue(local)
+	m.fields[1].input.SetValue("windows")
+	m = update(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.page != "form" || !strings.Contains(m.formError, "account") {
+		t.Fatal("missing destination account was accepted")
+	}
+	m.fields[2].input.SetValue("standard")
+	m = update(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.page != "form" || !strings.Contains(m.formError, "identity-file") {
+		t.Fatal("foreign platform inherited managed private-key path")
+	}
+	m.fields[3].input.SetValue(pathInTerminal)
+	m = update(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.page != "document" || !strings.Contains(m.copyText, "$env:USERPROFILE") ||
+		!strings.Contains(m.document, "Local platform: "+local+" · Destination platform: windows") {
+		t.Fatal("destination override or platform indicators lost", m.document)
+	}
+	m = update(m, press('n'))
+	if strings.HasPrefix(m.copyText, "& {") != (local == "windows") || !strings.Contains(m.copyText, strings.ReplaceAll(pathInTerminal, "\\", "/")) {
+		t.Fatal("local override lost", m.copyText)
+	}
+	m = update(m, press('?'), press(tea.KeyEscape), press(tea.KeyEscape))
+	if m.page != "form" || m.fields[0].input.Value() != local {
+		t.Fatal("back did not restore platform choices")
+	}
+	m.fields[0].input.SetValue("invalid")
+	m = update(m, tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.copyText != "" || len(m.guideSteps) != 0 {
+		t.Fatal("failed regeneration retained old scripts")
+	}
+	m = update(m, press(tea.KeyEscape))
+	if m.page != "list" {
+		t.Fatal("cancel did not restore guide origin")
+	}
+	after, _ := os.ReadFile(filepath.Join(state.Directory(m.options.Home), "state.json"))
+	if string(after) != string(before) {
+		t.Fatal("guide platform form modified saved records")
 	}
 }

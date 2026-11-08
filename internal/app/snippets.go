@@ -123,8 +123,8 @@ if (-not ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Secur
 
 func clientSetup(host state.Host, config, platform string) GuideStep {
 	step := GuideStep{
-		Title:        "LOCAL computer — Linux / macOS POSIX shell",
-		Instructions: "Run on the computer running SSH KeyFlow, where the private key is stored. Appends the Host snippet to ~/.ssh/config; preserves existing content. Review existing Host, wildcard, Match and Include rules first: the script only detects literal aliases in this file and cannot resolve precedence or included files. It stops if that alias already exists.",
+		Title:        fmt.Sprintf("LOCAL computer — %s POSIX shell", platform),
+		Instructions: "Run in the selected local terminal, where the matching private key is accessible. Appends the Host snippet to ~/.ssh/config; preserves existing content. Review existing Host, wildcard, Match and Include rules first: the script only detects literal aliases in this file and cannot resolve precedence or included files. It stops if that alias already exists.",
 	}
 	if platform == "windows" {
 		step.Title = "LOCAL computer — Windows PowerShell"
