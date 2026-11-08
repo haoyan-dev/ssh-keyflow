@@ -18,3 +18,7 @@ Spec: [concept selection](../spec.md)
   This is a prototype selection step, not approval for another implementation.
 - 2026-11-08: Local gallery delivered in [prototype.html](../prototype.html).
   [Usage and coverage](../README.md). User choice remains pending.
+- 2026-11-08: Three finish-review corrections completed at `2bc5b57`.
+  [Verification and scope limits](../verification.md). Astra resolution review
+  passed at prototype scope; production implementation waits for the user's
+  design choice.

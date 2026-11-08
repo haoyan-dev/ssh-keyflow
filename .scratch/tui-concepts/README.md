@@ -114,4 +114,5 @@ Unsupported example shortcuts show a notice. Configuration-only work and failed
 refresh never lead to a continuation draft. Left/Right changes direction only
 outside the terminal so it cannot masquerade as a field-choice shortcut.
 
-Related: [design brief](spec.md), [prototype ticket](issues/01-three-directions.md).
+Related: [design brief](spec.md), [prototype ticket](issues/01-three-directions.md),
+[verification](verification.md).
