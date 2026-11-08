@@ -675,3 +675,42 @@ Linux / macOS / Windows arm64のネイティブ実行、実OSシグナルによ�
 ローカル配布物はレビュー用に保持する。
 並行作業の3作業ツリーは各作業ブランチへコミット済みでクリーンにし、
 main統合前の履歴保全のため保持する。
+
+## v0.5.0候補（2026-11-08）
+
+- 対象ソース：`6a09684180e1731aae9d75a834759283f9228ee1`。
+  v0.4.0から非互換CLI・保存形式の変更を含むため、0.xのMINORを更新する。
+  README・アプリケーション契約・ADRに適用版とv1事前退避を明記した。
+  リリースノート案は作業用 `.tmp/v0.5.0-release-notes.md` に保持する。
+- PRは [#8](https://github.com/haoyan-dev/ssh-keyflow/pull/8)。
+  この候補後の追加差分は本記録とチケットの状態だけとし、タグは上記ソースを指す。
+- macOSで初回CIが失敗した `TestNativeHandoffPreservesOriginalStdinAndInterruptedCreation` は、
+  テスト用 `t.TempDir()` のリンク祖先が鍵作成の安全検査に拒否されていた。
+  バックエンドの既存fixtureと同様に `filepath.EvalSymlinks` でテスト用ホームを正規化し、
+  stdin同一性・呼出回数・中断進捗・再承認の検証を維持した。
+  本番のリンク拒否条件・端末引き渡し処理は変更していない。
+  修正後のmacOS hosted CIで全検証が成功した。
+- クリーンな候補からWindows amd64 / Go 1.26.2 / Python 3.12 / PowerShell 7.6.9で、
+  `go test -buildvcs=false -count=1 ./...`、`go vet -buildvcs=false ./...`、
+  Portable 5件、インストーラー50件、プロファイル30件を再実行し、すべて成功した。
+- 同じ候補のhosted CI：
+  [push](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42482360552) と
+  [PR](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42482364411)。
+  Linux / macOS / WindowsのGo・Portable・インストーラー・プロファイル検証、
+  6対象の実クロスビルドとLinux amd64版表示が成功した。
+- `scripts/package_release.py --version v0.5.0 --output .tmp/v0.5.0-candidate-6a09684`
+  を同じクリーンな候補から実行し、6対象・7配布物を生成した。
+  manifest SHA256：`ebf814fc1567912271ff55f8a279685fbbbf2d61c658363a01ea5946362e3d02`。
+  全ハッシュ、アーカイブの正確な2メンバー、同梱文書のバイト一致、Unix権限・uid/gid、
+  GOOS / GOARCH / CGO無効 / trimpath / v0.5.0埋め込み、実行用モジュール22件の
+  ライセンス対応を照合した。Windows amd64を展開して
+  `SSH KeyFlow v0.5.0`、空のkeys/hosts JSON、一時ホームへの読取時無変更を確認した。
+- Astra Specは版・移行文書を承認し、Standardsは同文書とmacOS fixture修正を承認した。
+  実行コードは `22275867764d74f5dc60c4fc8d48a70d141e856b` から不変。
+
+注釈付き `v0.5.0` タグは上記候補がmainへ統合済みであることを確認して作成する。
+タグpushは自動公開を開始するため、具体的な版・SHAへの公開承認を別途確認する。
+この記録時点でv0.5.0タグのpush・GitHub Release公開は未実施。
+公開済み配布物のダウンロード検証は未実施であり、上記はローカル候補の証拠である。
+他OS/CPUのネイティブ対話動作、実OSシグナルによる中断、クリップボード読戻し、
+実SSHサーバーへの接続・設定は未検証。テスト用ジャンクションは削除した。
