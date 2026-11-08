@@ -23,7 +23,7 @@ type returnContext struct {
 
 func (m *model) setContent(text string) {
 	m.document = text
-	m.content.SetContent(ansi.Wrap(text, max(1, m.content.Width()), ""))
+	m.content.SetContent(ansi.Wrap(documentPanels(m.page, text, m.content.Width()), max(1, m.content.Width()), ""))
 }
 
 func (m *model) openDocument(page string, target entry, text string) {
@@ -313,7 +313,7 @@ func (m model) historyDetails(target entry) string {
 	} else if m.tab == 1 {
 		scope += " and local key work"
 	}
-	text.WriteString(detailHeading("History (read-only)") + "\nScope: " + scope + "\nRecorded evidence, not current remote state.\n\n")
+	text.WriteString(detailHeading("History (read-only)") + "\nScope: " + scope + "\n")
 	count := 0
 	for _, event := range m.view.State.History {
 		for _, reg := range m.view.State.Registrations {
@@ -353,7 +353,7 @@ func (m model) historyDetails(target entry) string {
 	} else {
 		text.WriteString("End of recorded history.\n")
 	}
-	text.WriteString("No actions run from history.\n")
+	text.WriteString("Recorded evidence, not current remote state.\nNo actions run from history.\n")
 	return text.String()
 }
 

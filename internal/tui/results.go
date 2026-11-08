@@ -322,8 +322,10 @@ func (m *model) renderOperationResult() {
 	var text strings.Builder
 	m.status = ""
 	fmt.Fprintf(&text, "%s\n", detailHeading("Result: "+m.result.summary()))
+	controls := m.resultControls()
+	fmt.Fprintf(&text, "Next: %s\n", controls[0])
 	if host, ok := m.host(m.result.target.HostID); ok {
-		fmt.Fprintf(&text, "%s · %s\n", host.Alias, login(host))
+		fmt.Fprintf(&text, "Destination: %s\n", host.Alias)
 	}
 	if key, ok := m.recordedKey(m.result.target.KeyID); ok {
 		fmt.Fprintf(&text, "%s\n", key.Name)

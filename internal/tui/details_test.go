@@ -57,7 +57,7 @@ func TestDetailSectionsAndSemanticColorsRetainTextLabels(t *testing.T) {
 	document.Registrations[0].Stage = "complete"
 	saveNavigationState(t, home, document)
 	removed := runSizedScreen(t, home, 100, 100, press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter))
-	if !strings.Contains(removed, "Registration: removed (recorded)") ||
+	if !strings.Contains(removed, "Registration: removed") ||
 		strings.Contains(removed, "\x1b[32mRegistration: removed") {
 		t.Fatalf("removed registration gained success coloring:\n%q", removed)
 	}
@@ -197,8 +197,9 @@ func TestDetailConnectionStatesRemainDestinationSpecific(t *testing.T) {
 			if !strings.Contains(styled, "\x1b["+tc.color+"mConnection: "+tc.want) {
 				t.Fatalf("connection evidence lost color:\n%q", styled)
 			}
-			if !strings.Contains(screen, "Registration: registered (recorded)") ||
-				!strings.Contains(screen, "Connection: "+tc.want+" (recorded)") ||
+			if !strings.Contains(screen, "Registration: registered") ||
+				!strings.Contains(screen, "Connection: "+tc.want) ||
+				!strings.Contains(screen, "Saved status") ||
 				!strings.Contains(screen, "not a live SSH check") {
 				t.Fatalf("misleading evidence:\n%s", screen)
 			}
@@ -229,7 +230,7 @@ func TestDetailConfigurationBindingAndSharedEvidenceAreSeparate(t *testing.T) {
 		t.Fatal("global configuration metadata leaked into overview")
 	}
 	technical := runSizedScreen(t, home, 100, 100, press(tea.KeyTab), press(tea.KeyEnter), press('v'))
-	compact := func(value string) string { return strings.Join(strings.Fields(ansi.Strip(value)), "") }
+	compact := compactPanelText
 	for _, want := range []string{"Technical details", "global; not proof of alias activation", document.Configs[0].Path, document.Configs[0].SHA256, document.Configs[0].PendingSHA256, document.Keys[0].Fingerprint, "Key ID: key-1"} {
 		if !strings.Contains(compact(technical), compact(want)) {
 			t.Fatalf("technical evidence lost %q:\n%s", want, technical)

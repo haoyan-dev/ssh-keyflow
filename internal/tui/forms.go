@@ -72,7 +72,7 @@ func (m *model) buildFields(focused string) {
 	m.fields = nil
 	add := func(name, label string, fixed bool) {
 		input := textinput.New()
-		input.SetWidth(max(1, m.width-7))
+		input.SetWidth(max(1, m.width-8))
 		input.Prompt = "  "
 		input.CharLimit = 4096
 		input.SetValue(m.draft[name])
@@ -443,7 +443,7 @@ func (m model) reviewForm() (tea.Model, tea.Cmd) {
 	m.request, m.page, m.status = request, "review", ""
 	m.inputGeneration++
 	var preview strings.Builder
-	fmt.Fprintf(&preview, "%s\nNo changes yet.\n\n%s\n", detailHeading("Review "+m.action), detailHeading("Target"))
+	fmt.Fprintf(&preview, "%s\nNo changes yet.\n", detailHeading("Review "+m.action))
 	if m.action == "add" {
 		fmt.Fprintf(&preview, "Destination: %s · %s@%s:%d\nOS: linux/macos/windows: %s\n", request.Destination.Alias, request.Destination.User, request.Destination.Hostname, request.Destination.Port, request.Destination.OS)
 		if request.Destination.WindowsAccount != "" {
@@ -515,10 +515,9 @@ func (m model) formDocument() (string, int, int) {
 	if m.action == "add" {
 		title = fmt.Sprintf("%s · step %d/3", []string{"Destination", "Key", "Access method/options"}[m.step], m.step+1)
 	}
-	width := max(1, m.width-2)
+	width := max(1, m.width-6)
 	wrap := func(text string) string { return ansi.Wrap(text, width, "") }
 	var body strings.Builder
-	body.WriteString(detailHeading(wrap(title)) + "\n\n")
 	if m.removing() {
 		body.WriteString(wrap("Use alternate authentication or manual instructions; local key files remain.") + "\n\n")
 	}
@@ -598,7 +597,7 @@ func (m model) formDocument() (string, int, int) {
 		}
 	}
 	body.WriteString(fmt.Sprintf("\nField %d/%d", m.focus+1, len(m.fields)))
-	return body.String(), focusStart, focusEnd
+	return panel(title, body.String(), max(10, m.width-2)), focusStart + 1, focusEnd + 1
 }
 
 func (m *model) revealFormFocus() {

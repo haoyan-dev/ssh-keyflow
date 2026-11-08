@@ -58,7 +58,7 @@ func TestCaptureReadability(t *testing.T) {
 
 func TestReadableFirstViewports(t *testing.T) {
 	home, _ := navigationHome(t)
-	compact := func(s string) string { return strings.Join(strings.Fields(ansi.Strip(s)), "") }
+	compact := compactPanelText
 	for _, size := range [][2]int{{80, 24}, {60, 18}, {32, 12}} {
 		t.Run(sizeName(size), func(t *testing.T) {
 			for _, tc := range []struct {
@@ -66,10 +66,10 @@ func TestReadableFirstViewports(t *testing.T) {
 				wants   []string
 			}{
 				{[]tea.Msg{press('r')}, []string{"Register > Choose key", "Destination: build-1", "1/9", "> Laptop [key-1]", "public only"}},
-				{[]tea.Msg{press(tea.KeyEnter)}, []string{"Destination: build-1", "Saved status", "Key: Laptop", "Registration: registered", "Connection: failed"}},
+				{[]tea.Msg{press(tea.KeyEnter)}, []string{"Destination: build-1", "Saved status", "Key: Laptop", "Registration: registered", "Connection: failed", "> r Register"}},
 				{[]tea.Msg{press(tea.KeyTab), press(tea.KeyTab)}, []string{"> build-1 / Laptop", "registered", "Connection: failed"}},
 				{[]tea.Msg{press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab)}, []string{"key missing/unreadable", "Enter details"}},
-				{[]tea.Msg{press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter)}, []string{"Requires review: saved-state integrity", "public key missing/unreadable", "v technical"}},
+				{[]tea.Msg{press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter)}, []string{"Task", "public key missing/unreadable", "v technical", "> v Read full reason"}},
 				{[]tea.Msg{press('h')}, []string{"Scope: All recorded", "No recorded events in this view."}},
 				{[]tea.Msg{press('?')}, []string{"Help: Destinations", "Actions here", "r Register"}},
 			} {
@@ -145,6 +145,26 @@ func TestVisiblePagesMatchKeyboardPaging(t *testing.T) {
 	}
 }
 
+func TestLongPickerTitleRetainsPositionWhenPaging(t *testing.T) {
+	home, document := navigationHome(t)
+	for i := range document.Registrations {
+		document.Registrations[i].HostID = document.Hosts[0].ID
+	}
+	saveNavigationState(t, home, document)
+	first := runSizedScreen(t, home, 32, 12, press('u'))
+	if !strings.Contains(first, "1/9") {
+		t.Fatalf("long picker title hid position:\n%s", first)
+	}
+	capacity := strings.Count(first, "registered")
+	if capacity < 1 || capacity >= 9 {
+		t.Fatalf("long picker fixture did not span pages:\n%s", first)
+	}
+	next := runSizedScreen(t, home, 32, 12, press('u'), press(tea.KeyPgDown))
+	if !strings.Contains(next, fmt.Sprintf("%d/9", capacity+1)) {
+		t.Fatalf("long picker paging lost position:\n%s", next)
+	}
+}
+
 func TestResizedDraftOverlaysRevealOriginalFocus(t *testing.T) {
 	home, _ := navigationHome(t)
 	start := []tea.Msg{press('r'), press(tea.KeyEnter), press(tea.KeyTab), press(tea.KeyTab)}
@@ -179,7 +199,7 @@ func TestLongAuthenticationValueKeepsFormContextAndGuidance(t *testing.T) {
 		if lipgloss.Height(screen) > 12 || lipgloss.Width(screen) > 32 {
 			t.Fatalf("long authentication form overflow:\n%s", screen)
 		}
-		seen.WriteString(strings.Join(strings.Fields(ansi.Strip(screen)), ""))
+		seen.WriteString(compactPanelText(screen))
 		journey = append(journey, press(tea.KeyPgDown))
 	}
 	for _, want := range []string{"Registration to remove", "Alternate private key path", "excluding the target fingerprint", "identity-tail", "[Continue]", "[Help]", "[Cancel]"} {
@@ -293,9 +313,10 @@ func TestResultInstructionsAreDirectReadOnlyAndRestoreOrigin(t *testing.T) {
 			}
 			session.send(press('o'))
 			instructions := session.screen(t)
-			if !strings.Contains(instructions, "Session output") || !strings.Contains(strings.Join(strings.Fields(ansi.Strip(instructions)), ""), "notsavedafterexit") {
+			if !strings.Contains(instructions, "Session output") || !strings.Contains(compactPanelText(instructions), "notsavedafterexit") {
 				t.Fatalf("instructions boundary missing:\n%s", instructions)
 			}
+			captureGroupedScreen(t, "instructions", size, false, instructions)
 			if root := os.Getenv("KEYFLOW_CAPTURE"); root != "" {
 				if err := os.WriteFile(filepath.Join(root, "instructions-"+sizeName(size)+".txt"), []byte(ansi.Strip(instructions)), 0600); err != nil {
 					t.Fatal(err)
@@ -304,7 +325,9 @@ func TestResultInstructionsAreDirectReadOnlyAndRestoreOrigin(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			session.send(press(tea.KeyEnd), press('?'), press(tea.KeyEscape), press('r'), press('s'))
+			session.send(press(tea.KeyEnd))
+			captureGroupedScreen(t, "instructions", size, true, session.screen(t))
+			session.send(press('?'), press(tea.KeyEscape), press('r'), press('s'))
 			if !strings.Contains(session.screen(t), "read-only") {
 				t.Fatal("instruction document accepted operation keys")
 			}

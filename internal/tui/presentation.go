@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/list"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -22,7 +21,7 @@ func actionTitle(action string) string {
 // Row summaries may be shortened; Enter always exposes the complete record.
 func (m model) selectionLayout(selection list.Model) (string, int, int) {
 	items := selection.Items()
-	width := max(1, m.width-2)
+	width := max(1, m.width-6)
 	height := m.content.Height()
 	title := selection.Title
 	if m.page == "picker" && title == "Choose related destination/key" {
@@ -35,19 +34,19 @@ func (m model) selectionLayout(selection list.Model) (string, int, int) {
 	if m.width < 60 && m.page == "list" {
 		title = []string{"Destinations", "Managed keys", "Registrations", "Tasks"}[m.tab]
 	}
-	heading := ansi.Truncate(title, max(1, width-len(position)-2), "…") + "  " + position
+	// The panel title reserves two more cells than its body for border dashes.
+	heading := ansi.Truncate(title, max(1, width-2-len(position)-2), "…") + "  " + position
 	var text strings.Builder
 	if m.page == "picker" {
 		if m.pickerContext != "" {
 			text.WriteString(ansi.Truncate(m.pickerContext, width, "…") + "\n")
 		}
 	}
-	text.WriteString(detailHeading(heading))
+	// The title occupies the top border, not an extra content row.
+	text.WriteString(heading)
 	rowHeight := 3
 	if height < 7 || m.width < 60 {
 		rowHeight = 2
-	} else {
-		text.WriteString("\n ")
 	}
 	if m.page == "list" && m.tab == 2 && m.width < 60 {
 		rowHeight = 3 // Independent evidence must not be truncated into "fai…".
@@ -56,12 +55,16 @@ func (m model) selectionLayout(selection list.Model) (string, int, int) {
 		rowHeight = 3 // Let the reason span two lines before opening details.
 	}
 	prefix := text.String()
-	return prefix, rowHeight, max(1, (height-lipgloss.Height(prefix))/rowHeight)
+	contextRows := 0
+	if m.page == "picker" && m.pickerContext != "" {
+		contextRows = 1
+	}
+	return prefix, rowHeight, max(1, (height-2-contextRows)/rowHeight)
 }
 
 func (m model) sizeSelection(selection *list.Model) {
 	index := selection.Index()
-	prefix, rowHeight, _ := m.selectionLayout(*selection)
+	_, rowHeight, perPage := m.selectionLayout(*selection)
 	selection.SetShowTitle(false)
 	selection.SetShowStatusBar(false)
 	selection.SetShowPagination(false)
@@ -69,7 +72,7 @@ func (m model) sizeSelection(selection *list.Model) {
 	delegate.SetHeight(rowHeight)
 	delegate.SetSpacing(0)
 	selection.SetDelegate(delegate)
-	selection.SetSize(max(10, m.width-2), max(1, m.content.Height()-lipgloss.Height(prefix)))
+	selection.SetSize(max(10, m.width-2), perPage*rowHeight)
 	selection.Select(max(0, index))
 }
 
@@ -78,10 +81,14 @@ func (m model) selectionView(selection list.Model) string {
 	if len(items) == 0 {
 		return ""
 	}
-	width := max(1, m.width-2)
+	width := max(1, m.width-6)
 	prefix, rowHeight, perPage := m.selectionLayout(selection)
 	var text strings.Builder
-	text.WriteString(prefix + "\n")
+	title := prefix
+	context := ""
+	if before, after, ok := strings.Cut(prefix, "\n"); ok {
+		context, title = before+"\n", after
+	}
 	index := selection.Index()
 	start := (index / perPage) * perPage
 	for i := start; i < min(len(items), start+perPage); i++ {
@@ -89,11 +96,7 @@ func (m model) selectionView(selection list.Model) string {
 		if !ok {
 			continue
 		}
-		marker, title := "  ", item.title
-		if item.reference != "" {
-			suffix := " [" + item.reference + "]"
-			title = ansi.Truncate(strings.TrimSuffix(title, suffix), max(1, width-2-ansi.StringWidth(suffix)), "…") + suffix
-		}
+		marker, title := "  ", entryTitle(item, max(1, width-2))
 		if i == index {
 			marker, title = "> ", detailHeading(ansi.Truncate(title, max(1, width-2), "…"))
 		} else {
@@ -133,7 +136,17 @@ func (m model) selectionView(selection list.Model) string {
 			text.WriteString("\n")
 		}
 	}
-	return strings.TrimRight(text.String(), "\n")
+	// Keep both borders visible and make model pagination match these rows.
+	body := strings.TrimRight(text.String(), "\n")
+	return context + panel(title, body, max(10, m.width-2))
+}
+
+func entryTitle(item entry, width int) string {
+	if item.reference != "" {
+		suffix := " [" + item.reference + "]"
+		return ansi.Truncate(strings.TrimSuffix(item.title, suffix), max(1, width-ansi.StringWidth(suffix)), "…") + suffix
+	}
+	return ansi.Truncate(item.title, width, "…")
 }
 
 func (m model) location(categories string) string {

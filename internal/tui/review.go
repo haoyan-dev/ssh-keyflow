@@ -35,7 +35,7 @@ func (m *model) renderDiscard() {
 	if m.discardSelected {
 		keep, discard = "  Keep editing", "> Discard draft"
 	}
-	m.setContent(detailHeading("Discard changes?") + "\n" + actionTitle(m.action) + "\nUnsaved inputs will be lost.\n\n" + keep + "\n" + discard)
+	m.setContent(detailHeading("Discard changes?") + "\n" + actionTitle(m.action) + "\nUnsaved inputs will be lost.\n" + keep + "\n" + discard)
 	m.content.GotoTop()
 }
 
@@ -91,10 +91,10 @@ func (m model) reviewControls() string {
 	if m.width < 60 {
 		controls[0] = "Continue"
 		controls[m.reviewControl] = "[" + controls[m.reviewControl] + "]"
-		return strings.Join(controls, " ") + "\nTab choose · Enter select\ne/Esc edit · ? Help"
+		return strings.Join(controls, " ") + "\nTab choose · Enter select\n↑/↓ scroll · e/Esc edit"
 	}
 	controls[m.reviewControl] = "[" + controls[m.reviewControl] + "]"
-	return strings.Join(controls, " · ") + "\nTab choose · Enter select · e/Esc edit · ? Help"
+	return strings.Join(controls, " · ") + "\nTab choose · Enter select · e/Esc edit · ? Help\n↑/↓ scroll · PgUp/PgDn"
 }
 
 func (m model) expectedEffects() string {

@@ -2,7 +2,7 @@
 
 Status: ready-for-human
 Date: 2026-11-08
-Decision: awaiting the user's choice; no production direction selected.
+Decision: user selected A — Grouped panels on 2026-11-08.
 Source base: `e99e000` on `feat/entry-detail-ux`.
 Prototype branch: `docs/tui-design-prototypes`.
 
@@ -104,9 +104,11 @@ readable preview frame; the gallery does not emulate a terminal smaller than
 
 ## Decision handoff
 
-Tell us A, B, or C, or specify a mix such as “A details, C lists, B forms.”
-That choice will define the next production specification and tickets.
-This prototype changes no product rendering or backend behavior.
+A — Grouped panels is selected for the whole TUI. The production specification,
+tickets and local testing instructions are in
+[the implementation handoff](../tui-grouped-panels/README.md).
+This gallery remains a placeholder comparison; use the native development build
+to test the implemented design with real saved records.
 
 The sample registration walkthrough preserves lab-box/work-laptop. Screens for
 other operations stay standalone rather than opening a registration review.

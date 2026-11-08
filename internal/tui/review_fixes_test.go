@@ -11,6 +11,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"ssh-keyflow/internal/app"
 	"ssh-keyflow/internal/state"
 )
@@ -380,7 +381,7 @@ func TestReviewFixScrolledFormSurvivesCursorReplies(t *testing.T) {
 	scrollToTail := func(want string) string {
 		for page := 0; page < 12; page++ {
 			screen := session.screen(t)
-			if strings.Contains(strings.ReplaceAll(screen, "\n", ""), want) {
+			if strings.Contains(compactPanelText(screen), compactPanelText(want)) && !strings.Contains(ansi.Strip(screen), "┌ Import existing key") {
 				return screen
 			}
 			session.send(press(tea.KeyPgDown))
@@ -391,7 +392,7 @@ func TestReviewFixScrolledFormSurvivesCursorReplies(t *testing.T) {
 	session.send(captureReplies(true), press(tea.KeyLeft))
 	scrollToTail("final-public-key.pub")
 	scrolled := session.screen(t)
-	if !strings.Contains(strings.ReplaceAll(scrolled, "\n", ""), "final-public-key.pub") || strings.Contains(strings.Join(strings.Split(scrolled, "\n")[2:], "\n"), "Import existing key") {
+	if !strings.Contains(compactPanelText(scrolled), "final-public-key.pub") || strings.Contains(strings.Join(strings.Split(scrolled, "\n")[2:], "\n"), "Import existing key") {
 		t.Fatalf("fixture did not scroll to full path tail:\n%s", scrolled)
 	}
 	var delayed []tea.Msg
@@ -425,7 +426,7 @@ collect:
 	session.send(press(tea.KeyTab), tea.PasteMsg{Content: path + ".private"})
 	scrollToTail("final-public-key.pub.private")
 	nextField := session.screen(t)
-	if !strings.Contains(strings.ReplaceAll(nextField, "\n", ""), "final-public-key.pub.private") {
+	if !strings.Contains(compactPanelText(nextField), "final-public-key.pub.private") {
 		t.Fatalf("next editable field was not scrolled:\n%s", nextField)
 	}
 	for _, reply := range delayed {

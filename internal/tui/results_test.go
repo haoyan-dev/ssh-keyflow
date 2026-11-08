@@ -321,7 +321,10 @@ func TestResultCompactSizesAndUndersizeGuard(t *testing.T) {
 			if lipgloss.Height(screen) > size[1] {
 				t.Fatalf("result height exceeds %v:\n%s", size, screen)
 			}
-			session.send(press(tea.KeyEnd), press('?'), press(tea.KeyEscape))
+			captureGroupedScreen(t, "result", size, false, screen)
+			session.send(press(tea.KeyEnd))
+			captureGroupedScreen(t, "result", size, true, session.screen(t))
+			session.send(press('?'), press(tea.KeyEscape))
 			if !strings.Contains(session.screen(t), "ssh-ed25519") && size[1] >= 18 {
 				t.Fatal("help lost diagnostic viewport")
 			}

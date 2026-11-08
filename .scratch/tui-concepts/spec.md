@@ -2,7 +2,7 @@
 
 Status: ready-for-human
 Date: 2026-11-08
-Decision: pending user choice
+Decision: user selected A — Grouped panels on 2026-11-08.
 
 ## Objective and scope
 
@@ -23,14 +23,12 @@ Production rendering and backend behavior are outside this iteration.
   unknown outcomes remain distinct in the proposed wording.
 - [x] Static example fields and simulated operation screens are clearly disclosed.
 - [x] Prototype runs locally without dependencies and without real operations.
-- [ ] User chooses a direction or a combination for production implementation.
+- [x] User chooses a direction or a combination for production implementation.
 
 ## Open questions
 
-Which structure is easiest for the user to understand? Should lists, overviews
-and forms share one direction or combine strengths from different directions?
-These questions are deliberately left to the user's review of the
-[prototype](prototype.html), not inferred from a reviewer preference.
+Resolved: A is selected for all page families. Production work is tracked in
+`../tui-grouped-panels/spec.md`.
 
 ## Dependencies
 

@@ -26,7 +26,7 @@ func detailEvidence(text, status string) string {
 }
 
 func (m model) detailSection(title, body string) string {
-	return detailHeading(title) + "\n" + strings.TrimSpace(body) + "\n"
+	return panel(title, strings.TrimSpace(body), max(10, m.width-2))
 }
 
 func detailActionHints(text string) string {
@@ -59,10 +59,11 @@ func (m model) entityDetails(item entry) string {
 		}
 	}
 	var text strings.Builder
-	var status, configuration string
+	var status, configuration, identityTitle string
 	switch item.kind {
 	case "host":
 		if host, ok := m.host(item.id); ok {
+			identityTitle = "Destination: " + host.Alias
 			fmt.Fprintf(&text, "%s\n%s\n", detailHeading("Destination: "+host.Alias), login(host))
 			if host.WindowsAccount != "" {
 				fmt.Fprintf(&text, "Windows account: %s\n", host.WindowsAccount)
@@ -71,6 +72,7 @@ func (m model) entityDetails(item entry) string {
 		}
 	case "key":
 		if key, ok := m.key(item.id); ok {
+			identityTitle = "Key: " + key.Name
 			fmt.Fprintf(&text, "%s\n%s · %s\n", detailHeading("Key: "+key.Name), key.Origin, keyAvailability(key))
 			if key.PrivatePath == "" {
 				configuration = "Public key only; private-key verification unavailable.\n"
@@ -84,8 +86,9 @@ func (m model) entityDetails(item entry) string {
 				host, hostOK := m.host(reg.HostID)
 				key, keyOK := m.recordedKey(reg.KeyID)
 				if !hostOK || !keyOK {
-					return detailEvidence("Requires review: missing destination/key reference. v: Technical details.", "blocked")
+					return m.detailSection("Requires review", "Missing destination/key reference.\nv: Technical details.")
 				}
+				identityTitle = "Registration: " + host.Alias + " / " + key.Name
 				fmt.Fprintf(&text, "%s\n%s\n", detailHeading("Registration: "+host.Alias+" / "+key.Name), login(host))
 				status = m.registrationSummary(reg)
 				configuration = m.configurationSummary(host)
@@ -93,7 +96,7 @@ func (m model) entityDetails(item entry) string {
 		}
 	}
 	if text.Len() == 0 {
-		return detailEvidence("Requires review: target no longer available. Refresh before continuing.", "blocked")
+		return m.detailSection("Requires review", "Target no longer available.\nRefresh before continuing.")
 	}
 	if item.kind == "host" || item.kind == "key" {
 		var relationships strings.Builder
@@ -121,16 +124,37 @@ func (m model) entityDetails(item entry) string {
 		}
 		status = relationships.String()
 	}
-	fmt.Fprintf(&text, "%s%s\n%s", detailHeading("Saved status")+"\n", status, m.detailSection("Next actions", detailActionHints(m.detailActions(item))))
-	text.WriteString("Saved evidence only; not a live SSH check.\n")
+	identity := text.String()
+	text.Reset()
+	actions := m.detailActions(item)
+	next := primaryDetailAction(actions)
+	width := max(10, m.width-2)
+	// The compact first panel is a useful summary, not an arbitrary excerpt
+	// of the complete relationship list. Mixed pairs never get one status.
+	if m.width < 70 {
+		quick := m.quickEvidence(item)
+		text.WriteString(panel(identityTitle, "Saved status\n"+quick+"\n"+detailHeading("> "+next), width))
+		text.WriteString("\n\n" + panel("Identity", identity, width))
+		text.WriteString("\n\n" + m.detailSection("Saved status", status))
+		text.WriteString("\n\n" + m.detailSection("Next actions", detailActionHints(actions)))
+	} else {
+		text.WriteString(panel("Identity", identity, width) + "\n\n")
+		leftWidth := (width - 2) * 54 / 100
+		// Scope disclosure is part of the evidence group, never a success claim.
+		left := panel("Saved status", status, leftWidth)
+		right := panel("Next step", detailHeading("> "+next)+"\n\nReview the target before terminal approval.", width-leftWidth-2)
+		text.WriteString(panelPair(left, right))
+		text.WriteString("\n\n" + m.detailSection("Next actions", detailActionHints(actions)))
+	}
+	text.WriteString("\n\nSaved evidence only; not a live SSH check.\n")
 	if configuration != "" {
-		text.WriteString("\n" + configuration + "\n")
+		text.WriteString("\n" + m.detailSection("Configuration", configuration) + "\n")
 	}
 	if item.kind == "key" {
 		for _, reg := range m.view.State.Registrations {
 			if relatedRegistration(item, reg) {
 				if host, ok := m.host(reg.HostID); ok {
-					text.WriteString(host.Alias + " · " + m.configurationSummary(host) + "\n")
+					text.WriteString("\n" + m.detailSection("Configuration · "+host.Alias, m.configurationSummary(host)) + "\n")
 				}
 			}
 		}
@@ -143,8 +167,70 @@ func (m model) entityDetails(item entry) string {
 			}
 		}
 	}
-	fmt.Fprintf(&text, "\nHistory: %d recorded event(s). h opens read-only history.\nv opens full IDs, fingerprints, paths and saved checkpoints.\n", history)
+	text.WriteString("\n" + m.detailSection("Further reading", fmt.Sprintf("History: %d recorded event(s). h opens read-only history.\nv opens full IDs, fingerprints, paths and saved checkpoints.", history)))
 	return text.String()
+}
+
+func primaryDetailAction(actions string) string {
+	lines := strings.Split(strings.TrimSpace(actions), "\n")
+	next := lines[0]
+	for _, line := range lines {
+		if strings.HasPrefix(line, "s Continue") {
+			next = line
+			break
+		}
+	}
+	switch {
+	case strings.HasPrefix(next, "s "):
+		return "s Continue saved work"
+	case strings.HasPrefix(next, "r "):
+		return "r Register public key"
+	case strings.HasPrefix(next, "c "):
+		return "c Create / i Import key"
+	case strings.HasPrefix(next, "a "):
+		return "a Add destination"
+	case strings.HasPrefix(next, "F5 "):
+		return "F5 Refresh saved state"
+	default:
+		return "v Inspect technical details"
+	}
+}
+
+func (m model) quickEvidence(item entry) string {
+	var registrations []state.Registration
+	for _, reg := range m.view.State.Registrations {
+		if relatedRegistration(item, reg) {
+			registrations = append(registrations, reg)
+		}
+	}
+	if len(registrations) > 1 {
+		return fmt.Sprintf("%d saved destination/key pairs\nStatus is shown per pair below.", len(registrations))
+	}
+	if len(registrations) == 0 {
+		return "Registration: none recorded\nConnection: not recorded"
+	}
+	reg := registrations[0]
+	registered, checked := registrationStatus(reg.Status), connectionStatus(reg.ConnectionCheck)
+	shortConnection := map[string]string{
+		"verified": "passed previously", "failed": "failed", "unverified": "not checked", "unknown": "unknown",
+	}[reg.ConnectionCheck]
+	if shortConnection == "" {
+		shortConnection = "not recorded"
+	}
+	shortRegistration := map[string]string{"pending": "pending", "failed": "failed", "unknown": "unknown"}[reg.Status]
+	if shortRegistration == "" {
+		shortRegistration = registered
+		if registered == "outcome unknown" {
+			shortRegistration = "unknown"
+		}
+	}
+	body := detailEvidence("Registration: "+shortRegistration, registered) + "\n" + detailEvidence("Connection: "+shortConnection, checked)
+	if item.kind == "host" {
+		if key, ok := m.recordedKey(reg.KeyID); ok {
+			body = "Key: " + entryTitle(m.keyChoiceEntry(key), max(1, m.width-11)) + "\n" + body
+		}
+	}
+	return body
 }
 
 func fingerprintHint(fingerprint string) string {
@@ -184,12 +270,10 @@ func connectionStatus(status string) string {
 
 func (m model) registrationSummary(reg state.Registration) string {
 	registered, checked := registrationStatus(reg.Status), connectionStatus(reg.ConnectionCheck)
-	suffix := " (recorded)"
-	if m.width < 60 {
-		suffix = "" // The enclosing Saved status heading labels this evidence.
-	}
-	text := detailEvidence("Registration: "+registered+suffix, registered) + "\n" +
-		detailEvidence("Connection: "+checked+suffix, checked) + "\n"
+	// "Saved status" scopes the entire panel; repeating "(recorded)" beside
+	// every value makes the evidence harder to scan and wastes narrow columns.
+	text := detailEvidence("Registration: "+registered, registered) + "\n" +
+		detailEvidence("Connection: "+checked, checked) + "\n"
 	if key, ok := m.recordedKey(reg.KeyID); ok && key.PrivatePath == "" {
 		text += "Public key only; private-key verification unavailable.\n"
 	}
@@ -260,18 +344,39 @@ func (m model) taskDetails(task Task) string {
 	}
 	// The reason precedes metadata and generic recovery explanations, including
 	// on a twelve-row terminal. Full original reasons remain in Technical details.
-	fmt.Fprintf(&text, "%s\n%s\n", detailHeading(title), taskReason(task))
+	// A compact reason/action group stays above metadata even at 32×12.
+	reason := taskReason(task)
+	// File diagnostics remain complete in Technical details; the overview
+	// exposes their reason before a long absolute path can fill the screen.
+	if before, _, ok := strings.Cut(reason, ": open "); ok {
+		reason = before
+	}
+	next := "v Read full reason"
+	if task.ResumeID != "" && !m.stale {
+		next = "s Continue saved work"
+	}
+	if m.stale {
+		next = "F5 Refresh saved state"
+	}
+	summary := title + "\n" + reason + "\n" + detailHeading("> "+next)
+	if m.width < 60 {
+		summary = reason + "\n" + detailHeading("> "+next)
+	}
+	text.WriteString(m.detailSection("Task", summary) + "\n\n")
+	var identity strings.Builder
+	identity.WriteString(title + "\n")
 	if task.ResumeID == "" {
-		text.WriteString("Read-only; no supported continuation.\n")
+		identity.WriteString("Read-only; no supported continuation.\n")
 	} else {
-		text.WriteString("s Continue saved work; review first.\n")
+		identity.WriteString("s Continue saved work; review first.\n")
 	}
 	if host, ok := m.host(task.HostID); ok {
-		fmt.Fprintf(&text, "Destination: %s · %s\n", host.Alias, login(host))
+		fmt.Fprintf(&identity, "Destination: %s · %s\n", host.Alias, login(host))
 	}
 	if key, ok := m.recordedKey(task.KeyID); ok {
-		fmt.Fprintf(&text, "Key: %s · %s\n", key.Name, fingerprintHint(key.Fingerprint))
+		fmt.Fprintf(&identity, "Key: %s · %s\n", key.Name, fingerprintHint(key.Fingerprint))
 	}
+	text.WriteString(m.detailSection("Identity", identity.String()) + "\n\n")
 	var status string
 	if task.ResumeID == "" {
 		status = "Saved evidence requires review; no supported continuation.\n"

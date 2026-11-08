@@ -79,9 +79,15 @@ func TestNavigationDetailsJoinRecordedEvidenceAndHelpReturnsToOrigin(t *testing.
 	home, _ := navigationHome(t)
 	journey := []tea.Msg{press(tea.KeyTab), press(tea.KeyTab), press('/'), text("registration-7"), press(tea.KeyEnter), press(tea.KeyEnter)}
 	screen := runScreen(t, home, journey...)
-	for _, want := range []string{"build-7", "Laptop", "alice@server-7.example:22", "Registration: registered", "Connection: failed", "verification unavailable", "Configuration:", "History:"} {
+	for _, want := range []string{"build-7", "Laptop", "alice@server-7.example:22", "Registration: registered", "Connection: failed", "verification unavailable", "Next step"} {
 		if !strings.Contains(screen, want) {
 			t.Fatalf("missing %q:\n%s", want, screen)
+		}
+	}
+	lower := runScreen(t, home, append(append([]tea.Msg{}, journey...), press(tea.KeyEnd))...)
+	for _, want := range []string{"Configuration:", "History:"} {
+		if !strings.Contains(lower, want) {
+			t.Fatalf("supporting panel lost %q:\n%s", want, lower)
 		}
 	}
 	if strings.Contains(screen, `"key_id"`) {
@@ -265,7 +271,7 @@ func TestNavigationFullValuesRemainReachableByVerticalScroll(t *testing.T) {
 	}
 	compact := func(s string) string {
 		return strings.Map(func(r rune) rune {
-			if unicode.IsSpace(r) {
+			if unicode.IsSpace(r) || r == '│' {
 				return -1
 			}
 			return r

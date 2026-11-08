@@ -154,6 +154,7 @@ func TestHandoffRetainsManualFactsAndExplicitTarget(t *testing.T) {
 	session := startHandoff(t, app.Options{Home: home, Input: native, Output: native, Runner: navigationRunner{&probes}}, nil)
 	session.send(press('r'), press(tea.KeyEnter), reviewKey(), press(tea.KeyEnter))
 	screen := session.returned(t)
+	screen += session.document(t)
 	for _, want := range []string{"manual: required", "verification: not-checked", view.State.Hosts[0].ID, view.State.Keys[0].ID} {
 		if !strings.Contains(screen, want) {
 			t.Fatalf("lost typed manual result/target %q:\n%s", want, screen)
@@ -177,6 +178,7 @@ func TestHandoffDenialRetainsFactsThroughStaleReloadAndRefresh(t *testing.T) {
 	session := startHandoff(t, app.Options{Home: home, Input: native, Output: native, Runner: navigationRunner{&probes}, Report: func(app.Report) { reports.Add(1) }}, nil)
 	session.send(press('r'), press(tea.KeyEnter), reviewKey(), press(tea.KeyEnter))
 	screen := session.returned(t)
+	screen += session.document(t)
 	for _, want := range []string{"Cancelled before changes", "Reload failed", "stale", "confirmation: declined", view.State.Hosts[0].ID} {
 		if !strings.Contains(screen, want) {
 			t.Fatalf("lost denial/stale evidence %q:\n%s", want, screen)
@@ -303,6 +305,7 @@ func TestHandoffInterruptedCreationRetainsSavedCheckpointAndOriginalInput(t *tes
 	if len(after.State.Creations) != 1 || after.State.Creations[0].Stage != "pending" {
 		t.Fatalf("lost durable creation checkpoint: %+v", after.State.Creations)
 	}
+	screen += session.document(t)
 	for _, id := range []string{after.State.Creations[0].ID, after.State.Creations[0].KeyID} {
 		if !strings.Contains(screen, id) {
 			t.Fatalf("lost allocated checkpoint target %s:\n%s", id, screen)

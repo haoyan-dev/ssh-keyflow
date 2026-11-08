@@ -129,7 +129,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = message.Width, message.Height
 		m.resizeBody()
 		for index := range m.fields {
-			m.fields[index].input.SetWidth(max(1, m.width-7))
+			m.fields[index].input.SetWidth(max(1, m.width-8))
 		}
 		if m.page == "form" {
 			m.revealFormFocus()
@@ -496,7 +496,7 @@ func (m model) View() tea.View {
 	header, footer := m.chrome()
 	body := m.selectionView(m.list)
 	if m.page == "list" && len(m.list.Items()) == 0 {
-		body = ansi.Hardwrap(m.emptyList(), max(1, m.width-2), false)
+		body = panel([]string{"Destinations", "Managed keys", "Registrations", "Tasks"}[m.tab], m.emptyList(), max(10, m.width-2))
 	}
 	if m.page == "list" && (m.searching || m.queries[m.tab] != "") {
 		m.search.SetWidth(max(1, m.width-10))
@@ -508,7 +508,7 @@ func (m model) View() tea.View {
 	} else if m.page == "picker" {
 		body = m.selectionView(m.choices)
 		if len(m.choices.Items()) == 0 {
-			body = "No matching eligible targets.\nx: Clear search · esc: Back"
+			body = panel("No matches", "No matching eligible targets.\nx: Clear search · esc: Back", max(10, m.width-2))
 		}
 		if m.searching || m.choiceQuery != "" {
 			m.search.SetWidth(max(1, m.width-10))
