@@ -130,7 +130,12 @@ func (session session) result(t *testing.T) model {
 }
 func ctrlS() tea.KeyPressMsg { return tea.KeyPressMsg(tea.Key{Code: 's', Mod: tea.ModCtrl}) }
 func TestNativeHandoffPreservesOriginalStdinAndInterruptedCreation(t *testing.T) {
-	options := app.Options{Home: t.TempDir()}
+	// macOS temporary directories can have linked ancestors, which creation rejects.
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	options := app.Options{Home: home}
 	native := &nativeIO{answer: strings.NewReader("yes\n")}
 	runner := &nativeRunner{input: native}
 	options.Input, options.Output, options.Runner = native, native, runner
@@ -140,7 +145,7 @@ func TestNativeHandoffPreservesOriginalStdinAndInterruptedCreation(t *testing.T)
 	session.send(press('c'), text("interrupted fixture"), ctrlS())
 	m := session.result(t)
 	if runner.calls.Load() != 1 || !runner.original.Load() {
-		t.Fatal("native ssh-keygen stdin was wrapped, replayed, or not interactive")
+		t.Fatalf("native ssh-keygen stdin was wrapped, replayed, or not interactive (calls=%d): %s", runner.calls.Load(), m.document)
 	}
 	if reports.Load() == 0 {
 		t.Fatal("caller report callback was lost")
