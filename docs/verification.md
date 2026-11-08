@@ -787,3 +787,25 @@ POSIXインストーラーは配信ソース一致と既存fixture / hosted CI�
   本節の準備時点ではv0.5.1のタグpush・公開・公開物確認は未実施。
   実機検証の限界はv0.5.0記録と同じであり、v0.5.1のWindows amd64版は
   公開後に版表示と一時ホームでの読み取りsmokeを確認する。
+
+## v0.5.1確定候補（2026-11-08）
+
+- [PR #10](https://github.com/haoyan-dev/ssh-keyflow/pull/10) はmainの
+  `de4c88c2ef9e2813e5da750a113ebd34c446c430` へマージ済み。
+  このコミットを注釈付きv0.5.1タグの対象とする。
+  本依頼はpush・main統合・新規公開を含み、追加の版・SHA承認は不要とする。
+- レビュー済みPR HEAD `4c9edbac2f05085be2c957e0bf1baea306c80b06` と
+  候補のツリーはともに `ac11738676e1730ebbb73efe18024fa781818ad3` で一致する。
+  Astraの仕様レビューは方針・公開準備・日本語ノートを承認し、
+  別途の規約確認も残指摘なし。Windows / PowerShellで差分チェックと
+  クリーンな候補ツリーを確認した。
+- 上記PR HEADの
+  [push CI 42486871834](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42486871834) と
+  [PR CI 42486939422](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42486939422) は
+  合計8チェックが成功した。Linux / macOS / WindowsのGo・Portable・
+  インストーラー・プロファイル検証と6対象クロスビルドを含む。
+  ツリー一致によりこの証拠を候補へ適用し、統合後CIも完了を確認してからタグをpushする。
+- v0.5.0との差分は `AGENTS.md`、アプリケーション契約、検証記録、チケットのみ。
+  Go vetの対象ソース・依存は不変のためv0.5.0の成功証拠を再利用する。
+  版注入は変わるビルド入力として扱い、公開ワークフローでv0.5.1版を新規生成する。
+  公開後の記録追加は別の文書PRとし、このタグは移動しない。
