@@ -38,3 +38,13 @@ Specification: `.scratch/platform-copy-paste-snippets/spec.md`.
   Refreshed origin/main and tags; latest stable is v0.5.2. Selected v0.6.0
   for the backward-compatible terminal snippet feature. Release preparation
   and reusable verification evidence are recorded in `docs/verification.md`.
+- 2026-11-09: PR #13 merged into main as
+  `1227e27e610f750804417a8e475cdf4952c49407` after all push/PR checks passed.
+  Published annotated v0.6.0 from that commit; release workflow 42496973891
+  passed all five jobs. The release is stable/latest. All seven downloaded
+  assets passed metadata, checksum and archive audits; native Windows amd64
+  version/read-only smoke and public PowerShell install/update/uninstall passed.
+  Feature branch cleaned locally and remotely. Candidate and publication
+  evidence, limits and separate standards/spec reviews are in
+  `docs/verification.md`; post-release records are integrated through a
+  documentation PR without changing the release tag or binaries.

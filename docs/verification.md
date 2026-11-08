@@ -1019,3 +1019,74 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   タグpush前に記録する。正式公開後は7配布物、manifest、内部バージョン、
   タグ・ソース・workflowの対応とWindows amd64の実行を検証する。
   公開後記録は別の文書PRで統合し、公開タグとバイナリを変更しない。
+
+## v0.6.0タグ候補の確定（2026-11-09 JST）
+
+- [PR #13](https://github.com/haoyan-dev/ssh-keyflow/pull/13) をmerge commitで統合し、
+  最新origin/mainの `1227e27e610f750804417a8e475cdf4952c49407` を候補に確定した。
+  検証済みPR HEAD `b937e03d037675db974dbd05d7fc4e3c39fde813` と
+  `git diff --exit-code` でツリー全体の一致を確認した。
+  [PR CI 42496355022](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42496355022) と
+  [push CI 42496307994](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42496307994) は
+  両方とも3 OSテスト・6対象クロスビルドの全4ジョブに成功した。
+  branch protection・ruleset・必須レビューの設定はなく、全8チェックの成功後に統合した。
+- Windows amd64 / Python 3.12.13でもREADMEの
+  `test_portable.py`（5件）、`test_installers.py`（50件）、
+  `test_installer_profiles.py`（30件）が成功した。
+  実装コミットのGoテスト・vetは入力が同一なので再利用した。
+  実クロスビルドはhosted CIで成功しており、同じマトリックスをローカルで重複実行しない。
+- v0.6.0はローカル・origin双方で未使用であり、最新正式版v0.5.2からの
+  後方互換の機能追加として選択した。候補のクリーンなmainに注釈付きタグを作成し、
+  意図したタグだけをpushする。候補SHAはpush前に利用者へ報告した。
+  この候補記録は別の文書ブランチで先に保存し、公開後記録とともに文書PRで統合する。
+
+## v0.6.0公開の検証（2026-11-09 JST）
+
+- 注釈付きタグv0.6.0の対象は
+  `1227e27e610f750804417a8e475cdf4952c49407`、
+  タグオブジェクトは `b47d526043cd451e0df9d83bc6281445004497f4`。
+  クリーンな最新mainと版未使用を再確認し、このタグだけをpushした。
+  originのタグオブジェクトとpeeled commitもローカルと一致した。
+  [main CI 42496877016](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42496877016) と
+  [Release workflow 42496973891](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42496973891)
+  は同じ候補SHAで成功した。Releaseの3 OSテスト・6対象クロスビルド・publishの
+  全5ジョブが成功し、タグからv0.6.0を注入した配布物を公開した。
+- [正式リリース v0.6.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.6.0) は
+  2026-11-08 15:59:45 UTC（2026-11-09 00:59:45 JST）に公開された。
+  draft / prereleaseはfalse、latest APIはv0.6.0を返す。
+  前版からの変更、コピー操作の変更、更新方法、追加移行不要、検証限界を
+  リリースノートに記載した。ノート更新の前後で全asset IDとdigestが不変だった。
+- `.tmp/v0.6.0-published/` に全配布物を取得し、
+  Linux・macOS・Windowsのamd64/arm64用6アーカイブとSHA256SUMSだけであること、
+  全7件のサイズとSHA256がGitHub APIのsize / digestに一致することを確認した。
+  manifestはLF・重複なしの6行で、全アーカイブのハッシュが一致した。
+  manifest自身のSHA256は
+  `5e5ebd103f5b40b803091d870f2b56ff196bf4479cacd07ebf10e521d51dd599`。
+- 全アーカイブが実行ファイルとTHIRD_PARTY_NOTICES.txtの正確な2メンバーを含み、
+  noticeが候補のGit blobとバイト一致した。
+  Unixの0755/0644・uid/gid 0、GOOS / GOARCH / CGO無効 / trimpath、
+  全6バイナリのv0.6.0埋め込み、実行用モジュール22件のライセンス対応を確認した。
+  公開Windows amd64版は `SSH KeyFlow v0.6.0` と表示し、
+  一時ホームで空のkeys / hosts JSONを返し、読み取りで `.ssh` を作成しなかった。
+- 監査環境はWindows amd64 / Go 1.26.2 / Python 3.12.13 / PowerShell 7.6.9。
+  main `1227e27e610f750804417a8e475cdf4952c49407` を配信元として、
+  raw mainのinstall.sh / install.ps1がそれぞれGit原本とバイト一致した。
+  SHA256は
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f` /
+  `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`。
+  公開PowerShellインストーラーでlatestの新規導入・同版更新・削除に成功し、
+  v0.6.0表示、所有記録ハッシュ、notice、既存SSHデータ・プロファイルの
+  バイト保持を確認した。PATH保存は承認せず、一時ホームは終了時に削除した。
+- 初回のローカル確認に加え、hosted CIでLinux/macOSのPOSIXスクリプト実行と
+  0700/0600の権限確認を含むGoテストが成功した。
+  公開済みバイナリのネイティブsmokeはWindows amd64のみであり、
+  他の5対象の公開バイナリ実行、対話TUI、OSC52読戻し、
+  実SSHサーバーへの配置・接続、昇格した管理者配置のローカル実行は未検証。
+- featureブランチはmainへの統合とクリーン状態を確認してローカル・origin双方から削除した。
+  配布物、API metadata、監査JSON、インストーラーsmokeとworkflowログは
+  `.tmp/v0.6.0-*` に保持する。
+  この公開後記録は文書PRで統合し、タグ・配布物を変更せず追加リリースも行わない。
+- 公開後文書の規約レビュー: 文書とチケットのみの差分、正確なSHA・workflow・URL、
+  監査出力との一致、`git diff --check` を確認し、未解決の違反なし。
+  仕様レビュー: リリース契約の候補記録・公開検証・installerの別main追跡・
+  制約の明記・不変性・後続文書PRを別途照合し、未解決の差分なし。
