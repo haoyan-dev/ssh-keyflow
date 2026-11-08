@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: none
 
 # 05 Platform-specific terminal snippets
@@ -16,14 +16,21 @@ Specification: `.scratch/platform-copy-paste-snippets/spec.md`.
 
 ## Acceptance criteria
 
-- [ ] Destination POSIX and PowerShell snippets append public keys with appropriate permissions.
-- [ ] Local config snippet matches the local OS; connection is a separate step.
-- [ ] Each step identifies the terminal; TUI y copies only its executable script.
-- [ ] Existing data, duplicate handling, literal paths, validation and stale-copy guards are verified.
-- [ ] Applicable Go checks, separate standards/spec reviews and verification records are complete.
+- [x] Destination POSIX and PowerShell snippets append public keys with appropriate permissions.
+- [x] Local config snippet matches the local OS; connection is a separate step.
+- [x] Each step identifies the terminal; TUI y copies only its executable script.
+- [x] Existing data, duplicate handling, literal paths, validation and stale-copy guards are verified.
+- [x] Applicable Go checks, separate standards/spec reviews and verification records are complete.
 
 ## Comments
 
 - 2026-11-09: User clarified that copy-paste means executable snippets for the
   corresponding terminal/platform. Started from refreshed origin/main
   `e5e826c32cb79b5267cd5ee4f327ad516ffb659c`.
+- 2026-11-09: Implemented on `feat/05-platform-copy-paste-snippets`;
+  tested source commit `e67d05d18c8ddafacaaf6a63271b11a1db0cdc3f`.
+  Full `go test ./...` and `go vet ./...` passed on Windows amd64.
+  Native Git Bash, Windows PowerShell 5.1 and PowerShell 7 snippet checks passed
+  against temporary files. Standards and specification reviews completed separately
+  with no unresolved findings. Limits and test conditions are recorded in
+  `docs/verification.md`. Ready for review; no push, merge or release requested.
