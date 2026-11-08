@@ -18,36 +18,27 @@ import (
 )
 
 func prompt(options Options, label string) (string, error) {
-	fmt.Fprintln(options.Output, label)
-	if options.Request != nil {
-		if !strings.Contains(label, "Type yes") {
-			return "", fmt.Errorf("structured operation requires an explicit field instead of a menu prompt")
-		}
-		if options.Confirm == nil {
-			options.report(Report{Kind: ReportConfirmation, Outcome: OutcomeRequiresReview})
-			return "", fmt.Errorf("explicit confirmation is required")
-		}
-		approved, err := options.Confirm(label)
-		if err != nil {
-			options.report(Report{Kind: ReportConfirmation, Outcome: OutcomeUnknown})
-			return "", err
-		}
-		if !approved {
-			options.report(Report{Kind: ReportConfirmation, Outcome: OutcomeDeclined})
-			return "", ErrCancelled
-		}
-		return "yes", nil
+	if _, err := fmt.Fprintln(options.Output, label); err != nil {
+		return "", err
 	}
-	answer, err := readLine(options.Input)
-	if strings.Contains(label, "Type yes") && (err != nil || answer != "yes") {
-		options.report(Report{Kind: ReportConfirmation, Outcome: approvalOutcome(err)})
+	if options.Confirm == nil {
+		return "", fmt.Errorf("explicit confirmation is required")
 	}
-	return answer, err
+	approved, err := options.Confirm(label)
+	if err != nil {
+		options.report(Report{Kind: ReportConfirmation, Outcome: OutcomeUnknown})
+		return "", err
+	}
+	if !approved {
+		options.report(Report{Kind: ReportConfirmation, Outcome: OutcomeDeclined})
+		return "", ErrCancelled
+	}
+	return "yes", nil
 }
 
 func fingerprint(data []byte) (string, error) {
 	fields := strings.Fields(string(data))
-	if len(fields) < 2 || strings.Contains(strings.TrimSpace(string(data)), "\n") {
+	if len(fields) < 2 || strings.ContainsAny(strings.TrimSpace(string(data)), "\r\n\x00") {
 		return "", fmt.Errorf("expected one OpenSSH public key")
 	}
 	blob, err := base64.StdEncoding.DecodeString(fields[1])
@@ -62,59 +53,6 @@ func fingerprint(data []byte) (string, error) {
 	return "SHA256:" + base64.RawStdEncoding.EncodeToString(digest[:]), nil
 }
 
-func importKey(ctx context.Context, options Options) error {
-	mode, err := prompt(options, "i: Import existing key; c: Create Ed25519 key; r: Resume creation; 0: Back")
-	if err != nil {
-		return err
-	}
-	if mode == "r" {
-		return state.WithLock(options.Home, func(store *state.LockedStore) error {
-			document, err := store.Load()
-			if err != nil {
-				return err
-			}
-			if err := integrity(document); err != nil {
-				return err
-			}
-			creationIndex, err := selectCreation(options, document)
-			if err != nil {
-				return err
-			}
-			answer, err := prompt(options, "Type yes to resume this recorded path; existing files are preserved:")
-			if err != nil {
-				return err
-			}
-			if answer != "yes" {
-				return nil
-			}
-			_, err = finishCreation(ctx, options, store, &document, creationIndex)
-			return err
-		})
-	}
-	if mode == "c" {
-		return state.WithLock(options.Home, func(store *state.LockedStore) error {
-			document, err := store.Load()
-			if err != nil {
-				return err
-			}
-			if err := integrity(document); err != nil {
-				return err
-			}
-			name, err := prompt(options, "Management name:")
-			if err != nil {
-				return err
-			}
-			_, err = createKey(ctx, options, store, &document, name, "")
-			return err
-		})
-	}
-	if mode != "i" {
-		fmt.Fprintln(options.Output, "No changes made")
-		return nil
-	}
-	return state.WithLock(options.Home, func(store *state.LockedStore) error { return importLocked(ctx, options, store) })
-}
-
 func importLocked(ctx context.Context, options Options, store *state.LockedStore) error {
 	document, err := store.Load()
 	if err != nil {
@@ -123,57 +61,18 @@ func importLocked(ctx context.Context, options Options, store *state.LockedStore
 	if err := integrity(document); err != nil {
 		return err
 	}
-	selected, err := "", error(nil)
-	if options.Request != nil {
-		selected = options.Request.PublicPath
-	} else {
-		selected, err = prompt(options, "Existing public or private key path:")
-	}
+	publicPath, err := filepath.Abs(expandPath(options.Home, options.Request.PublicPath))
 	if err != nil {
 		return err
 	}
-	selected, err = filepath.Abs(expandPath(options.Home, selected))
-	if err != nil {
-		return err
-	}
-	selectedData, err := os.ReadFile(selected)
-	if err != nil {
-		return err
-	}
-	publicPath, privatePath := selected, ""
-	if options.Request != nil {
-		publicPath, privatePath = selected, options.Request.PrivatePath
-	} else if strings.Contains(string(selectedData), "PRIVATE KEY-----") {
-		privatePath = selected
-		publicPath, err = prompt(options, "Public key path (blank uses selected private path + .pub):")
-		if publicPath == "" {
-			publicPath = selected + ".pub"
-		}
-	} else {
-		privatePath, err = prompt(options, "Private key path (blank for public-only import):")
-	}
-	if err != nil {
-		return err
-	}
-	publicPath, err = filepath.Abs(expandPath(options.Home, publicPath))
-	if err != nil {
-		return err
-	}
+	privatePath := options.Request.PrivatePath
 	if privatePath != "" {
 		privatePath, err = filepath.Abs(expandPath(options.Home, privatePath))
 		if err != nil {
 			return err
 		}
 	}
-	name := ""
-	if options.Request != nil {
-		name = options.Request.Name
-	} else {
-		name, err = prompt(options, "Management name:")
-	}
-	if err != nil {
-		return err
-	}
+	name := options.Request.Name
 	data, err := os.ReadFile(publicPath)
 	if err != nil {
 		return err
@@ -202,7 +101,9 @@ func importLocked(ctx context.Context, options Options, store *state.LockedStore
 			return fmt.Errorf("key pair fingerprint mismatch; no changes made")
 		}
 	}
-	fmt.Fprintf(options.Output, "Import %q\nPublic: %s\nPrivate: %s\nFingerprint: %s\nConnection: unverified\n", name, publicPath, privatePath, identity)
+	if _, err := fmt.Fprintf(options.Output, "Import %q\nPublic: %s\nPrivate: %s\nFingerprint: %s\nConnection: unverified\n", name, publicPath, privatePath, identity); err != nil {
+		return err
+	}
 	answer, err := prompt(options, "Type yes to import; source files stay in place:")
 	if err != nil {
 		return err
@@ -239,12 +140,10 @@ func importLocked(ctx context.Context, options Options, store *state.LockedStore
 }
 
 func integrity(document state.State) error {
-	for _, deletion := range document.Deletions {
-		if deletion.Stage != "complete" {
-			return fmt.Errorf("requires review: unfinished local deletion %s; resume this saved operation to reconcile", deletion.ID)
-		}
-	}
 	for _, key := range document.Keys {
+		if pendingDeletion(document, key.ID) {
+			continue
+		}
 		data, err := os.ReadFile(key.PublicPath)
 		if err != nil {
 			return fmt.Errorf("requires review: %s public key missing/unreadable: %w", key.ID, err)
@@ -265,4 +164,19 @@ func integrity(document state.State) error {
 		}
 	}
 	return nil
+}
+
+func expandPath(home, path string) string {
+	if strings.HasPrefix(path, "~/") || strings.HasPrefix(path, `~\`) {
+		return filepath.Join(home, path[2:])
+	}
+	return path
+}
+func pendingDeletion(document state.State, keyID string) bool {
+	for _, deletion := range document.Deletions {
+		if deletion.KeyID == keyID && deletion.Stage != "complete" {
+			return true
+		}
+	}
+	return false
 }

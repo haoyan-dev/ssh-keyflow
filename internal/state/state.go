@@ -68,7 +68,13 @@ type Registration struct {
 	Stage           string `json:"stage"`
 }
 
+type Association struct {
+	HostID string `json:"host_id"`
+	KeyID  string `json:"key_id"`
+}
+
 type State struct {
+	Associations  []Association       `json:"associations,omitempty"`
 	DeletedKeys   []DeletedKey        `json:"deleted_keys,omitempty"`
 	Deletions     []LocalDeletion     `json:"deletions,omitempty"`
 	Version       int                 `json:"version"`
@@ -148,7 +154,7 @@ func Directory(home string) string { return filepath.Join(home, ".ssh", "ssh-key
 func Load(home string) (State, error) {
 	data, err := os.ReadFile(filepath.Join(Directory(home), "state.json"))
 	if os.IsNotExist(err) {
-		return State{Version: 1, Keys: []Key{}, Hosts: []Host{}, Registrations: []Registration{}}, nil
+		return State{Version: 2, Keys: []Key{}, Hosts: []Host{}, Registrations: []Registration{}}, nil
 	}
 	if err != nil {
 		return State{}, fmt.Errorf("read state.json: %w", err)
@@ -170,7 +176,7 @@ func decode(data []byte) (State, error) {
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return State{}, fmt.Errorf("invalid state.json: trailing content")
 	}
-	if document.Version != 1 || document.Keys == nil || document.Hosts == nil || document.Registrations == nil {
+	if (document.Version != 1 && document.Version != 2) || document.Keys == nil || document.Hosts == nil || document.Registrations == nil {
 		return State{}, fmt.Errorf("unsupported or incomplete state.json schema/version; updates stopped")
 	}
 	if err := document.Validate(); err != nil {
@@ -221,7 +227,7 @@ func pathIdentity(path string) string {
 }
 
 func (document State) Validate() error {
-	if document.Version != 1 || document.Keys == nil || document.Hosts == nil || document.Registrations == nil {
+	if (document.Version != 1 && document.Version != 2) || document.Keys == nil || document.Hosts == nil || document.Registrations == nil {
 		return fmt.Errorf("unsupported or incomplete schema/version")
 	}
 	identities := map[string]bool{}
@@ -278,6 +284,17 @@ func (document State) Validate() error {
 			return fmt.Errorf("invalid or duplicate host %q", host.ID)
 		}
 		hosts[host.ID], aliases[strings.ToLower(host.Alias)] = true, true
+	}
+	if document.Version == 1 && len(document.Associations) > 0 {
+		return fmt.Errorf("associations require state version 2")
+	}
+	associations := map[string]bool{}
+	for _, association := range document.Associations {
+		pair := association.KeyID + "/" + association.HostID
+		if !activeKeys[association.KeyID] || !hosts[association.HostID] || associations[pair] {
+			return fmt.Errorf("invalid or duplicate key association")
+		}
+		associations[pair] = true
 	}
 	for _, registration := range document.Registrations {
 		pair := registration.KeyID + "/" + registration.HostID
@@ -489,6 +506,10 @@ func (store *LockedStore) Save(document State) error {
 	if !store.active {
 		return fmt.Errorf("operation lock is no longer held")
 	}
+	if document.Version != 1 && document.Version != 2 {
+		return fmt.Errorf("unsupported schema/version")
+	}
+	document.Version = 2
 	if err := document.Validate(); err != nil {
 		return err
 	}

@@ -1,4 +1,4 @@
-package tui_test
+package tui
 
 import (
 	"context"
@@ -13,314 +13,239 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"ssh-keyflow/internal/app"
-	"ssh-keyflow/internal/state"
-	"ssh-keyflow/internal/tui"
 )
 
-type handoffIO struct {
+type nativeIO struct {
 	sync.Mutex
-	answer   *strings.Reader
-	active   bool
-	corrupt  string
-	output   strings.Builder
-	onPrompt func(string)
+	answer    *strings.Reader
+	active    bool
+	output    strings.Builder
+	onConfirm func()
 }
 
-func (n *handoffIO) Read(p []byte) (int, error) {
-	n.Lock()
-	defer n.Unlock()
-	if !n.active {
+func (native *nativeIO) Read(p []byte) (int, error) {
+	native.Lock()
+	defer native.Unlock()
+	if !native.active {
 		return 0, io.EOF
 	}
-	count, err := n.answer.Read(p)
-	if n.corrupt != "" && count > 0 && strings.Contains(string(p[:count]), "\n") {
-		if writeErr := os.WriteFile(n.corrupt, []byte("broken fixture state"), 0600); writeErr != nil {
-			return 0, writeErr
-		}
-		n.corrupt = ""
-	}
-	return count, err
+	return native.answer.Read(p)
 }
-func (n *handoffIO) Write(p []byte) (int, error) {
-	n.Lock()
-	defer n.Unlock()
-	n.output.Write(p)
-	if n.onPrompt != nil {
-		n.onPrompt(n.output.String())
-	}
-	if strings.Contains(n.output.String(), "Type yes") {
-		n.active = true
+func (native *nativeIO) Write(p []byte) (int, error) {
+	native.Lock()
+	defer native.Unlock()
+	native.output.Write(p)
+	if strings.Contains(native.output.String(), "Type yes") && !native.active {
+		native.active = true
+		if native.onConfirm != nil {
+			native.onConfirm()
+		}
 	}
 	return len(p), nil
 }
 
-func handoffHome(t *testing.T) (string, app.View) {
-	t.Helper()
-	home := fixtureTempDir(t)
-	source := filepath.Join(home, "source.pub")
-	if err := os.WriteFile(source, []byte("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB fixture"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	options := app.Options{Home: home, Output: io.Discard, Runner: publicRunner{}, Confirm: func(string) (bool, error) { return true, nil }}
-	options.Request = &app.Request{Operation: "import", Name: "Handoff fixture", PublicPath: source}
-	if err := app.Run(context.Background(), options); err != nil {
-		t.Fatal(err)
-	}
-	options.Request = &app.Request{Operation: "add", Key: "Handoff fixture", Bootstrap: "manual", Destination: app.Destination{Alias: "fixture", Hostname: "example.test", User: "me", Port: 2222, OS: "linux"}}
-	if err := app.Run(context.Background(), options); err != nil {
-		t.Fatal(err)
-	}
-	view, err := app.Snapshot(options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return home, view
-}
-
-type handoffSession struct {
-	program *tea.Program
-	ctx     context.Context
-	done    chan error
-}
-
-func startHandoff(t *testing.T, options app.Options, filter func(tea.Model, tea.Msg) tea.Msg) handoffSession {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	program, err := tui.NewProgram(ctx, options, tea.WithoutRenderer(), tea.WithFilter(func(m tea.Model, msg tea.Msg) tea.Msg {
-		if b, ok := msg.(formBarrier); ok {
-			b.view <- m.View().Content
-			return nil
-		}
-		if filter != nil {
-			return filter(m, msg)
-		}
-		return msg
-	}))
-	if err != nil {
-		cancel()
-		t.Fatal(err)
-	}
-	session := handoffSession{program, ctx, make(chan error, 1)}
-	go func() {
-		var runErr error
-		defer func() { session.done <- runErr }()
-		_, runErr = program.Run()
-	}()
-	t.Cleanup(func() {
-		program.Quit()
-		select {
-		case err := <-session.done:
-			if err != nil {
-				t.Error(err)
-			}
-		case <-time.After(2 * time.Second):
-			t.Error("handoff program did not stop during cleanup")
-		}
-		cancel()
-	})
-	return session
-}
-func (s handoffSession) send(messages ...tea.Msg) {
-	for _, msg := range messages {
-		s.program.Send(msg)
-	}
-}
-func (s handoffSession) screen(t *testing.T) string {
-	t.Helper()
-	views := make(chan string, 1)
-	s.program.Send(formBarrier{views})
-	select {
-	case screen := <-views:
-		return screen
-	case <-s.ctx.Done():
-		t.Fatal("handoff view timed out")
-		return ""
-	}
-}
-func (s handoffSession) returned(t *testing.T) string {
-	t.Helper()
-	for {
-		screen := s.screen(t)
-		if strings.Contains(screen, "Result: ") {
-			return screen
-		}
-	}
-}
-
-func TestHandoffRetainsManualFactsAndExplicitTarget(t *testing.T) {
-	home, view := handoffHome(t)
-	var probes atomic.Int32
-	native := &handoffIO{answer: strings.NewReader("yes\n")}
-	session := startHandoff(t, app.Options{Home: home, Input: native, Output: native, Runner: navigationRunner{&probes}}, nil)
-	session.send(press('r'), press(tea.KeyEnter), reviewKey(), press(tea.KeyEnter))
-	screen := session.returned(t)
-	screen += session.document(t)
-	for _, want := range []string{"manual: required", "verification: not-checked", view.State.Hosts[0].ID, view.State.Keys[0].ID} {
-		if !strings.Contains(screen, want) {
-			t.Fatalf("lost typed manual result/target %q:\n%s", want, screen)
-		}
-	}
-	if probes.Load() != 0 {
-		t.Fatal("manual guidance executed a command")
-	}
-}
-
-func TestHandoffDenialRetainsFactsThroughStaleReloadAndRefresh(t *testing.T) {
-	home, view := handoffHome(t)
-	statePath := filepath.Join(state.Directory(home), "state.json")
-	before, err := os.ReadFile(statePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	native := &handoffIO{answer: strings.NewReader("no\n"), corrupt: statePath}
-	var probes atomic.Int32
-	var reports atomic.Int32
-	session := startHandoff(t, app.Options{Home: home, Input: native, Output: native, Runner: navigationRunner{&probes}, Report: func(app.Report) { reports.Add(1) }}, nil)
-	session.send(press('r'), press(tea.KeyEnter), reviewKey(), press(tea.KeyEnter))
-	screen := session.returned(t)
-	screen += session.document(t)
-	for _, want := range []string{"Cancelled before changes", "Reload failed", "stale", "confirmation: declined", view.State.Hosts[0].ID} {
-		if !strings.Contains(screen, want) {
-			t.Fatalf("lost denial/stale evidence %q:\n%s", want, screen)
-		}
-	}
-	count := reports.Load()
-	session.send(press('s'), press('r'), press('t'), press('v'), press(tea.KeyEnter))
-	if screen := session.screen(t); !strings.Contains(screen, "stale") || strings.Contains(screen, "Resume saved operation") || strings.Contains(screen, "Register public key") {
-		t.Fatalf("stale result exposed mutation: %s", screen)
-	}
-	session.send(press(tea.KeyF5))
-	screen = session.screen(t)
-	if !strings.Contains(screen, "confirmation: declined") || !strings.Contains(screen, "Reload failed") {
-		t.Fatalf("failed Refresh hid facts:\n%s", screen)
-	}
-	session.send(press(tea.KeyEnd))
-	if !strings.Contains(session.screen(t), "Type yes to register") {
-		t.Fatal("native denial diagnostics lost")
-	}
-	if err := os.WriteFile(statePath, before, 0600); err != nil {
-		t.Fatal(err)
-	}
-	session.send(press(tea.KeyF5), press(tea.KeyHome))
-	screen = session.screen(t)
-	if strings.Contains(screen, "stale") || !strings.Contains(screen, "confirmation: declined") {
-		t.Fatalf("refresh lost facts or kept stale guard:\n%s", screen)
-	}
-	if reports.Load() != count || probes.Load() != 0 {
-		t.Fatal("Refresh replayed execution")
-	}
-	after, err := app.Snapshot(app.Options{Home: home})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(after.State.Registrations) != len(view.State.Registrations) {
-		t.Fatal("denial changed registration evidence")
-	}
-}
-
-func TestHandoffAcceptsContinueOnlyOnceBeforeNativeReturn(t *testing.T) {
-	home, _ := handoffHome(t)
-	native := &handoffIO{answer: strings.NewReader("no\nno\n")}
-	var denials atomic.Int32
-	var probes atomic.Int32
-	var delayed []tea.Msg
-	enters := 0
-	var program *tea.Program
-	session := startHandoff(t, app.Options{Home: home, Input: native, Output: native, Runner: navigationRunner{&probes}, Report: func(report app.Report) {
-		if report.Kind == app.ReportConfirmation {
-			denials.Add(1)
-		}
-	}}, func(m tea.Model, msg tea.Msg) tea.Msg {
-		// Deliver paste and two Continue events while native execution is pending.
-		if key, ok := msg.(tea.KeyPressMsg); ok {
-			if key.String() == "enter" && strings.Contains(m.View().Content, "Review register") {
-				enters++
-				if enters == 2 {
-					queued := append([]tea.Msg(nil), delayed...)
-					go func() {
-						for _, message := range queued {
-							program.Send(message)
-						}
-					}()
-				}
-			}
-			return msg
-		}
-		if _, ok := msg.(tea.PasteMsg); ok {
-			return msg
-		}
-		if enters == 1 {
-			delayed = append(delayed, msg)
-			return nil
-		}
-		return msg
-	})
-	program = session.program
-	session.send(press('r'), press(tea.KeyEnter), reviewKey(), press(tea.KeyEnter), tea.PasteMsg{Content: "q?rc\n\rctrl+s"}, press(tea.KeyEnter))
-	session.returned(t)
-	// Drain preceding command/completion events before checking native approvals.
-	session.screen(t)
-	if denials.Load() != 1 {
-		t.Fatalf("Continue launched %d native approvals", denials.Load())
-	}
-	if probes.Load() != 0 {
-		t.Fatal("denied native execution ran a command")
-	}
-}
-
-// This is a simulated child interruption, not a native OS signal acceptance test.
-type interruptedCreation struct {
+type nativeRunner struct {
 	input    io.Reader
 	calls    atomic.Int32
 	original atomic.Bool
 }
 
-func (r *interruptedCreation) LookPath(name string) (string, error) { return name, nil }
-func (r *interruptedCreation) Run(_ context.Context, command app.Command) error {
-	r.calls.Add(1)
-	r.original.Store(command.Stdin == r.input && command.Interactive)
-	io.WriteString(command.Stdout, "\x1b[2Jnative-output-q-c-r\x1b[0m\n")
+func (runner *nativeRunner) LookPath(name string) (string, error) { return name, nil }
+func (runner *nativeRunner) Run(_ context.Context, command app.Command) error {
+	runner.calls.Add(1)
+	runner.original.Store(command.Stdin == runner.input && command.Interactive)
+	io.WriteString(command.Stdout, "native-output\x1b[2J\n")
 	return context.Canceled
 }
-func TestHandoffInterruptedCreationRetainsSavedCheckpointAndOriginalInput(t *testing.T) {
-	home := fixtureTempDir(t)
-	native := &handoffIO{answer: strings.NewReader("yes\n")}
-	runner := &interruptedCreation{input: native}
-	var reports []app.Report
-	session := startHandoff(t, app.Options{Home: home, Input: native, Output: native, Runner: runner, Report: func(report app.Report) { reports = append(reports, report) }}, nil)
-	session.send(press('c'), text("interrupted fixture"), reviewKey(), press(tea.KeyEnter))
-	screen := session.returned(t)
-	for _, want := range []string{"Operation stopped", "creation: pending (saved checkpoint)", "creation: unknown", "creation interrupted"} {
-		if !strings.Contains(screen, want) {
-			t.Fatalf("lost checkpoint/error %q:\n%s", want, screen)
+
+type barrier struct{ response chan model }
+type session struct {
+	program *tea.Program
+	done    chan error
+}
+
+func startSession(t *testing.T, options app.Options) session {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	program, err := NewProgram(ctx, options, tea.WithoutRenderer(), tea.WithFilter(func(current tea.Model, message tea.Msg) tea.Msg {
+		if request, ok := message.(barrier); ok {
+			request.response <- current.(model)
+			return nil
+		}
+		return message
+	}))
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { _, err := program.Run(); done <- err }()
+	t.Cleanup(func() {
+		program.Quit()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Error(err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Error("native handoff did not terminate")
+		}
+		cancel()
+	})
+	return session{program, done}
+}
+func (session session) send(messages ...tea.Msg) {
+	for _, message := range messages {
+		session.program.Send(message)
+	}
+}
+func (session session) snapshot(t *testing.T) model {
+	t.Helper()
+	response := make(chan model, 1)
+	session.program.Send(barrier{response})
+	select {
+	case m := <-response:
+		return m
+	case <-time.After(3 * time.Second):
+		t.Fatal("TUI barrier timed out")
+		return model{}
+	}
+}
+func (session session) result(t *testing.T) model {
+	t.Helper()
+	deadline := time.NewTimer(3 * time.Second)
+	defer deadline.Stop()
+	for {
+		m := session.snapshot(t)
+		if m.page == "result" {
+			return m
+		}
+		select {
+		case <-deadline.C:
+			t.Fatal("native terminal did not return result")
+			return model{}
+		default:
 		}
 	}
-	if runner.calls.Load() != 1 || !runner.original.Load() {
-		t.Fatal("native input was wrapped, replayed, or lost interactive intent")
-	}
-	after, err := app.Snapshot(app.Options{Home: home})
+}
+func ctrlS() tea.KeyPressMsg { return tea.KeyPressMsg(tea.Key{Code: 's', Mod: tea.ModCtrl}) }
+func TestNativeHandoffPreservesOriginalStdinAndInterruptedCreation(t *testing.T) {
+	// macOS temporary directories can have linked ancestors, which creation rejects.
+	home, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(after.State.Creations) != 1 || after.State.Creations[0].Stage != "pending" {
-		t.Fatalf("lost durable creation checkpoint: %+v", after.State.Creations)
+	options := app.Options{Home: home}
+	native := &nativeIO{answer: strings.NewReader("yes\n")}
+	runner := &nativeRunner{input: native}
+	options.Input, options.Output, options.Runner = native, native, runner
+	var reports atomic.Int32
+	options.Report = func(app.Report) { reports.Add(1) }
+	session := startSession(t, options)
+	session.send(press('c'), text("interrupted fixture"), ctrlS())
+	m := session.result(t)
+	if runner.calls.Load() != 1 || !runner.original.Load() {
+		t.Fatalf("native ssh-keygen stdin was wrapped, replayed, or not interactive (calls=%d): %s", runner.calls.Load(), m.document)
 	}
-	screen += session.document(t)
-	for _, id := range []string{after.State.Creations[0].ID, after.State.Creations[0].KeyID} {
-		if !strings.Contains(screen, id) {
-			t.Fatalf("lost allocated checkpoint target %s:\n%s", id, screen)
+	if reports.Load() == 0 {
+		t.Fatal("caller report callback was lost")
+	}
+	for _, want := range []string{"Operation stopped", "creation: pending", "(saved)", "native-output"} {
+		if !strings.Contains(m.document, want) {
+			t.Fatalf("missing %s: %s", want, m.document)
 		}
 	}
-	if len(reports) == 0 {
-		t.Fatal("caller report sink was not retained")
+	if strings.Contains(m.View().Content, "\x1b[2J") {
+		t.Fatal("native terminal control entered result page")
 	}
-	session.send(press(tea.KeyEnd))
-	screen = session.screen(t)
-	if !strings.Contains(screen, "native-output-q-c-r") || strings.Contains(screen, "\x1b[2J") {
-		t.Fatalf("diagnostic output was lost or not sanitized:\n%s", screen)
+	view, err := app.Snapshot(options)
+	if err != nil {
+		t.Fatal(err)
 	}
-	session.send(press('?'), press(tea.KeyEscape), press(tea.KeyHome))
-	if !strings.Contains(session.screen(t), "Operation stopped") {
-		t.Fatal("returned TUI did not retain result through Help")
+	if len(view.State.Creations) != 1 || view.State.Creations[0].Stage != "pending" {
+		t.Fatal("creation checkpoint was lost")
+	}
+	for _, id := range []string{view.State.Creations[0].ID, view.State.Creations[0].KeyID} {
+		if !strings.Contains(m.document, id) {
+			t.Fatalf("missing saved identity %s", id)
+		}
+	}
+	session.send(press('?'), press(tea.KeyEscape), press(tea.KeyEscape))
+	m = session.snapshot(t)
+	if m.page != "list" || len(m.entries()) != 1 || m.entries()[0].kind != "creation" {
+		t.Fatal("unfinished creation inaccessible from Keys")
+	}
+	// A fresh native approval is required for the saved creation, too.
+	native.Lock()
+	native.answer = strings.NewReader("no\n")
+	native.Unlock()
+	session.send(press('s'))
+	m = session.result(t)
+	if runner.calls.Load() != 1 || m.request.Operation != "resume" || m.request.Resume != view.State.Creations[0].ID {
+		t.Fatal("local resume did not bind saved creation or bypassed approval")
+	}
+}
+func TestNativeConfirmationDenialStopsBeforeKeygenAndReleasesTerminal(t *testing.T) {
+	home := t.TempDir()
+	native := &nativeIO{answer: strings.NewReader("no\n")}
+	runner := &nativeRunner{input: native}
+	session := startSession(t, app.Options{Home: home, Input: native, Output: native, Runner: runner})
+	session.send(press('c'), text("denied fixture"), ctrlS())
+	m := session.result(t)
+	if runner.calls.Load() != 0 || !strings.Contains(m.document, "confirmation: declined") {
+		t.Fatalf("denial executed keygen or lost evidence: %s", m.document)
+	}
+	view, err := app.Snapshot(app.Options{Home: home})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.State.Keys) != 0 || len(view.State.Creations) != 0 {
+		t.Fatal("denied creation saved an identity")
+	}
+	session.send(press(tea.KeyEscape), press('i'))
+	if session.snapshot(t).page != "form" {
+		t.Fatal("TUI did not accept input after native return")
+	}
+}
+func TestNativeHandoffReloadFailureRetainsFactsAndRefreshNeverReexecutes(t *testing.T) {
+	m := fixture(t)
+	statePath := filepath.Join(filepath.Dir(m.view.State.Keys[0].PublicPath), ".ssh", "ssh-keyflow", "state.json")
+	before, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	native := &nativeIO{answer: strings.NewReader("no\n"), onConfirm: func() {
+		if err := os.WriteFile(statePath, []byte("broken"), 0600); err != nil {
+			panic(err)
+		}
+	}}
+	runner := &nativeRunner{input: native}
+	options := m.options
+	options.Input, options.Output, options.Runner = native, native, runner
+	session := startSession(t, options)
+	session.send(press('c'), text("stale fixture"), ctrlS())
+	m = session.result(t)
+	if !m.stale || !strings.Contains(m.document, "confirmation: declined") || !strings.Contains(m.document, "Reload failed") {
+		t.Fatal(m.document)
+	}
+	if err := os.WriteFile(statePath, before, 0600); err != nil {
+		t.Fatal(err)
+	}
+	session.send(press(tea.KeyF5))
+	m = session.snapshot(t)
+	if m.stale || !strings.Contains(m.document, "confirmation: declined") || runner.calls.Load() != 0 {
+		t.Fatal("refresh lost denial evidence or replayed operation")
+	}
+}
+func TestNativeConfirmationCancellationAndExecutionAlreadyCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := readNativeConfirmation(ctx, strings.NewReader("yes\n")); err != context.Canceled {
+		t.Fatalf("cancelled approval: %v", err)
+	}
+	runner := &nativeRunner{}
+	operation := execution{ctx: ctx, options: app.Options{Runner: runner}, request: app.Request{Operation: "create", Name: "cancelled"}}
+	if err := operation.Run(); err != context.Canceled || runner.calls.Load() != 0 {
+		t.Fatal("cancelled handoff invoked backend")
 	}
 }

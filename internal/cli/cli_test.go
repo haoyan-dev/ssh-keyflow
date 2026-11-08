@@ -3,47 +3,53 @@ package cli_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
-	"github.com/charmbracelet/x/term"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/term"
+
 	"ssh-keyflow/internal/app"
 	"ssh-keyflow/internal/cli"
+	"ssh-keyflow/internal/state"
 )
 
 func TestHelpAndNonterminalStartupDoNotInitializeStorage(test *testing.T) {
-	for _, arguments := range [][]string{{"--help"}, {}} {
-		home := test.TempDir()
-		var output, diagnostics bytes.Buffer
-		code := cli.Run(context.Background(), arguments, cli.Options{
-			Home: home, Input: strings.NewReader(""), Output: &output, Error: &diagnostics,
+	for _, arguments := range [][]string{nil, {"--help"}, {"keys"}, {"hosts"}, {"keys", "public", "--help"}, {"hosts", "add", "--help"}, {"hosts", "guide", "--help"}, {"resume", "--help"}} {
+		test.Run(strings.Join(arguments, " "), func(test *testing.T) {
+			home := test.TempDir()
+			code, output, diagnostics := run(test, home, arguments...)
+			if code != 0 || !strings.Contains(output, "Usage:") || diagnostics != "" {
+				test.Fatalf("help: exit=%d stdout=%s stderr=%s", code, output, diagnostics)
+			}
+			assertEmptyHome(test, home)
 		})
-		if code != 0 || !strings.Contains(output.String(), "Usage:") || diagnostics.Len() != 0 {
-			test.Fatalf("help: exit=%d stdout=%s stderr=%s", code, output.String(), diagnostics.String())
-		}
-		if _, err := os.Stat(filepath.Join(home, ".ssh")); !os.IsNotExist(err) {
-			test.Fatal("help initialized SSH storage")
-		}
 	}
 }
 
 func TestListJSONIsReadOnlyAndContainsOnlyRequestedRecords(test *testing.T) {
-	for _, category := range []string{"hosts", "keys", "registrations"} {
+	for _, category := range []string{"hosts", "keys"} {
 		home := test.TempDir()
-		var output, diagnostics bytes.Buffer
-		code := cli.Run(context.Background(), []string{category, "list", "--json"}, cli.Options{
-			Home: home, Input: strings.NewReader(""), Output: &output, Error: &diagnostics,
-		})
+		code, output, diagnostics := run(test, home, category, "list", "--json")
 		var result map[string]json.RawMessage
-		if code != 0 || json.Unmarshal(output.Bytes(), &result) != nil || string(result[category]) != "[]" || diagnostics.Len() != 0 {
-			test.Fatalf("list %s: exit=%d stdout=%s stderr=%s", category, code, output.String(), diagnostics.String())
+		if code != 0 || json.Unmarshal([]byte(output), &result) != nil || string(result[category]) != "[]" || diagnostics != "" {
+			test.Fatalf("list %s: exit=%d stdout=%s stderr=%s", category, code, output, diagnostics)
 		}
-		if _, err := os.Stat(filepath.Join(home, ".ssh")); !os.IsNotExist(err) {
-			test.Fatal("listing initialized SSH storage")
+		other := "creations"
+		if category == "hosts" {
+			other = "associations"
 		}
+		if len(result) != 2 || string(result[other]) != "[]" {
+			test.Fatalf("unexpected list schema: %s", output)
+		}
+		assertEmptyHome(test, home)
 	}
 }
 
@@ -55,30 +61,50 @@ func TestDirectCommandsRejectMissingArgumentsAndNonterminalChanges(test *testing
 	}{
 		{[]string{"keys", "create"}, 2, "name"},
 		{[]string{"keys", "create", "--name", "direct"}, 1, "terminal"},
+		{[]string{"keys", "import", "--name", "existing"}, 2, "public"},
 		{[]string{"keys", "import", "--name", "existing", "--public", "source.pub"}, 1, "terminal"},
-		{[]string{"keys", "delete", "--key", "key-123"}, 1, "terminal"},
-		{[]string{"register", "--host", "server", "--key", "key-123"}, 1, "terminal"},
-		{[]string{"unregister", "--registration", "registration-123"}, 1, "terminal"},
-		{[]string{"resume", "--id", "creation-123"}, 1, "terminal"},
-		{[]string{"tui"}, 2, "terminal"},
+		{[]string{"keys", "public"}, 2, "key"},
+		{[]string{"hosts", "guide", "--host", "server"}, 2, "key"},
+		{[]string{"hosts", "associate", "--key", "known"}, 2, "host"},
+		{[]string{"hosts", "associate", "--host", "server", "--key", "known"}, 1, "terminal"},
+		{[]string{"hosts", "add", "--alias", "server", "--hostname", "server.example", "--user", "alice", "--os", "linux"}, 2, "key"},
 		{[]string{"hosts", "add", "--alias", "server", "--hostname", "server.example", "--user", "alice", "--os", "windows", "--key", "known"}, 2, "account"},
 		{[]string{"hosts", "add", "--alias", "server", "--hostname", "server.example", "--user", "alice", "--os", "linux", "--key", "known"}, 1, "terminal"},
-		{[]string{"register", "--host", "server", "--key", "known", "--auth", "key"}, 2, "identity"},
-		{[]string{"register", "--host", "server", "--key", "known", "--auth", "guess"}, 2, "authentication"},
+		{[]string{"resume"}, 2, "id"},
+		{[]string{"resume", "--id", "creation-123"}, 1, "terminal"},
+		{[]string{"tui"}, 2, "terminal"},
 	}
 	for _, example := range cases {
 		test.Run(strings.Join(example.arguments, " "), func(test *testing.T) {
 			home := test.TempDir()
-			var output, diagnostics bytes.Buffer
-			code := cli.Run(context.Background(), example.arguments, cli.Options{
-				Home: home, Input: strings.NewReader("yes\n"), Output: &output, Error: &diagnostics,
-			})
-			if code != example.code || !strings.Contains(diagnostics.String(), example.message) {
-				test.Fatalf("exit=%d stdout=%s stderr=%s", code, output.String(), diagnostics.String())
+			code, output, diagnostics := run(test, home, example.arguments...)
+			if code != example.code || output != "" || !strings.Contains(diagnostics, example.message) {
+				test.Fatalf("exit=%d stdout=%s stderr=%s", code, output, diagnostics)
 			}
-			if _, err := os.Stat(filepath.Join(home, ".ssh")); !os.IsNotExist(err) {
-				test.Fatal("rejected operation initialized SSH storage")
+			assertEmptyHome(test, home)
+		})
+	}
+}
+
+func TestRemovedCommandsAndFlagsAreUsageErrorsWithoutSideEffects(test *testing.T) {
+	cases := [][]string{
+		{"keys", "delete", "--key", "known"},
+		{"registrations", "list"},
+		{"register", "--host", "server", "--key", "known"},
+		{"unregister", "--registration", "registration-123"},
+	}
+	for _, flag := range []string{"--auth=manual", "--identity=key", "--configure", "--new-key=new"} {
+		cases = append(cases, []string{"hosts", "add", "--alias", "server", "--hostname", "server.example", "--user", "alice", "--os", "linux", "--key", "known", flag})
+		cases = append(cases, []string{"resume", "--id", "creation-123", flag})
+	}
+	for _, arguments := range cases {
+		test.Run(strings.Join(arguments, " "), func(test *testing.T) {
+			home := test.TempDir()
+			code, output, diagnostics := run(test, home, arguments...)
+			if code != 2 || output != "" || !strings.Contains(diagnostics, "unknown") || !strings.Contains(diagnostics, "Usage:") {
+				test.Fatalf("removed interface: exit=%d stdout=%s stderr=%s", code, output, diagnostics)
 			}
+			assertEmptyHome(test, home)
 		})
 	}
 }
@@ -86,99 +112,105 @@ func TestDirectCommandsRejectMissingArgumentsAndNonterminalChanges(test *testing
 func TestVersionUsageAndRuntimeFailuresHaveDistinctOutput(test *testing.T) {
 	home := test.TempDir()
 	var output, diagnostics bytes.Buffer
-	options := cli.Options{Home: home, Version: "v0.2.0-test", Input: strings.NewReader(""), Output: &output, Error: &diagnostics}
+	options := cli.Options{Home: home, Version: "v0.3.0-test", Input: strings.NewReader(""), Output: &output, Error: &diagnostics}
 	code := cli.Run(context.Background(), []string{"--version"}, options)
-	if code != 0 || strings.TrimSpace(output.String()) != "SSH KeyFlow v0.2.0-test" || diagnostics.Len() != 0 {
+	if code != 0 || strings.TrimSpace(output.String()) != "SSH KeyFlow v0.3.0-test" || diagnostics.Len() != 0 {
 		test.Fatalf("version: exit=%d stdout=%s stderr=%s", code, output.String(), diagnostics.String())
 	}
-	for _, arguments := range [][]string{{"keys", "unknown"}, {"keys", "create"}, {"hosts", "list", "extra"}} {
-		output.Reset()
-		diagnostics.Reset()
-		code = cli.Run(context.Background(), arguments, options)
-		if code != 2 || output.Len() != 0 || !strings.Contains(diagnostics.String(), "Usage:") {
-			test.Fatalf("usage: args=%v exit=%d stdout=%s stderr=%s", arguments, code, output.String(), diagnostics.String())
+	assertEmptyHome(test, home)
+	for _, arguments := range [][]string{{"keys", "unknown"}, {"keys", "create"}, {"hosts", "list", "extra"}, {"keys", "public", "--key", "known", "extra"}, {"hosts", "guide", "--host", "server", "--key", "known", "extra"}} {
+		code, stdout, stderr := run(test, home, arguments...)
+		if code != 2 || stdout != "" || !strings.Contains(stderr, "Usage:") {
+			test.Fatalf("usage: args=%v exit=%d stdout=%s stderr=%s", arguments, code, stdout, stderr)
 		}
 	}
-	directory := filepath.Join(home, ".ssh", "ssh-keyflow")
+	directory := state.Directory(home)
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		test.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(directory, "state.json"), []byte("{"), 0600); err != nil {
 		test.Fatal(err)
 	}
-	output.Reset()
-	diagnostics.Reset()
-	code = cli.Run(context.Background(), []string{"keys", "list", "--json"}, options)
-	if code != 1 || output.Len() != 0 || !strings.Contains(diagnostics.String(), "invalid state.json") || strings.Contains(diagnostics.String(), "Usage:") {
-		test.Fatalf("runtime: exit=%d stdout=%s stderr=%s", code, output.String(), diagnostics.String())
+	for _, arguments := range [][]string{{"keys", "list", "--json"}, {"keys", "public", "--key", "known"}, {"hosts", "guide", "--host", "server", "--key", "known"}} {
+		code, stdout, stderr := run(test, home, arguments...)
+		if code != 1 || stdout != "" || !strings.Contains(stderr, "invalid state.json") || strings.Contains(stderr, "Usage:") {
+			test.Fatalf("runtime: args=%v exit=%d stdout=%s stderr=%s", arguments, code, stdout, stderr)
+		}
 	}
 }
 
-func TestListsShowUnmanagedDiscoveryWithoutWritingOrInvokingSSH(test *testing.T) {
-	home := test.TempDir()
-	files := map[string]string{
-		"id_external.pub": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB outside\n",
-		"config":          "Host outside\n HostName outside.example\nMatch exec never-run\n IdentityFile ~/.ssh/id_external\n",
-	}
-	if err := os.Mkdir(filepath.Join(home, ".ssh"), 0700); err != nil {
+func TestCopyableOutputWorksRedirectedAndPreservesFiles(test *testing.T) {
+	home := fixture(test)
+	before := tree(test, home)
+	public, err := app.PublicKey(home, "known")
+	if err != nil {
 		test.Fatal(err)
 	}
-	for name, content := range files {
-		if err := os.WriteFile(filepath.Join(home, ".ssh", name), []byte(content), 0600); err != nil {
-			test.Fatal(err)
+	guide, err := app.Guide(home, "server", "known")
+	if err != nil {
+		test.Fatal(err)
+	}
+	for _, example := range []struct {
+		arguments []string
+		want      string
+	}{
+		{[]string{"keys", "public", "--key", "known"}, public},
+		{[]string{"keys", "public", "--key", "key-known"}, public},
+		{[]string{"hosts", "guide", "--host", "server", "--key", "known"}, guide},
+		{[]string{"hosts", "guide", "--host", "host-server", "--key", "key-known"}, guide},
+	} {
+		code, output, diagnostics := run(test, home, example.arguments...)
+		if code != 0 || output != example.want || output == "" || diagnostics != "" {
+			test.Fatalf("copyable %v: exit=%d stdout=%q want=%q stderr=%s", example.arguments, code, output, example.want, diagnostics)
 		}
 	}
-	for _, category := range []string{"keys", "hosts"} {
-		for _, asJSON := range []bool{false, true} {
-			arguments := []string{category, "list"}
-			if asJSON {
-				arguments = append(arguments, "--json")
-			}
-			var output, diagnostics bytes.Buffer
-			code := cli.Run(context.Background(), arguments, cli.Options{
-				Home: home, Input: strings.NewReader(""), Output: &output, Error: &diagnostics, Runner: forbiddenSSH{test},
-			})
-			if code != 0 || diagnostics.Len() != 0 {
-				test.Fatalf("read-only list failed: %d %s", code, diagnostics.String())
-			}
-			discovery := output.String()
-			if asJSON {
-				var result struct{ Discovery string }
-				if err := json.Unmarshal(output.Bytes(), &result); err != nil {
-					test.Fatalf("JSON mixed diagnostics or text: %v\n%s", err, output.String())
-				}
-				discovery = result.Discovery
-			} else if !strings.Contains(discovery, "Discovery (read-only; unmanaged files are not imported)") {
-				test.Fatalf("text list does not distinguish unmanaged candidates:\n%s", discovery)
-			}
-			for _, expected := range []string{"unmanaged key candidate", "id_external.pub", "unmanaged Host outside", "Match exec is never executed"} {
-				if !strings.Contains(discovery, expected) {
-					test.Fatalf("list %v omitted %q:\n%s", arguments, expected, discovery)
-				}
-			}
+	for _, arguments := range [][]string{{"keys", "list"}, {"hosts", "list"}, {"keys", "list", "--json"}, {"hosts", "list", "--json"}} {
+		code, output, diagnostics := run(test, home, arguments...)
+		if code != 0 || output == "" || diagnostics != "" || strings.Contains(output, "Discovery") {
+			test.Fatalf("saved list %v: exit=%d stdout=%s stderr=%s", arguments, code, output, diagnostics)
+		}
+		if arguments[0] == "hosts" && !strings.Contains(output, "key-known") {
+			test.Fatalf("host list omitted saved association: %s", output)
 		}
 	}
-	for name, content := range files {
-		current, err := os.ReadFile(filepath.Join(home, ".ssh", name))
-		if err != nil || string(current) != content {
-			test.Fatalf("discovery changed unmanaged %s: %v", name, err)
-		}
-	}
-	if _, err := os.Stat(filepath.Join(home, ".ssh", "ssh-keyflow")); !os.IsNotExist(err) {
-		test.Fatal("discovery initialized management storage")
+	if after := tree(test, home); !reflect.DeepEqual(before, after) {
+		test.Fatalf("read-only commands changed files: before=%v after=%v", before, after)
 	}
 }
 
-type forbiddenSSH struct{ test *testing.T }
-
-func (external forbiddenSSH) LookPath(string) (string, error) {
-	external.test.Fatal("read-only listing probed SSH dependencies")
-	return "", nil
+func TestReviewDiagnosticDoesNotCorruptJSON(test *testing.T) {
+	home := fixture(test)
+	if err := os.Remove(filepath.Join(home, ".ssh", "known.pub")); err != nil {
+		test.Fatal(err)
+	}
+	before := tree(test, home)
+	code, output, diagnostics := run(test, home, "keys", "list", "--json")
+	var result map[string]json.RawMessage
+	if code != 0 || json.Unmarshal([]byte(output), &result) != nil || diagnostics == "" {
+		test.Fatalf("review: exit=%d stdout=%s stderr=%s", code, output, diagnostics)
+	}
+	for _, arguments := range [][]string{{"keys", "public", "--key", "known"}, {"hosts", "guide", "--host", "server", "--key", "known"}} {
+		code, output, diagnostics := run(test, home, arguments...)
+		if code != 1 || output != "" || diagnostics == "" {
+			test.Fatalf("missing key: exit=%d stdout=%s stderr=%s", code, output, diagnostics)
+		}
+	}
+	if after := tree(test, home); !reflect.DeepEqual(before, after) {
+		test.Fatal("failed reads changed files")
+	}
 }
 
-func (external forbiddenSSH) Run(context.Context, app.Command) error {
-	external.test.Fatal("read-only listing executed an SSH command")
-	return nil
+func TestCopyableOutputReportsWriterFailure(test *testing.T) {
+	home := fixture(test)
+	for _, arguments := range [][]string{{"keys", "list", "--json"}, {"hosts", "list"}, {"keys", "public", "--key", "known"}, {"hosts", "guide", "--host", "server", "--key", "known"}} {
+		var diagnostics bytes.Buffer
+		code := cli.Run(context.Background(), arguments, cli.Options{
+			Home: home, Input: strings.NewReader(""), Output: brokenWriter{}, Error: &diagnostics, Runner: forbiddenSSH{test},
+		})
+		if code != 1 || !strings.Contains(diagnostics.String(), "output unavailable") || strings.Contains(diagnostics.String(), "Usage:") {
+			test.Fatalf("output failure %v: exit=%d stderr=%s", arguments, code, diagnostics.String())
+		}
+	}
 }
 
 func TestTerminalInputWithRedirectedOutputShowsHelp(test *testing.T) {
@@ -197,3 +229,95 @@ func TestTerminalInputWithRedirectedOutputShowsHelp(test *testing.T) {
 		}
 	}
 }
+
+func run(test *testing.T, home string, arguments ...string) (int, string, string) {
+	test.Helper()
+	var output, diagnostics bytes.Buffer
+	code := cli.Run(context.Background(), arguments, cli.Options{
+		Home: home, Input: strings.NewReader("yes\n"), Output: &output, Error: &diagnostics, Runner: forbiddenSSH{test},
+	})
+	return code, output.String(), diagnostics.String()
+}
+
+func assertEmptyHome(test *testing.T, home string) {
+	test.Helper()
+	entries, err := os.ReadDir(home)
+	if err != nil || len(entries) != 0 {
+		test.Fatalf("command initialized storage: %v %v", entries, err)
+	}
+}
+
+func fixture(test *testing.T) string {
+	test.Helper()
+	home := test.TempDir()
+	directory := state.Directory(home)
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		test.Fatal(err)
+	}
+	const public = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB known\n"
+	blob, err := base64.StdEncoding.DecodeString(strings.Fields(public)[1])
+	if err != nil {
+		test.Fatal(err)
+	}
+	digest := sha256.Sum256(blob)
+	publicPath := filepath.Join(home, ".ssh", "known.pub")
+	document := state.State{
+		Version:       2,
+		Keys:          []state.Key{{ID: "key-known", Name: "known", Origin: "imported", ImportedAt: "2026-11-08T00:00:00Z", Fingerprint: "SHA256:" + base64.RawStdEncoding.EncodeToString(digest[:]), PublicPath: publicPath, ConnectionCheck: "unverified"}},
+		Hosts:         []state.Host{{ID: "host-server", Alias: "server", Hostname: "server.example", User: "alice", Port: 2222, OS: "linux"}},
+		Registrations: []state.Registration{},
+		Associations:  []state.Association{{HostID: "host-server", KeyID: "key-known"}},
+	}
+	data, err := json.Marshal(document)
+	if err != nil {
+		test.Fatal(err)
+	}
+	for path, content := range map[string][]byte{
+		filepath.Join(directory, "state.json"):        data,
+		publicPath:                                    []byte(public),
+		filepath.Join(home, ".ssh", "config"):         []byte("Host unmanaged\n Match exec never-run\n Include preserved.conf\n"),
+		filepath.Join(home, ".ssh", "preserved.conf"): []byte("# do not edit\n"),
+	} {
+		if err := os.WriteFile(path, content, 0600); err != nil {
+			test.Fatal(err)
+		}
+	}
+	return home
+}
+
+func tree(test *testing.T, home string) map[string]string {
+	test.Helper()
+	result := map[string]string{}
+	err := filepath.WalkDir(home, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			result[path] = "directory"
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		result[path] = string(data)
+		return err
+	})
+	if err != nil {
+		test.Fatal(err)
+	}
+	return result
+}
+
+type forbiddenSSH struct{ test *testing.T }
+
+func (external forbiddenSSH) LookPath(string) (string, error) {
+	external.test.Fatal("read-only or rejected command probed dependencies")
+	return "", nil
+}
+
+func (external forbiddenSSH) Run(context.Context, app.Command) error {
+	external.test.Fatal("read-only or rejected command executed an external command")
+	return nil
+}
+
+type brokenWriter struct{}
+
+func (brokenWriter) Write([]byte) (int, error) { return 0, errors.New("output unavailable") }
