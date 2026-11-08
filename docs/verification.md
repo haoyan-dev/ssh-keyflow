@@ -527,3 +527,79 @@ the review → spec → tickets → implementation workflow and review resolutio
 Native narrow sizes and runtime resize were not repeated; automated journeys
 cover those layouts. Other native targets, live SSH, hosted CI and packaging/
 installer suites were not repeated. No push, merge, tag or publication.
+
+## v0.4.0 release verification (2026-11-08 JST)
+
+The release candidate is `a191d39afeae20b3dbf75663e10b538839b53672`.
+PR #6 merged it into main with merge commit
+`5a4710db25d552af5932afa4dd0101edbcb18bd5` at 2026-11-08T10:58:58Z.
+Ancestry and identical trees were verified after refreshing origin/main;
+both identify tree `54971e8f178de50a5e9bf0cc6ca36601462fab46`.
+The annotated tag targets the reviewed, tested source commit already merged
+into main, rather than the additional merge commit.
+
+Preparation and exact-candidate checks:
+
+- The source working tree was clean during local verification. Windows amd64,
+  Go 1.26.2 and CPython 3.12.13 ran the full uncached
+  `go test -buildvcs=false ./... -count=1` (cmd 1.900s, app 46.617s,
+  cli 2.255s, ssh 30.232s, tui 24.443s) and
+  `go vet -buildvcs=false ./...`: PASS. Native fixture scripts inherited only
+  process-local `PSExecutionPolicyPreference=Bypass`.
+- Hosted Verify runs `42473210314` (push) and `42473214254` (PR) both passed
+  on the exact source. Each ran Go, Portable, installer and profile suites on
+  Linux/macOS/Windows, plus six-target crossbuild and Linux amd64 CI-version
+  smoke. The installer suites were not redundantly rerun locally.
+- `python -X utf8 scripts/package_release.py --version v0.4.0 --output
+  .tmp/release-v0.4.0/local-assets` built six real targets from that source.
+  The audit verified seven assets, six unique LF manifest rows and all hashes,
+  two regular members per archive, notices matching checkout bytes, Unix
+  modes 0755/0644 and uid/gid 0, platform formats and GOOS/GOARCH/CGO-disabled/
+  trimpath metadata, and embedded version markers. Local manifest SHA256:
+  `c61de919769645db3c3d41709fb7d2c1ff0b0b4b8c057f0067e7e34a99b51457`.
+- Extracted local Windows amd64 reported `SSH KeyFlow v0.4.0`; help and all
+  three read-only JSON lists passed under a temporary home without creating
+  `.ssh`. Other target binaries were not executed locally.
+- Separate Astra release standards and specification reviews approved the
+  candidate. The stale layout-contract sentence was corrected before final
+  CI; release notes cover the changes since v0.3.0, version-1 compatibility,
+  install/update instructions and remaining native/live-SSH limits.
+
+Publication and downloaded-asset audit:
+
+- [SSH KeyFlow v0.4.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.4.0)
+  was published at 2026-11-08T11:08:32Z. Annotated tag object
+  `de78904c5576970bc805240c0c831c2074dd8b21` and its remote peeled commit
+  match the intended candidate. GitHub's latest API returned v0.4.0 with
+  draft and prerelease both false.
+- [Release workflow 42473838603](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42473838603)
+  passed on that exact tagged source: three-OS Go/Portable/installer/profile
+  tests, six-target crossbuild, Linux CI-version smoke and publication.
+- Downloaded all seven published assets. Verified six unique manifest entries,
+  every archive SHA256, exactly two regular archive members, notices matching
+  the candidate's Git blob, Unix modes/ownership, platform/build metadata and
+  embedded version markers. Published manifest SHA256:
+  `29d62cead9fa219f5837907c56d36d37a6afd63552b87e5f58092bd7a5fdc513`.
+- Extracted published Windows amd64 reported `SSH KeyFlow v0.4.0`; help and
+  three read-only JSON lists passed in a temporary home without creating
+  `.ssh`. The other five published binaries were not executed locally.
+- Applied the reviewed release notes explicitly after workflow publication.
+  Release target metadata is the exact candidate SHA; notes match the reviewed
+  file, asset identity/size/update metadata are unchanged, and remote tag
+  object/target plus stable/latest classification were rechecked.
+- Source-hosted `main/install.sh` and `main/install.ps1` matched their Git
+  blobs at source-hosted installer main commit
+  `5a4710db25d552af5932afa4dd0101edbcb18bd5`. SHA256 respectively:
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f`
+  and `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`.
+  No real install/update/removal cycle was repeated; hosted tests use isolated
+  fixtures.
+- Separate final standards and specification/evidence reviews approved the
+  publication record with no blocking findings. The standards review also
+  confirmed the final notes, tag, workflow and latest status against GitHub.
+
+The publication evidence follow-up changes only this record. It does not move
+the tag or change binary assets. Live SSH/server mutations, other native
+OS/CPU interactive sessions and elevated Windows shared-administrator behavior
+were not repeated. Cleanup is limited to task-owned branches whose tips are
+ancestors of integrated main, after checking worktree cleanliness.
