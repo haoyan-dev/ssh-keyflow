@@ -1,8 +1,10 @@
 # Prototype verification
 
-Date: 2026-11-08  
-Tested prototype source: `2bc5b57a8d58c0a0ac0e22576ddf67b44d059fd8`  
-Branch: `docs/tui-design-prototypes`  
+Date: 2026-11-08
+
+Tested prototype source: `2bc5b57a8d58c0a0ac0e22576ddf67b44d059fd8`
+
+Branch: `docs/tui-design-prototypes`
 Production base: `e99e000`
 
 ## Environment and scope
