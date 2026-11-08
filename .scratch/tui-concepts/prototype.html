@@ -21,19 +21,19 @@
       <label><input id="compare" type="checkbox"> Compare all three</label>
       <button id="reset">Top of page</button>
     </section>
+    <div class="switcher" aria-label="Design direction">
+      <button id="previous" aria-label="Previous direction">←</button>
+      <button data-variant="A">A · Panels</button>
+      <button data-variant="B">B · Guided</button>
+      <button data-variant="C">C · Tables</button>
+      <button id="next" aria-label="Next direction">→</button>
+    </div>
     <div id="description" aria-live="polite"></div>
     <p id="notice" role="status" hidden></p>
     <div id="previews"></div>
-    <p class="usage">Fields are static. Terminal handoff and outcomes are simulated. This gallery does not validate the production workflow. Click a terminal to focus: ↑/↓ scroll or select · PgUp/PgDn scroll · Esc goes back. Use Page to inspect every example.</p>
+    <p class="usage">Fields are static. Terminal handoff and outcomes are simulated. This gallery does not validate the production workflow. Click a terminal to focus: ↑/↓ scroll or select · PgUp/PgDn scroll · Esc goes back · Shift+Tab returns to the Page selector. Use Page to inspect every example.</p>
     <section class="decision"><h2>What to judge</h2><p>Can you tell <strong>what this is</strong>, <strong>what happened</strong>, and <strong>what to do next</strong> without reading the whole page? Borders, spacing, wording, and information order all change between directions.</p><p>Choose A, B, or C in chat. You can also mix a list from one with details or forms from another.</p></section>
   </main>
-</div>
-<div class="switcher" aria-label="Design direction">
-  <button id="previous" aria-label="Previous direction">←</button>
-  <button data-variant="A">A · Panels</button>
-  <button data-variant="B">B · Guided</button>
-  <button data-variant="C">C · Tables</button>
-  <button id="next" aria-label="Next direction">→</button>
 </div>
 <script src="prototype.js"></script>
 </body>

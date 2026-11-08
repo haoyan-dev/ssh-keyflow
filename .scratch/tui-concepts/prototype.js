@@ -571,6 +571,7 @@ function cycle(amount){choose(['A','B','C'][(['A','B','C'].indexOf(state.variant
 function back(){const id=state.trail.pop();if(id){state.page=id;state.offsets={A:0,B:0,C:0};state.field=0;state.selected=0;render();}}
 function terminalKey(event,variant){
   const page=pages.find(p=>p.id===state.page),key=event.key;
+  if(key==='Tab'&&event.shiftKey){event.preventDefault();$('page').focus();return;}
   if(['ArrowDown','ArrowUp','PageDown','PageUp','Enter','Escape','Tab','Home','End','F5','?','r','s','v','h','o','e','d','a','c','i','u','/','q'].includes(key))event.preventDefault();
   const standalone=()=>{state.notice='Standalone screen preview; use Page to inspect another screen. No operation is performed.';render();};
   if(key==='Escape'||key==='q'){
@@ -629,9 +630,11 @@ function terminalKey(event,variant){
     else if(page.id==='review')navigate('handoff');
     else if(page.id==='handoff')standalone();
     else if(page.id==='discard')back();
-    else if(page.type==='result')navigate(page.id==='cancelled'?'destinations':
-      ['manual','unknown'].includes(page.id)?'destination':'registration');
-    else if(page.id==='include')navigate('registration');
+    else if(page.type==='result'){
+      if(page.id==='cancelled')navigate('destinations');
+      else if(['manual','unknown'].includes(page.id))navigate('destination');
+      else standalone();
+    }
     else standalone();
     return;
   }
@@ -648,7 +651,7 @@ function terminalKey(event,variant){
     unknown:{s:'resume',o:'session-output'},
     manual:{o:'instructions'},
     success:{o:'session-output'},partial:{o:'session-output'},failed:{o:'session-output'},
-    include:{o:'include-instructions'},'config-only':{v:'technical'}
+    include:{o:'include-instructions'}
   };
   // Unsupported example links never open a different target or an execution draft.
   const route=routes[page.id]?.[key];

@@ -13,10 +13,7 @@ whole application. It deliberately revisits the previous recommendation to
 remove panels. Prior review approval did not establish that the user found the
 result understandable.
 
-Open `prototype.html` directly in a browser. It is self-contained within this
-directory and works without a server or network access.
-
-Alternatively, from the repository root:
+From the repository root:
 
 ```powershell
 node .scratch/tui-concepts/serve.cjs
@@ -25,6 +22,8 @@ node .scratch/tui-concepts/serve.cjs
 Then open `http://127.0.0.1:4318/prototype.html`. The server listens only on
 loopback. Stop it with Ctrl+C. To use another port, set the process environment
 variable `KEYFLOW_PROTOTYPE_PORT` before starting.
+The localhost viewer is the verified launch path. Direct-file opening was not
+verified because the test browser blocks the `file:` protocol.
 
 ## Three different structures
 
@@ -42,13 +41,14 @@ outside the terminal are evaluation tools and are not proposed TUI controls.
 ## How to compare
 
 1. Start on Destination overview, which mirrors the user's problem with fictional
-   values. Use the bottom switcher or Left/Right arrows to compare A, B, and C.
+   values. Use the direction controls above the previews or Left/Right arrows
+   outside the terminal to compare A, B, and C.
 2. Enable Compare all three to see the same page in all directions.
 3. Choose any page from the sidebar or the Page dropdown.
 4. Try 80×24, 60×18, and 32×12. Content scrolls within the fixed terminal.
 5. Disable Color. Status words, selection markers, headings, and structure remain.
 6. Click a terminal to try keyboard navigation. Scroll buttons and the mouse
-   wheel expose the entire document.
+   wheel expose the entire document. Shift+Tab returns keyboard focus to Page.
 
 The query string preserves page, direction, terminal size, comparison mode, and
 color choice across reloads; there is no stored preference or product data.
