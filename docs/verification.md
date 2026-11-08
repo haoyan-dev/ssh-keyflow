@@ -565,5 +565,41 @@ Preparation and exact-candidate checks:
   CI; release notes cover the changes since v0.3.0, version-1 compatibility,
   install/update instructions and remaining native/live-SSH limits.
 
-Publication and downloaded-asset audit are pending in this preparation record.
-The evidence follow-up does not change the tagged source or distribution files.
+Publication and downloaded-asset audit:
+
+- [SSH KeyFlow v0.4.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.4.0)
+  was published at 2026-11-08T11:08:32Z. Annotated tag object
+  `de78904c5576970bc805240c0c831c2074dd8b21` and its remote peeled commit
+  match the intended candidate. GitHub's latest API returned v0.4.0 with
+  draft and prerelease both false.
+- [Release workflow 42473838603](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42473838603)
+  passed on that exact tagged source: three-OS Go/Portable/installer/profile
+  tests, six-target crossbuild, Linux CI-version smoke and publication.
+- Downloaded all seven published assets. Verified six unique manifest entries,
+  every archive SHA256, exactly two regular archive members, notices matching
+  the candidate's Git blob, Unix modes/ownership, platform/build metadata and
+  embedded version markers. Published manifest SHA256:
+  `29d62cead9fa219f5837907c56d36d37a6afd63552b87e5f58092bd7a5fdc513`.
+- Extracted published Windows amd64 reported `SSH KeyFlow v0.4.0`; help and
+  three read-only JSON lists passed in a temporary home without creating
+  `.ssh`. The other five published binaries were not executed locally.
+- Applied the reviewed release notes explicitly after workflow publication.
+  Release target metadata is the exact candidate SHA; notes match the reviewed
+  file, asset identity/size/update metadata are unchanged, and remote tag
+  object/target plus stable/latest classification were rechecked.
+- Source-hosted `main/install.sh` and `main/install.ps1` matched their Git
+  blobs at source-hosted installer main commit
+  `5a4710db25d552af5932afa4dd0101edbcb18bd5`. SHA256 respectively:
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f`
+  and `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`.
+  No real install/update/removal cycle was repeated; hosted tests use isolated
+  fixtures.
+- Separate final standards and specification/evidence reviews approved the
+  publication record with no blocking findings. The standards review also
+  confirmed the final notes, tag, workflow and latest status against GitHub.
+
+The publication evidence follow-up changes only this record. It does not move
+the tag or change binary assets. Live SSH/server mutations, other native
+OS/CPU interactive sessions and elevated Windows shared-administrator behavior
+were not repeated. Cleanup is limited to task-owned branches whose tips are
+ancestors of integrated main, after checking worktree cleanliness.
