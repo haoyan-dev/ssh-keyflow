@@ -860,3 +860,89 @@ Linux / macOS / Windows arm64のネイティブ対話動作、実OSシグナル�
 クリップボード読戻し、実SSHサーバーへの接続・設定は未検証。
 POSIXインストーラーは配信ソース一致とfixture / hosted CIで確認し、
 公開済み配布物の実機導入はWindows amd64のみで確認した。
+
+## v0.5.2確定候補（2026-11-08）
+
+- ユーザーの明示的な「tag this and cleanup the stale branches」により、
+  最新origin/main `3f224795889447168df432b90fa3642b58bc4e1f` を
+  注釈付きv0.5.2タグの対象に選択した。版・完全SHAをpush前に報告した。
+  最新正式版v0.5.1の後の未使用PATCH版であり、新しい非互換変更はない。
+- v0.5.1からの差分は `docs/verification.md` と
+  `issues/04-release-tag-policy.md` の公開後記録だけである。
+  アプリのソース・依存・テスト・ビルド・配布・CI入力は不変のため、
+  v0.5.0で実施したGo vetの成功証拠を再利用する。
+  [候補main CI 42489564460](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42489564460)
+  は正確な候補SHAで全4ジョブ成功し、3 OSのGo・Portable・
+  インストーラー・プロファイル検証と6対象クロスビルドを確認した。
+- PR #11で統合済みの検証記録はAstraの仕様レビューと別途の規約確認を通過済み。
+  Windows amd64 / PowerShell 7.6.9で最新refs・タグ未使用・候補の
+  クリーンな作業ツリーを確認する。v0.5.2の版注入は変わる入力として扱い、
+  Release workflowから新規ビルドして公開後の配布物を検証する。
+- 本記録は別の文書ブランチで保存し、公開候補の内容を変更しない。
+  公開後の証拠を同ブランチへ追記してPRで統合する。
+
+## 古い作業ブランチの整理（v0.5.2依頼）
+
+- `refactor/01-essential-key-utility`
+  (`0e3efc151e3f8b01432886b73fa312909822d20f`) と
+  `docs/03-v050-publication-verification`
+  (`53639ffe7ceaf3c272710d29410e5e443f8dbe0e`) は
+  mainへの祖先関係を確認し、ローカル・リモートの両方から削除した。
+- 次の3本は並列作業のスナップショットであり、コミット自体はmainの祖先でない。
+  全変更パスを比較し、mainへの取り込みまたは後続修正への置換を
+  Astraの仕様レビューと独立した規約確認で確認してから、ローカルブランチと
+  `.worktrees/essential-cli` / `essential-docs` / `essential-tui` を削除した。
+  未追跡・ignoredファイルを含めてすべてクリーンで、未統合作業はなかった。
+  - `refactor/02-essential-cli`
+    (`79d47627d80e5213e29d4f4e838aa1e334463a1f`)：
+    CLI・出力・状態処理は一致し、残差2ファイルはmainの
+    `ssh 別名` ガイドと対応テストへの改善だけだった。
+  - `refactor/02-essential-tui`
+    (`fcc8243280f9043e8e31d2674fa38f7d55fe9bb6`)：
+    残差はmainのmacOS用一時パス解決とテスト診断改善だけだった。
+  - `docs/03-essential-contract`
+    (`89ff53edc47bc25b7108c322e5482e4e65284c24`)：
+    残差4ファイルはmainの確定版・移行案内・ガイド・コピー代替・タグ方針だった。
+- 公開済みタグとmainの履歴は変更していない。
+
+## v0.5.2公開の検証（2026-11-08 JST）
+
+- 注釈付きタグv0.5.2の対象は
+  `3f224795889447168df432b90fa3642b58bc4e1f`、
+  タグオブジェクトは `2ab7245ee9e11bb8b08adf37627f8291bbfe38b9`。
+  最新mainとクリーンな作業ツリー、ローカル・リモートで版未使用を
+  再確認して、このタグだけをpushした。
+  [Release workflow 42490574611](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42490574611)
+  は同じ対象SHAで3 OSの検証、6対象クロスビルド、publishの全5ジョブに成功した。
+  同じタグからv0.5.2を注入した配布物を生成している。
+- [正式リリース v0.5.2](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.5.2)
+  は2026-11-08 14:42:23 UTC（同日23:42:23 JST）に公開された。
+  draft / prereleaseはfalse、latest APIはv0.5.2を返す。
+  配布物は6アーカイブとSHA256SUMSの7件だけで、
+  `.tmp/v0.5.2-published/` へ取得した全件のサイズ・SHA256が
+  GitHub APIのsize / digestと一致した。
+- manifestはLF・重複なしの6行で全アーカイブのハッシュが一致し、
+  manifestのSHA256は
+  `1b116a94d5a85a6a297c3ea098873023394a53fcadf467ce09776253c7357dda`。
+  全アーカイブの正確な2メンバー、noticeの対象Git blobとのバイト一致、
+  Unixの0755/0644・uid/gid 0、GOOS / GOARCH / CGO無効 / trimpath、
+  v0.5.2文字列の埋め込み、実行用モジュール22件の同梱ライセンス対応を確認した。
+- 監査環境はWindows amd64 / Go 1.26.2 / Python 3.12.13 / PowerShell 7.6.9。
+  公開Windows amd64版は `SSH KeyFlow v0.5.2` と表示した。
+  一時ホームで空のkeys / hosts JSONと、読み取りで `.ssh` を作成しないことを確認した。
+- raw mainから取得した `install.sh` / `install.ps1` は、
+  配信元main `3f224795889447168df432b90fa3642b58bc4e1f` のGit原本と
+  バイト一致した。SHA256はそれぞれ
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f` /
+  `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`。
+  公開PowerShellインストーラーでlatestの新規導入・同版更新・削除に成功し、
+  v0.5.2表示、所有記録のハッシュ、notice、既存SSHデータとプロファイルの
+  バイト保持を確認した。PATH保存は承認せず、一時ホームは終了時に削除した。
+- API metadata・配布物・監査JSON・インストーラーsmoke結果を
+  `.tmp/v0.5.2-*` に保持する。この証拠と整理記録は文書PRで統合し、
+  公開済みタグとバイナリは変更しない。
+
+Linux / macOS / Windows arm64のネイティブ対話操作、実OSシグナルによる中断、
+クリップボード読戻し、実SSHサーバーへの接続・設定は未検証。
+POSIXインストーラーは配信ソース一致とfixture / hosted CIで確認し、
+公開済み配布物の実機導入はWindows amd64のみで確認した。
