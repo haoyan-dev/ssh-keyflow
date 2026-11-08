@@ -809,3 +809,54 @@ POSIXインストーラーは配信ソース一致と既存fixture / hosted CI�
   Go vetの対象ソース・依存は不変のためv0.5.0の成功証拠を再利用する。
   版注入は変わるビルド入力として扱い、公開ワークフローでv0.5.1版を新規生成する。
   公開後の記録追加は別の文書PRとし、このタグは移動しない。
+
+## v0.5.1公開の検証（2026-11-08 JST）
+
+- 対象コミットは `de4c88c2ef9e2813e5da750a113ebd34c446c430`。
+  [統合後CI 42487428590](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42487428590)
+  はこの正確なSHAで4ジョブすべて成功した。
+  リモートmainとタグの未使用、クリーンなmainを再確認し、
+  注釈付きタグ `v0.5.1` だけをpushした。
+  タグオブジェクトは `3882a514c2849f91040b506fe7ab7ff150a22ecf`、
+  dereference先は上記ソースSHAで、ローカルとリモートが一致する。
+- [Release workflow 42487948659](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42487948659)
+  はv0.5.1タグの同じソースSHAで全5ジョブが成功した。
+  3 OSの検証・6対象クロスビルド後にpublishが同じタグからv0.5.1を注入して
+  6アーカイブと `SHA256SUMS` を生成・公開した。
+- [正式リリース v0.5.1](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.5.1)
+  は2026-11-08 14:10:53 UTC（同日23:10:53 JST）に公開された。
+  draft / prereleaseはfalse、latest APIはv0.5.1を返す。
+  公開配布物は契約どおり7件で、全件を `.tmp/v0.5.1-published/` へ取得した。
+  各ファイルのサイズ・SHA256はGitHub APIのasset size / digestと一致する。
+- `SHA256SUMS` はLF・重複なしの6行で、全アーカイブのハッシュが一致する。
+  manifestのSHA256は
+  `c14b5d0afc4bef7dad1ecc554f50228629b624ec6ca38bae600ebe9905a724b6`。
+  全アーカイブの正確な2メンバー、noticeのタグGit blobとのバイト一致、
+  Unixの0755/0644・uid/gid 0、GOOS / GOARCH / CGO無効 / trimpath、
+  v0.5.1文字列の埋め込み、実行用モジュール22件のライセンス対応を確認した。
+  初回監査に追加した「go version -mに版注入引数が表示される」という条件は
+  実際のビルド情報に合わなかったため、監査側のその条件だけを除いて全件を再実行した。
+  公開バイナリ・タグ・配布物の修正は行っていない。
+- Windows amd64 / Go 1.26.2 / Python 3.12.13 / PowerShell 7.6.9で監査した。
+  公開Windows amd64版は `SSH KeyFlow v0.5.1` と表示し、
+  一時ホームのkeys / hosts JSONが空、読取後に `.ssh` が作られないことを確認した。
+  公開バイナリのビルド情報はGo 1.26.0であり、監査用Goと区別する。
+- main配信の両インストーラーをraw mainから取得し、配信元コミット
+  `de4c88c2ef9e2813e5da750a113ebd34c446c430` のGit原本とのバイト一致を確認した。
+  `install.sh` / `install.ps1` のSHA256はそれぞれ
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f` /
+  `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`。
+  取得したPowerShell版のlatest新規導入・同版更新・削除を一時環境で実行し、
+  本体v0.5.1表示、所有記録ハッシュ、同梱notice、既存SSHデータとプロファイルの
+  バイト保持を確認した。PATH保存は承認せず、実ユーザー環境は変更していない。
+- 公開物・API metadata・監査JSON・インストーラーsmoke結果は
+  `.tmp/v0.5.1-*` と監査スクリプトに保持する。検証用の一時ホームは終了時に削除した。
+  この記録は公開後の文書PRで統合し、公開済みタグは移動しない。
+- Astraは最終の仕様・証拠・日本語ノートを承認し、別途の規約確認と
+  `git diff --check` も成功した。承認済みノートを公開本文へ反映してUTF-8で照合し、
+  全7アセットのID / digestが本文変更前と不変であることを確認した。
+
+Linux / macOS / Windows arm64のネイティブ対話動作、実OSシグナルによる中断、
+クリップボード読戻し、実SSHサーバーへの接続・設定は未検証。
+POSIXインストーラーは配信ソース一致とfixture / hosted CIで確認し、
+公開済み配布物の実機導入はWindows amd64のみで確認した。
