@@ -860,3 +860,23 @@ Linux / macOS / Windows arm64のネイティブ対話動作、実OSシグナル�
 クリップボード読戻し、実SSHサーバーへの接続・設定は未検証。
 POSIXインストーラーは配信ソース一致とfixture / hosted CIで確認し、
 公開済み配布物の実機導入はWindows amd64のみで確認した。
+
+## v0.5.2確定候補（2026-11-08）
+
+- ユーザーの明示的な「tag this and cleanup the stale branches」により、
+  最新origin/main `3f224795889447168df432b90fa3642b58bc4e1f` を
+  注釈付きv0.5.2タグの対象に選択した。版・完全SHAをpush前に報告した。
+  最新正式版v0.5.1の後の未使用PATCH版であり、新しい非互換変更はない。
+- v0.5.1からの差分は `docs/verification.md` と
+  `issues/04-release-tag-policy.md` の公開後記録だけである。
+  アプリのソース・依存・テスト・ビルド・配布・CI入力は不変のため、
+  v0.5.0で実施したGo vetの成功証拠を再利用する。
+  [候補main CI 42489564460](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42489564460)
+  は正確な候補SHAで全4ジョブ成功し、3 OSのGo・Portable・
+  インストーラー・プロファイル検証と6対象クロスビルドを確認した。
+- PR #11で統合済みの検証記録はAstraの仕様レビューと別途の規約確認を通過済み。
+  Windows amd64 / PowerShell 7.6.9で最新refs・タグ未使用・候補の
+  クリーンな作業ツリーを確認する。v0.5.2の版注入は変わる入力として扱い、
+  Release workflowから新規ビルドして公開後の配布物を検証する。
+- 本記録は別の文書ブランチで保存し、公開候補の内容を変更しない。
+  公開後の証拠を同ブランチへ追記してPRで統合する。
