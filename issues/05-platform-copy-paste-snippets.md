@@ -34,3 +34,7 @@ Specification: `.scratch/platform-copy-paste-snippets/spec.md`.
   against temporary files. Standards and specification reviews completed separately
   with no unresolved findings. Limits and test conditions are recorded in
   `docs/verification.md`. Ready for review; no push, merge or release requested.
+- 2026-11-09: Follow-up request authorizes merge to main and a version tag.
+  Refreshed origin/main and tags; latest stable is v0.5.2. Selected v0.6.0
+  for the backward-compatible terminal snippet feature. Release preparation
+  and reusable verification evidence are recorded in `docs/verification.md`.
