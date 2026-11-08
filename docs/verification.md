@@ -714,3 +714,57 @@ main統合前の履歴保全のため保持する。
 公開済み配布物のダウンロード検証は未実施であり、上記はローカル候補の証拠である。
 他OS/CPUのネイティブ対話動作、実OSシグナルによる中断、クリップボード読戻し、
 実SSHサーバーへの接続・設定は未検証。テスト用ジャンクションは削除した。
+
+## v0.5.0公開後の検証（2026-11-08 JST）
+
+- ユーザーが `v0.5.0` と対象コミット
+  `6a09684180e1731aae9d75a834759283f9228ee1` の公開を承認した。
+  [PR #8](https://github.com/haoyan-dev/ssh-keyflow/pull/8) はmainの
+  `2ed184fcee8db3d2d1ddd8c69abd5eb47661271c` へマージ済みで、
+  対象ソースがその祖先であることを確認した。
+- 注釈付きタグ `v0.5.0` のオブジェクトは
+  `a37fecb569064c80a5d7c7b010c3de9adcb9e806`。
+  リモート未使用を再確認してこのタグだけをpushした。
+  [Release workflow 42484308830](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42484308830)
+  は上記対象コミットで実行し、Linux / macOS / Windows検証、
+  6対象クロスビルド、publishがすべて成功した。
+  リモートのタグオブジェクトとdereference先も上記2つのSHAに一致する。
+- [正式リリース v0.5.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.5.0)
+  は2026-11-08 13:24:20 UTC（同日22:24:20 JST）に公開された。
+  draft / prereleaseはともにfalse、latest APIは `v0.5.0` を返すことを確認した。
+  配布物は契約どおり6アーカイブと `SHA256SUMS` の7件である。
+  公開済みタグ・バイナリアセットは変更していない。
+- 7配布物を公開先から `.tmp/v0.5.0-published/` へ取得した。
+  全ファイルのSHA256がGitHub APIのasset digestに一致し、
+  manifestのLF・一意な6行・全アーカイブのSHA256も一致した。
+  公開manifestのSHA256は
+  `c6ad0e9273d37277dbbce0b625141f590b0cabc789ac006b315171d024cca0d3`。
+- 全アーカイブについて、実行ファイルと `THIRD_PARTY_NOTICES.txt` だけを含むこと、
+  Unixの0755/0644・uid/gid 0、GOOS / GOARCH / CGO無効 / trimpath /
+  v0.5.0埋め込み、実行用モジュール22件の同梱ライセンス対応を確認した。
+  noticeは対象コミットのGit blobとバイト一致する。
+  初回の比較はWindowsチェックアウトのCRLF変換により不一致となったため、
+  検証スクリプトの比較基準をタグのGit原本へ修正して全件を再実行した。
+  配布物の修正は不要だった。
+- 公開Windows amd64版を一時ホームで実行し、
+  `SSH KeyFlow v0.5.0`、空のkeys/hosts JSON、
+  読み取りで `.ssh` が作成されないことを確認した。
+- main配信の `install.sh` / `install.ps1` をraw mainから取得し、
+  インストーラー配信元コミット
+  `2ed184fcee8db3d2d1ddd8c69abd5eb47661271c` のファイルとバイト一致を確認した。
+  SHA256はそれぞれ
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f` /
+  `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`。
+  取得したPowerShell版をWindows amd64 / PowerShell 7.6.9で実行し、
+  latestからの新規導入・同版更新・削除がすべて成功した。
+  本体のv0.5.0表示・所有記録の本体ハッシュ・同梱noticeを照合し、
+  一時ホームに置いた既存SSHデータとプロファイルのバイト保持を確認した。
+  PATH保存は承認せず、ユーザーの実環境は変更していない。
+- 取得済み配布物・API metadata・監査JSON・インストーラーsmoke結果は
+  `.tmp/v0.5.0-published*` にレビュー用として保持する。
+  インストーラーsmokeと配布版smokeの一時ホームは終了時に削除した。
+
+Linux / macOS / Windows arm64のネイティブ対話動作、実OSシグナルによる中断、
+クリップボード読戻し、実SSHサーバーへの接続・設定は未検証。
+POSIXインストーラーは配信ソース一致と既存fixture / hosted CIで確認し、
+公開済み配布物を使った実機インストールはWindows amd64のみで実施した。
