@@ -112,7 +112,7 @@ func (m model) unregisterChoices(target entry) []entry {
 	for _, reg := range m.view.State.Registrations {
 		if relatedRegistration(target, reg) {
 			if key, active := m.key(reg.KeyID); active && !(reg.Status == "removed" && reg.Stage == "complete" && reg.Operation == "unregister") {
-				choices = append(choices, entry{kind: "registration", id: reg.ID, title: m.registrationLabel(reg), description: reg.Status + " · " + fingerprintHint(key.Fingerprint) + " · " + shortReference(reg.ID), searchText: reg.HostID + " " + reg.KeyID + " " + key.Fingerprint})
+				choices = append(choices, entry{kind: "registration", id: reg.ID, title: m.registrationLabel(reg), reference: shortReference(reg.ID), description: reg.Status + " · " + fingerprintHint(key.Fingerprint), searchText: reg.HostID + " " + reg.KeyID + " " + key.Fingerprint})
 			}
 		}
 	}

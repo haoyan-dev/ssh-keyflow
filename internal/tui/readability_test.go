@@ -165,6 +165,31 @@ func TestLongPickerTitleRetainsPositionWhenPaging(t *testing.T) {
 	}
 }
 
+func TestSavedWorkAndUnregisterPickersKeepDistinctReferences(t *testing.T) {
+	home, document := navigationHome(t)
+	document.Registrations = document.Registrations[:2]
+	for i := range document.Registrations {
+		document.Registrations[i].HostID = document.Hosts[0].ID
+		document.Registrations[i].Stage = "pending"
+	}
+	saveNavigationState(t, home, document)
+	for _, size := range [][2]int{{80, 24}, {60, 18}, {32, 12}} {
+		for _, action := range []rune{'s', 'u'} {
+			screen := runSizedScreen(t, home, size[0], size[1], press(action))
+			for _, reference := range []string{"[registration-1]", "[registration-2]"} {
+				if !strings.Contains(ansi.Strip(screen), reference) {
+					t.Fatalf("%c picker lost distinguishing %s at %v:\n%s", action, reference, size, screen)
+				}
+			}
+			// The second visible reference must still select its exact saved ID.
+			review := runSizedScreen(t, home, size[0], size[1], press(action), press(tea.KeyDown), press(tea.KeyEnter), reviewKey(), tea.WindowSizeMsg{Width: 80, Height: 24}, press(tea.KeyHome))
+			if !strings.Contains(compactPanelText(review), "registration-2") {
+				t.Fatalf("%c picker changed the chosen target at %v:\n%s", action, size, review)
+			}
+		}
+	}
+}
+
 func TestResizedDraftOverlaysRevealOriginalFocus(t *testing.T) {
 	home, _ := navigationHome(t)
 	start := []tea.Msg{press('r'), press(tea.KeyEnter), press(tea.KeyTab), press(tea.KeyTab)}

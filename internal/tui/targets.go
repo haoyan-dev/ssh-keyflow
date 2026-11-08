@@ -161,7 +161,7 @@ func (m model) resumeChoices(target entry) []entry {
 			}
 		}
 		if matches {
-			choices = append(choices, entry{kind: "resume", id: task.ResumeID, title: task.Title, description: strings.Join(task.Reasons, " · "), searchText: strings.Join(task.SourceIDs, " ")})
+			choices = append(choices, entry{kind: "resume", id: task.ResumeID, title: task.Title, reference: shortReference(task.ResumeID), description: strings.Join(task.Reasons, " · "), searchText: strings.Join(task.SourceIDs, " ")})
 		}
 	}
 	return choices

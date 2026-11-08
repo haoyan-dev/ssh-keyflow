@@ -247,7 +247,7 @@ func (m *model) resultAction(action string) {
 		var choices []entry
 		for _, task := range m.resultTasks() {
 			if task.ResumeID != "" {
-				choices = append(choices, entry{kind: "resume", id: task.ResumeID, title: task.Title, description: strings.Join(task.SourceIDs, " · ")})
+				choices = append(choices, entry{kind: "resume", id: task.ResumeID, title: task.Title, reference: shortReference(task.ResumeID), description: strings.Join(task.SourceIDs, " · ")})
 			}
 		}
 		m.formTarget = app.Request{Operation: "resume"}
