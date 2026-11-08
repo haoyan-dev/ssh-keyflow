@@ -19,6 +19,8 @@ type screen struct {
 	page, document, copyText string
 	target                   entry
 	offset                   int
+	guideSteps               []app.GuideStep
+	guideIndex               int
 }
 type model struct {
 	ctx                context.Context
@@ -33,6 +35,8 @@ type model struct {
 	origins            []screen
 	content            viewport.Model
 	document, copyText string
+	guideSteps         []app.GuideStep
+	guideIndex         int
 	search             textinput.Model
 	searching          bool
 	inputGeneration    uint64
@@ -211,6 +215,18 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
+		if m.page == "document" && len(m.guideSteps) > 0 && !m.stale {
+			switch key {
+			case "right", "n", "left", "b":
+				if key == "right" || key == "n" {
+					m.guideIndex = min(m.guideIndex+1, len(m.guideSteps)-1)
+				} else {
+					m.guideIndex = max(0, m.guideIndex-1)
+				}
+				m.showGuideStep()
+				return m, nil
+			}
+		}
 		if m.page == "document" && key == "y" && m.copyText != "" && !m.stale {
 			m.status = "Copy requested (OSC52); remote state unchanged"
 			return m, tea.SetClipboard(m.copyText)
@@ -311,6 +327,9 @@ func (m model) chrome() (string, string) {
 		footer = "Tab move · Ctrl+S continue\nPgUp/PgDn scroll · Esc cancel"
 	case "document":
 		footer = "y copy (OSC52) · ↑/↓ scroll\nHome/End · Esc back · ? help"
+		if len(m.guideSteps) > 0 {
+			footer = "y copy script · ←/→ steps (b/n)\n↑/↓ scroll · Esc back · ? help"
+		}
 	default:
 		footer = "↑/↓ scroll · Home/End\nEsc back · F5 refresh · ? help"
 	}
@@ -413,8 +432,9 @@ func safeText(text string) string {
 }
 func (m *model) setDocument(text string) { m.document = text; m.resize(); m.content.GotoTop() }
 func (m *model) open(page string, target entry, text, copyText string) {
-	m.origins = append(m.origins, screen{m.page, m.document, m.copyText, m.target, m.content.YOffset()})
+	m.origins = append(m.origins, screen{m.page, m.document, m.copyText, m.target, m.content.YOffset(), m.guideSteps, m.guideIndex})
 	m.page, m.target, m.copyText, m.searching = page, target, copyText, false
+	m.guideSteps, m.guideIndex = nil, 0
 	m.inputGeneration++
 	m.status = ""
 	m.setDocument(text)
@@ -429,6 +449,7 @@ func (m *model) back() {
 	previous := m.origins[len(m.origins)-1]
 	m.origins = m.origins[:len(m.origins)-1]
 	m.page, m.target, m.copyText = previous.page, previous.target, previous.copyText
+	m.guideSteps, m.guideIndex = previous.guideSteps, previous.guideIndex
 	m.setDocument(previous.document)
 	m.content.SetYOffset(previous.offset)
 	if m.page == "form" {
@@ -438,8 +459,10 @@ func (m *model) back() {
 func (m *model) reload() {
 	// Returning from Help must not restore copy data from before this reload.
 	m.copyText = ""
+	m.guideSteps = nil
 	for i := range m.origins {
 		m.origins[i].copyText = ""
+		m.origins[i].guideSteps = nil
 	}
 	view, err := app.Snapshot(m.options)
 	if err != nil {
@@ -480,14 +503,17 @@ Passphrases are entered only in native ssh-keygen.
 
 Destinations
 a add using an existing key; l associate a key
-g display placement/removal guidance, SSH Host snippet and connection command
+g display terminal scripts for destination setup, local config and connection
 p display a selected public key
+In a guide: ←/→ or b/n select step; y copies only that step's script.
+Each step names the terminal and platform where you should paste it.
 
 Copy uses terminal OSC52 support. If unavailable, run:
 ssh-keyflow keys public --key ID
 ssh-keyflow hosts guide --host ID --key ID
 Use the CLI output with the system clipboard or an editor, preserving the public key as a single line. Do not select wrapped TUI text.
-Copying never confirms remote registration or a working connection. No SSH config is edited.
+Copying never confirms remote registration or a working connection.
+Scripts change files only when you paste and run them in the named terminal.
 
 Forms
 Tab / Shift+Tab move; Enter next or activate control

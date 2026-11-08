@@ -516,10 +516,36 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 	m.view.State.Keys[0].PrivateSHA256 = fmt.Sprintf("%x", digest)
 	saveFixture(t, m)
 	m = update(m, press(tea.KeyTab), press('g'), press(tea.KeyEnter))
-	for _, want := range []string{"Host laptop", "IdentityFile", "ssh laptop", "POSIX shell / PowerShell"} {
+	if len(m.guideSteps) != 3 || !strings.Contains(m.document, "Step 1/3: DESTINATION") {
+		t.Fatal("guide did not start at destination setup", m.document)
+	}
+	for _, want := range []string{"authorized_keys", "ssh-ed25519"} {
 		if !strings.Contains(m.copyText, want) {
 			t.Fatalf("guide lost copyable %s", want)
 		}
+	}
+	for index := 0; index < 3; index++ {
+		if index > 0 {
+			m = update(m, press('n'))
+		}
+		_, command := m.Update(press('y'))
+		if command == nil || fmt.Sprint(command()) != m.guideSteps[index].Script || m.copyText != m.guideSteps[index].Script {
+			t.Fatal("copy included instructions or the wrong step")
+		}
+		if !strings.Contains(m.document, fmt.Sprintf("Step %d/3", index+1)) {
+			t.Fatal("step label missing")
+		}
+	}
+	if m.copyText != "ssh laptop\n" {
+		t.Fatal("connection step included another script", m.copyText)
+	}
+	m = update(m, press('b'), press('?'), press(tea.KeyEscape))
+	if m.guideIndex != 1 || !strings.Contains(m.copyText, "Host laptop") {
+		t.Fatal("help/back lost selected step")
+	}
+	m = update(m, press(tea.KeyF5), press('n'))
+	if m.copyText != "" || len(m.guideSteps) != 0 {
+		t.Fatal("step navigation restored stale scripts")
 	}
 	if strings.Contains(m.document, string(private)) {
 		t.Fatal("guide disclosed private key material")

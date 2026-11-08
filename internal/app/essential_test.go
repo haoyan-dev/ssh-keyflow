@@ -344,7 +344,7 @@ func TestGuidanceForEveryOSIsReadOnlyAndDoesNotImplySuccess(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, want := range []string{target.path, "not checked", "Manual removal", "Host server", "IdentityFile", "Connection command (POSIX shell / PowerShell", "after pasting the SSH config snippet", "\nssh server\n"} {
+			for _, want := range []string{target.path, "not checked", "Manual removal", "Host server", "IdentityFile", "connect (POSIX shell / PowerShell)", "local config step", "\nssh server\n"} {
 				if !strings.Contains(guide, want) {
 					t.Fatalf("missing %q: %s", want, guide)
 				}
@@ -647,7 +647,7 @@ func TestGuideQuotesLiteralPercentAndApostropheInIdentityPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"key%%20's with spaces", "after pasting the SSH config snippet", "\nssh server\n"} {
+	for _, want := range []string{"key%%20's with spaces", "local config step", "\nssh server\n"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("lost literal identity path %q: %s", want, text)
 		}
@@ -669,7 +669,7 @@ func TestNativeOpenSSHParsesCopiedSnippetWithoutConnection(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := strings.Index(text, "\nHost server\n")
-	end := strings.Index(text[start:], "\n\n")
+	end := strings.Index(text[start:], "\n    IdentitiesOnly yes") + len("\n    IdentitiesOnly yes")
 	config := filepath.Join(home, "copied config")
 	write(t, config, text[start+1:start+end]+"\n")
 	output, err := exec.Command(ssh, "-G", "-F", config, "server").CombinedOutput()
@@ -717,7 +717,7 @@ func TestNativeOpenSSHExpandsEscapedPercentWithoutNetwork(t *testing.T) {
 		t.Fatal(err)
 	}
 	start := strings.Index(text, "\nHost server\n")
-	end := strings.Index(text[start:], "\n\n")
+	end := strings.Index(text[start:], "\n    IdentitiesOnly yes") + len("\n    IdentitiesOnly yes")
 	config := filepath.Join(home, "copied config")
 	write(t, config, text[start+1:start+end]+"\n")
 	// A local ssh -V proxy exits without opening a network connection.

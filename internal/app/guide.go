@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"unicode"
 
@@ -42,63 +43,94 @@ func publicText(key state.Key) (string, error) {
 // Guide is text for the user to review and copy. It never runs a remote process,
 // edits SSH configuration, or records registration/connection success.
 func Guide(home, hostReference, keyReference string) (string, error) {
+	guide, err := PrepareGuide(home, hostReference, keyReference)
+	return guide.Text, err
+}
+
+// GuideStep separates terminal instructions from the script copied by the TUI.
+type GuideStep struct {
+	Title, Instructions, Script string
+}
+
+type SetupGuide struct {
+	Text  string
+	Steps []GuideStep
+}
+
+// PrepareGuide validates identities before producing any copyable scripts.
+func PrepareGuide(home, hostReference, keyReference string) (SetupGuide, error) {
 	if home == "" {
-		return "", fmt.Errorf("Home is required")
+		return SetupGuide{}, fmt.Errorf("Home is required")
 	}
 	document, err := state.Load(home)
 	if err != nil {
-		return "", err
+		return SetupGuide{}, err
 	}
 	hostIndex, err := destinationIndex(document, hostReference)
 	if err != nil {
-		return "", err
+		return SetupGuide{}, err
 	}
 	host := document.Hosts[hostIndex]
 	key, err := usableKey(document, keyReference)
 	if err != nil {
-		return "", err
+		return SetupGuide{}, err
 	}
 	public, err := publicText(key)
 	if err != nil {
-		return "", err
+		return SetupGuide{}, err
 	}
+	guide := SetupGuide{}
 	var text strings.Builder
 	fmt.Fprintf(&text, "Copy-paste setup: %s (%s@%s:%d)\nKey: %s [%s]\nFingerprint: %s\nRemote registration and connection: not checked.\nCopying this guide changes no files and records no success.\n\nPublic key (copy this complete line):\n%s\n\n", host.Alias, host.User, host.Hostname, host.Port, key.Name, key.ID, key.Fingerprint, public)
+	var placement GuideStep
 	switch host.OS {
 	case "linux", "macos":
-		text.WriteString("On the destination, sign in as the login user. Paste the public key as its own line in ~/.ssh/authorized_keys; preserve all existing lines. Use that user's home directory, with .ssh mode 700 and authorized_keys mode 600, owned by that user.\n")
+		placement = posixPlacement(host, public)
 	case "windows":
-		if host.WindowsAccount == "administrator" {
-			text.WriteString(`On the destination, use an elevated editor to paste the public key as its own line in %ProgramData%\ssh\administrators_authorized_keys. This file is shared by administrator logins. Preserve other keys; restrict its ACL to SYSTEM and Administrators.` + "\n")
-		} else if host.WindowsAccount == "standard" {
-			text.WriteString(`On the destination, sign in as the login user and paste the public key as its own line in %USERPROFILE%\.ssh\authorized_keys. Preserve other keys; restrict write access to that user, SYSTEM and Administrators.` + "\n")
-		} else {
-			return "", fmt.Errorf("confirm the destination Windows account type before preparing guidance")
+		if host.WindowsAccount != "administrator" && host.WindowsAccount != "standard" {
+			return SetupGuide{}, fmt.Errorf("confirm the destination Windows account type before preparing guidance")
 		}
+		placement = windowsPlacement(host, public)
 	default:
-		return "", fmt.Errorf("confirm the destination OS before preparing guidance")
+		return SetupGuide{}, fmt.Errorf("confirm the destination OS before preparing guidance")
 	}
-	text.WriteString("These are standard OpenSSH locations. Check the destination's effective AuthorizedKeysFile/Match settings if customized. An SSH server and network access must already be available.\n\nManual removal: keep another working access method, then remove only the line matching the public key above from the same destination file. Preserve other lines. SSH KeyFlow does not verify removal.\n\n")
+	placement.Instructions += "\nCheck effective AuthorizedKeysFile/Match settings if customized. An SSH server and network access must already be available. Existing keys are preserved; an already present key is not appended again.\nManual removal: keep another working access method, then remove only the matching public-key line from the destination file. SSH KeyFlow does not verify removal."
+	guide.Steps = append(guide.Steps, placement)
+	notice := ""
 	if key.PrivatePath == "" {
-		text.WriteString("Public-only key: use the matching private key on your client. No usable IdentityFile or connection command can be generated here.\n")
+		notice = "Public-only key: use the matching private key on your client. No usable IdentityFile or connection command can be generated here.\n"
 	} else {
 		path := filepath.ToSlash(key.PrivatePath)
 		for _, character := range path {
 			if unicode.IsControl(character) {
-				return "", fmt.Errorf("private path contains control characters; cannot prepare a snippet")
+				return SetupGuide{}, fmt.Errorf("private path contains control characters; cannot prepare a snippet")
 			}
 		}
 		if strings.Contains(path, "${") {
-			text.WriteString("OpenSSH expands ${...} environment variables in identity paths. This private path cannot be represented literally here; no IdentityFile snippet or connection command was generated. Use the public-key placement guidance above and select a private-key path without ${...} yourself.\n")
-			fmt.Fprintf(&text, "\nLocal files (manual cleanup only; never delete a private key still needed for access):\nPublic: %s\nPrivate: %s\n", key.PublicPath, key.PrivatePath)
-			return text.String(), nil
+			notice = "OpenSSH expands ${...} environment variables in identity paths. This private path cannot be represented literally here; no IdentityFile snippet or connection command was generated. Select a private-key path without ${...} yourself.\n"
+		} else {
+			// SSH expands percent tokens in IdentityFile even inside quotes.
+			configPath := strings.NewReplacer("%", "%%", "\\", "\\\\", "\"", "\\\"").Replace(path)
+			configUser := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(host.User)
+			config := fmt.Sprintf("Host %s\n    HostName %s\n    User \"%s\"\n    Port %d\n    IdentityFile \"%s\"\n    IdentitiesOnly yes\n", host.Alias, host.Hostname, configUser, host.Port, configPath)
+			guide.Steps = append(guide.Steps, clientSetup(host, config, runtime.GOOS), GuideStep{
+				Title:        "LOCAL terminal — connect (POSIX shell / PowerShell)",
+				Instructions: "Run on this computer after completing the destination step and local config step. This opens an SSH connection; SSH KeyFlow does not run it or verify success.",
+				Script:       fmt.Sprintf("ssh %s\n", host.Alias),
+			})
 		}
-		// SSH expands percent tokens in IdentityFile even inside quotes.
-		configPath := strings.NewReplacer("%", "%%", "\\", "\\\\", "\"", "\\\"").Replace(path)
-		configUser := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(host.User)
-		fmt.Fprintf(&text, "SSH config snippet (paste into your client ~/.ssh/config after checking for an existing Host %s; SSH KeyFlow does not inspect or edit it):\nHost %s\n    HostName %s\n    User \"%s\"\n    Port %d\n    IdentityFile \"%s\"\n    IdentitiesOnly yes\n\n", host.Alias, host.Alias, host.Hostname, configUser, host.Port, configPath)
-		fmt.Fprintf(&text, "Connection command (POSIX shell / PowerShell, after pasting the SSH config snippet):\nssh %s\n", host.Alias)
 	}
+	for i := range guide.Steps {
+		guide.Steps[i].Instructions += fmt.Sprintf("\nKey: %s [%s]\nFingerprint: %s", key.Name, key.ID, key.Fingerprint)
+		step := guide.Steps[i]
+		fmt.Fprintf(&text, "Step %d/%d: %s\n%s\n\n%s\n", i+1, len(guide.Steps), step.Title, step.Instructions, step.Script)
+	}
+	text.WriteString(notice)
 	fmt.Fprintf(&text, "\nLocal files (manual cleanup only; never delete a private key still needed for access):\nPublic: %s\nPrivate: %s\n", key.PublicPath, key.PrivatePath)
-	return text.String(), nil
+	// Show public-only/unsupported-path guidance on the single copyable step too.
+	if notice != "" {
+		guide.Steps[0].Instructions += "\n" + notice
+	}
+	guide.Text = text.String()
+	return guide, nil
 }

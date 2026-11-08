@@ -163,15 +163,25 @@ func (m *model) finishPair() tea.Cmd {
 	case "public":
 		m.showPublic(m.request.Key)
 	case "guide":
-		text, err := app.Guide(m.options.Home, m.request.Host, m.request.Key)
+		guide, err := app.PrepareGuide(m.options.Home, m.request.Host, m.request.Key)
 		if err != nil {
 			m.status = err.Error()
 			return nil
 		}
-		m.open("document", entry{}, text, text)
+		m.open("document", entry{}, "", "")
+		m.guideSteps, m.guideIndex = guide.Steps, 0
+		m.showGuideStep()
 	}
 	return nil
 }
+func (m *model) showGuideStep() {
+	step := m.guideSteps[m.guideIndex]
+	m.copyText = step.Script
+	m.status = ""
+	m.setDocument(fmt.Sprintf("Step %d/%d: %s\n\nCopy this script with y, then paste it into the terminal named above:\n\n%s\n\n%s\n\nRemote registration and connection: not checked. Copying records no success.",
+		m.guideIndex+1, len(m.guideSteps), step.Title, step.Script, step.Instructions))
+}
+
 func (m *model) showPublic(key string) {
 	text, err := app.PublicKey(m.options.Home, key)
 	if err != nil {
@@ -212,7 +222,7 @@ func (m model) details(item entry) string {
 			if len(keys) == 0 {
 				keys = []string{"None"}
 			}
-			return fmt.Sprintf("Destination: %s\n%s@%s:%d\nOS: %s\nWindows account: %s\n\nAssociated keys:\n%s\n\nAssociation is a local note. Remote placement and connection are unverified.\n\ng placement/removal guide, SSH Host snippet and connection command\np public key · l associate key · v historical details\nSSH configuration is never edited.", host.Alias, host.User, host.Hostname, host.Port, host.OS, host.WindowsAccount, strings.Join(keys, "\n"))
+			return fmt.Sprintf("Destination: %s\n%s@%s:%d\nOS: %s\nWindows account: %s\n\nAssociated keys:\n%s\n\nAssociation is a local note. Remote placement and connection are unverified.\n\ng terminal scripts: destination setup, local config and connection\np public key · l associate key · v historical details\nScripts change files only when you paste and run them.", host.Alias, host.User, host.Hostname, host.Port, host.OS, host.WindowsAccount, strings.Join(keys, "\n"))
 		}
 	}
 	if item.kind == "creation" {
