@@ -1,6 +1,6 @@
 # Readable TUI — A: grouped panels
 
-Status: ready-for-agent
+Status: ready-for-human
 Date: 2026-11-08
 Decision: user selected A from `.scratch/tui-concepts`.
 Base: 6655720; origin/main refreshed to 76d392826f757e8aa4cfdb72d2d7b5216660f0fc.
@@ -62,3 +62,11 @@ scope. Publishing, releases and backend/domain changes are outside this work.
 
 None blocking. A is selected; compact layout details follow its structural
 rules while accommodating real fields and supported terminal dimensions.
+
+## Completion
+
+Implemented in `b27b6ac` with the final reference correction in `fbb2c37`.
+All three tickets are complete for local human acceptance. Separate Astra
+standards and specification/visual reviews passed with no unresolved blockers.
+See [verification](verification.md) for the exact tested source, results and
+limits, and [local test instructions](README.md).

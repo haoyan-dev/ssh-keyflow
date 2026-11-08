@@ -494,3 +494,36 @@ limits. Native60×18 and runtime resize, other OS/CPU targets, live SSH and host
 CI were not repeated; automated WindowSize journeys cover resizing and all three
 sizes. Packaging/installer sources were unchanged and their suites were not
 repeated. All work remains local.
+
+## Selected A grouped-panel implementation (2026-11-08 JST)
+
+Product/test source `fbb2c377031d9526c1a35670973a7f3c2be8cc6c` on local
+`feat/tui-grouped-panels`, based on refreshed main
+`76d392826f757e8aa4cfdb72d2d7b5216660f0fc`. The completion follow-up changes
+documentation and ticket status only.
+
+- Windows amd64 / Go 1.26.2: full uncached
+  `go test -buildvcs=false ./... -count=1`, `go vet -buildvcs=false ./...`
+  and native development build PASS. Existing Windows fixture scripts used
+  process-only `PSExecutionPolicyPreference=Bypass`.
+- Final `.build/ssh-keyflow.exe` reports `SSH KeyFlow dev`; SHA256:
+  `a06ebffa3c5a2498d9edefcda238ef8e6fe3660c65a7fff4e97e3872df82bf1c`.
+- Generated 240 production frames across 40 page/scenario families, three
+  sizes (80×24, 60×18, 32×12), and both document ends, with matching text/ANSI.
+  Public-event regressions cover geometry, paging, reference discrimination,
+  exact selected IDs, forms, overlays, reflow and existing safety behavior.
+- Final native 80×24 `NO_COLOR` launch → unregister picker → Esc → quit
+  passed with isolated synthetic state byte-identical. Earlier implementation
+  inspection covered destination overview and technical panels.
+- Separate Astra standards/correctness and specification/visual reviews PASS
+  for the final source with no unresolved blockers. The standards reviewer
+  independently ran the TUI suite and TUI vet; full-repository and native
+  results were implementer-reported to both reviewers.
+
+The [selected specification](../.scratch/tui-grouped-panels/spec.md),
+[local test instructions](../.scratch/tui-grouped-panels/README.md) and
+[detailed verification](../.scratch/tui-grouped-panels/verification.md) record
+the review → spec → tickets → implementation workflow and review resolutions.
+Native narrow sizes and runtime resize were not repeated; automated journeys
+cover those layouts. Other native targets, live SSH, hosted CI and packaging/
+installer suites were not repeated. No push, merge, tag or publication.
