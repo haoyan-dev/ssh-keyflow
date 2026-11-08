@@ -1,0 +1,51 @@
+:root{color-scheme:light;--paper:#f4f5f5;--ink:#232b28;--muted:#536159;--rule:#c8cec4;--accent:#195b43}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 "Segoe UI",sans-serif}
+::selection{background:#c4dfc7;color:#122219}
+button,select,input{font:inherit;accent-color:var(--accent)}
+button,select{border:1px solid #aab5aa;background:#fff;color:var(--ink);padding:7px 10px;border-radius:4px}
+button{cursor:pointer}
+button:hover{background:#e1eadf}
+button:focus-visible,select:focus-visible,a:focus-visible,.terminal:focus-visible{outline:3px solid #36794b;outline-offset:3px}
+a{color:var(--accent);text-underline-offset:3px}
+header{padding:22px 30px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;align-items:center}
+h1{font-size:24px;line-height:1.2;margin:0 0 5px;font-weight:650;letter-spacing:-.5px}
+header p{margin:0;color:var(--muted)}
+.workspace{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:calc(100vh - 100px)}
+nav{padding:22px 15px 90px;border-right:1px solid var(--rule)}
+nav>label{font-weight:650;display:block;margin-bottom:5px}
+nav>select{width:100%}
+#page-links{margin-top:16px}
+.group-title{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin:19px 8px 5px;color:var(--muted)}
+.page-link{display:block;width:100%;border:0;border-radius:0;background:transparent;text-align:left;font-size:13px;padding:5px 8px}
+.page-link.active{background:#dce8d9;font-weight:650}
+main{min-width:0;padding:22px 30px 110px}
+.controls{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.controls label{display:flex;align-items:center;gap:7px}
+#description{margin:22px 0 16px;max-width:850px;min-height:65px}
+#description h2{font-size:20px;margin:0 0 4px}
+#description p{margin:0;color:var(--muted)}
+#notice{padding:10px 12px;background:#e1eadf;max-width:82ch;font-size:13px}
+#previews{display:flex;flex-direction:column;align-items:flex-start;gap:24px}
+.preview{max-width:100%;margin:0}
+.preview figcaption{display:flex;gap:15px;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:7px}
+.terminal-wrap{max-width:100%;overflow-x:auto;padding:4px;scrollbar-color:#839584 #e7eae2}
+.terminal{font-family:Consolas,"Cascadia Mono","Courier New",monospace;font-size:15px;line-height:1.5;letter-spacing:0;font-variant-ligatures:none;white-space:pre;background:#121a17;color:#e1e9df;box-shadow:0 7px 22px -12px #18332990;border:1px solid #526055;border-radius:3px;padding:12px;margin:0;cursor:default;outline-offset:2px;width:max-content}
+.terminal .heading{color:#b9d6f7;font-weight:bold}
+.terminal .selected{color:#b7e4c4;font-weight:bold}
+.terminal .warning{color:#f5d27b}
+.terminal .danger{color:#ffb6aa}
+.terminal .good{color:#b0d8a7}
+.terminal .dim{color:#a6b6a8}
+.terminal.mono span{color:inherit}
+.scroll-controls{display:flex;gap:8px;margin-top:8px}
+.scroll-controls button{font-size:12px;padding:3px 10px}
+.usage{max-width:82ch;font-size:13px;color:var(--muted);margin-top:16px}
+.decision{border-top:1px solid var(--rule);max-width:82ch;margin-top:28px;padding-top:17px}
+.decision h2{font-size:16px;margin:0}
+.decision p{margin:7px 0}
+.switcher{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:5px;background:#253a2d;padding:7px;border-radius:7px;box-shadow:0 5px 25px -8px #162c2280;z-index:2}
+.switcher button{background:transparent;color:#f0f5eb;border-color:transparent;white-space:nowrap}
+.switcher button[aria-pressed=true]{background:#f0f5eb;color:#183329;font-weight:650}
+.switcher button:hover{border-color:#afc9b2}
+@media(max-width:800px){header{padding:18px}header>a{display:none}.workspace{grid-template-columns:1fr}nav{padding:12px 18px;border-right:0;border-bottom:1px solid var(--rule)}#page-links{display:none}main{padding:18px 14px 105px}.controls{gap:12px}.terminal{font-size:13px}.switcher{bottom:10px;max-width:98vw;gap:0;padding:4px}.switcher button{padding:7px;font-size:12px}#description{min-height:0}}

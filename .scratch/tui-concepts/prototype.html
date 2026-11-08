@@ -1,0 +1,40 @@
+<!doctype html>
+<!-- Throwaway TUI concepts: three structural variants of every page family.
+     Fictional data only. No SSH, filesystem mutation, or product integration. -->
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SSH KeyFlow — choose a TUI direction</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="prototype.css">
+<body>
+<header>
+  <div><h1>Choose a clearer TUI</h1><p>Three design directions · placeholder data · no real operations</p></div>
+  <a href="README.md">How to use</a>
+</header>
+<div class="workspace">
+  <nav aria-label="Prototype pages"><label for="page">Page</label><select id="page"></select><div id="page-links"></div></nav>
+  <main>
+    <section class="controls" aria-label="Preview controls">
+      <label>Terminal <select id="size"><option value="80x24">80 × 24</option><option value="60x18">60 × 18</option><option value="32x12">32 × 12</option></select></label>
+      <label><input id="color" type="checkbox" checked> Color</label>
+      <label><input id="compare" type="checkbox"> Compare all three</label>
+      <button id="reset">Top of page</button>
+    </section>
+    <div id="description" aria-live="polite"></div>
+    <p id="notice" role="status" hidden></p>
+    <div id="previews"></div>
+    <p class="usage">Fields are static. Terminal handoff and outcomes are simulated. This gallery does not validate the production workflow. Click a terminal to focus: ↑/↓ scroll or select · PgUp/PgDn scroll · Esc goes back. Use Page to inspect every example.</p>
+    <section class="decision"><h2>What to judge</h2><p>Can you tell <strong>what this is</strong>, <strong>what happened</strong>, and <strong>what to do next</strong> without reading the whole page? Borders, spacing, wording, and information order all change between directions.</p><p>Choose A, B, or C in chat. You can also mix a list from one with details or forms from another.</p></section>
+  </main>
+</div>
+<div class="switcher" aria-label="Design direction">
+  <button id="previous" aria-label="Previous direction">←</button>
+  <button data-variant="A">A · Panels</button>
+  <button data-variant="B">B · Guided</button>
+  <button data-variant="C">C · Tables</button>
+  <button id="next" aria-label="Next direction">→</button>
+</div>
+<script src="prototype.js"></script>
+</body>
+</html>
