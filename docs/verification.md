@@ -1019,3 +1019,23 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   タグpush前に記録する。正式公開後は7配布物、manifest、内部バージョン、
   タグ・ソース・workflowの対応とWindows amd64の実行を検証する。
   公開後記録は別の文書PRで統合し、公開タグとバイナリを変更しない。
+
+## v0.6.0タグ候補の確定（2026-11-09 JST）
+
+- [PR #13](https://github.com/haoyan-dev/ssh-keyflow/pull/13) をmerge commitで統合し、
+  最新origin/mainの `1227e27e610f750804417a8e475cdf4952c49407` を候補に確定した。
+  検証済みPR HEAD `b937e03d037675db974dbd05d7fc4e3c39fde813` と
+  `git diff --exit-code` でツリー全体の一致を確認した。
+  [PR CI 42496355022](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42496355022) と
+  [push CI 42496307994](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42496307994) は
+  両方とも3 OSテスト・6対象クロスビルドの全4ジョブに成功した。
+  branch protection・ruleset・必須レビューの設定はなく、全8チェックの成功後に統合した。
+- Windows amd64 / Python 3.12.13でもREADMEの
+  `test_portable.py`（5件）、`test_installers.py`（50件）、
+  `test_installer_profiles.py`（30件）が成功した。
+  実装コミットのGoテスト・vetは入力が同一なので再利用した。
+  実クロスビルドはhosted CIで成功しており、同じマトリックスをローカルで重複実行しない。
+- v0.6.0はローカル・origin双方で未使用であり、最新正式版v0.5.2からの
+  後方互換の機能追加として選択した。候補のクリーンなmainに注釈付きタグを作成し、
+  意図したタグだけをpushする。候補SHAはpush前に利用者へ報告した。
+  この候補記録は別の文書ブランチで先に保存し、公開後記録とともに文書PRで統合する。
