@@ -11,6 +11,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"ssh-keyflow/internal/app"
 	"ssh-keyflow/internal/state"
 )
@@ -89,11 +90,13 @@ func TestReviewFixPasteFiltersListAndPickerAtCaret(t *testing.T) {
 			}
 			prefix, want := "host-", "Destination ID: host-7"
 			if picker {
-				prefix, want = "key-", "Managed key ID / unique name: key-7"
+				prefix, want = "key-", "Laptop [key-7]"
 			}
 			journey = append(journey, press('/'), text(prefix+"x"), press(tea.KeyLeft), tea.PasteMsg{Content: "7"}, press(tea.KeyDelete), press(tea.KeyEnter), press(tea.KeyEnter))
 			if picker {
 				journey = append(journey, reviewKey())
+			} else {
+				journey = append(journey, press('v'))
 			}
 			screen := runScreen(t, home, journey...)
 			if !strings.Contains(screen, want) {
@@ -148,7 +151,7 @@ func TestReviewFixPasteBelowMinimumRetainsFormAndSearch(t *testing.T) {
 			}
 			journey = append(journey, tea.WindowSizeMsg{Width: 31, Height: 11}, tea.PasteMsg{Content: "ignored"}, reviewKey(), press(tea.KeyEnter), tea.WindowSizeMsg{Width: 80, Height: 24})
 			if search {
-				journey = append(journey, press(tea.KeyEnter), press(tea.KeyEnter))
+				journey = append(journey, press(tea.KeyEnter), press(tea.KeyEnter), press('v'))
 			} else {
 				journey = append(journey, reviewKey())
 			}
@@ -258,7 +261,7 @@ func TestReviewFixRefreshKeepsExplicitResultDetailsAndOrigin(t *testing.T) {
 			}
 			session.send(press(tea.KeyEscape))
 			screen = session.screen(t)
-			if strings.Split(screen, "\n")[2] != origin || !strings.Contains(screen, "tab next") {
+			if strings.Split(screen, "\n")[2] != origin || !strings.Contains(screen, "Tab 1/") {
 				t.Fatalf("refresh lost result origin/scroll:\n%s", screen)
 			}
 			session.send(press(link))
@@ -273,7 +276,7 @@ func TestReviewFixRefreshKeepsExplicitResultDetailsAndOrigin(t *testing.T) {
 			}
 			session.send(press(tea.KeyEscape))
 			screen = session.screen(t)
-			if strings.Split(screen, "\n")[2] != origin || !strings.Contains(screen, "tab next") {
+			if strings.Split(screen, "\n")[2] != origin || !strings.Contains(screen, "Tab 1/") {
 				t.Fatalf("removed target lost result origin:\n%s", screen)
 			}
 			if probes.Load() != 0 {
@@ -375,9 +378,21 @@ func TestReviewFixScrolledFormSurvivesCursorReplies(t *testing.T) {
 	session.send(tea.WindowSizeMsg{Width: 32, Height: 12}, press('i'), tea.PasteMsg{Content: "saved import"}, press(tea.KeyTab), tea.PasteMsg{Content: path})
 	session.screen(t)
 	// Hold natural textinput command replies as opaque public-program messages.
-	session.send(captureReplies(true), press(tea.KeyLeft), press(tea.KeyPgDown), press(tea.KeyPgDown), press(tea.KeyPgDown))
+	scrollToTail := func(want string) string {
+		for page := 0; page < 12; page++ {
+			screen := session.screen(t)
+			if strings.Contains(compactPanelText(screen), compactPanelText(want)) && !strings.Contains(ansi.Strip(screen), "┌ Import existing key") {
+				return screen
+			}
+			session.send(press(tea.KeyPgDown))
+		}
+		t.Fatalf("path tail %q inaccessible", want)
+		return ""
+	}
+	session.send(captureReplies(true), press(tea.KeyLeft))
+	scrollToTail("final-public-key.pub")
 	scrolled := session.screen(t)
-	if !strings.Contains(strings.ReplaceAll(scrolled, "\n", ""), "final-public-key.pub") || strings.Contains(scrolled, "Import existing key") {
+	if !strings.Contains(compactPanelText(scrolled), "final-public-key.pub") || strings.Contains(strings.Join(strings.Split(scrolled, "\n")[2:], "\n"), "Import existing key") {
 		t.Fatalf("fixture did not scroll to full path tail:\n%s", scrolled)
 	}
 	var delayed []tea.Msg
@@ -408,9 +423,10 @@ collect:
 		t.Fatalf("unrelated response reset viewport:\n%s", screen)
 	}
 	// A reply issued by the public-path input must not disturb the next input.
-	session.send(press(tea.KeyTab), tea.PasteMsg{Content: path + ".private"}, press(tea.KeyPgDown), press(tea.KeyPgDown), press(tea.KeyPgDown))
+	session.send(press(tea.KeyTab), tea.PasteMsg{Content: path + ".private"})
+	scrollToTail("final-public-key.pub.private")
 	nextField := session.screen(t)
-	if !strings.Contains(strings.ReplaceAll(nextField, "\n", ""), "final-public-key.pub.private") {
+	if !strings.Contains(compactPanelText(nextField), "final-public-key.pub.private") {
 		t.Fatalf("next editable field was not scrolled:\n%s", nextField)
 	}
 	for _, reply := range delayed {
@@ -420,11 +436,11 @@ collect:
 		t.Fatalf("stale input reply changed next field viewport:\n%s", screen)
 	}
 	session.send(press(tea.KeyLeft))
-	if screen := session.screen(t); !strings.Contains(screen, "Import existing key") {
+	if screen := session.screen(t); !strings.Contains(screen, "> Private key path") {
 		t.Fatalf("actual caret navigation did not reveal focused field:\n%s", screen)
 	}
 	session.send(press(tea.KeyPgDown), press(tea.KeyPgDown), press(tea.KeyPgDown), tea.PasteMsg{Content: "q?"})
-	if screen := session.screen(t); !strings.Contains(screen, "Import existing key") {
+	if screen := session.screen(t); !strings.Contains(screen, "> Private key path") {
 		t.Fatalf("actual edit did not reveal focused field:\n%s", screen)
 	}
 	if probes.Load() != 0 {

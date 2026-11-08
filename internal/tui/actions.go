@@ -56,12 +56,12 @@ func (m *model) beginAction(action string) {
 		var choices []entry
 		for _, key := range m.view.State.Keys {
 			if m.formTarget.Key == "" {
-				choices = append(choices, entry{kind: "key", id: key.ID, title: key.Name, description: key.Fingerprint + " · " + keyAvailability(key) + " · " + key.ID})
+				choices = append(choices, m.keyChoiceEntry(key))
 			}
 		}
 		if m.formTarget.Host == "" {
 			for _, host := range m.view.State.Hosts {
-				choices = append(choices, entry{kind: "host", id: host.ID, title: host.Alias, description: login(host) + " · " + host.ID})
+				choices = append(choices, entry{kind: "host", id: host.ID, title: host.Alias, description: login(host)})
 			}
 		}
 		if len(choices) == 0 {
@@ -74,14 +74,7 @@ func (m *model) beginAction(action string) {
 		}
 		m.openPicker("Choose related destination/key", choices)
 	case "unregister":
-		var choices []entry
-		for _, reg := range m.view.State.Registrations {
-			if (target.kind == "host" && reg.HostID == target.id) || (target.kind == "key" && reg.KeyID == target.id) || (target.kind == "registration" && reg.ID == target.id) {
-				if key, active := m.key(reg.KeyID); active && !(reg.Status == "removed" && reg.Stage == "complete" && reg.Operation == "unregister") {
-					choices = append(choices, entry{kind: "registration", id: reg.ID, title: m.registrationLabel(reg), description: reg.Status + " · " + key.Fingerprint + " · " + reg.ID, searchText: reg.HostID + " " + reg.KeyID})
-				}
-			}
-		}
+		choices := m.unregisterChoices(target)
 		if len(choices) == 0 {
 			m.status = "No current eligible registration; select a registered destination/key"
 			return
@@ -93,27 +86,9 @@ func (m *model) beginAction(action string) {
 		}
 		m.openPicker("Choose registration to unregister", choices)
 	case "delete":
-		if target.kind != "key" {
-			m.status = "Delete requires a current managed key; open Keys"
+		if blocker := m.deleteBlocker(target); blocker != "" {
+			m.status = blocker
 			return
-		}
-		for _, reg := range m.view.State.Registrations {
-			if reg.KeyID == target.id && !(reg.Status == "removed" && reg.Stage == "complete" && reg.Operation == "unregister") {
-				m.status = "Unregister outstanding recorded registrations first; local files preserved"
-				return
-			}
-		}
-		for _, deletion := range m.view.State.Deletions {
-			if deletion.Stage == "pending" && deletion.KeyID != target.id {
-				m.status = "Requires review: resume unfinished deletion " + deletion.ID + " first"
-				return
-			}
-		}
-		for _, edit := range m.view.State.ConfigEdits {
-			if !edit.Complete {
-				m.status = "Requires review: unfinished Include edit; preserve configuration before deletion"
-				return
-			}
 		}
 		m.formTarget.Key = target.id
 		m.openForm(action)
@@ -132,14 +107,102 @@ func (m *model) beginAction(action string) {
 	}
 }
 
+func (m model) unregisterChoices(target entry) []entry {
+	var choices []entry
+	for _, reg := range m.view.State.Registrations {
+		if relatedRegistration(target, reg) {
+			if key, active := m.key(reg.KeyID); active && !(reg.Status == "removed" && reg.Stage == "complete" && reg.Operation == "unregister") {
+				choices = append(choices, entry{kind: "registration", id: reg.ID, title: m.registrationLabel(reg), reference: shortReference(reg.ID), description: reg.Status + " · " + fingerprintHint(key.Fingerprint), searchText: reg.HostID + " " + reg.KeyID + " " + key.Fingerprint})
+			}
+		}
+	}
+	return choices
+}
+
+func (m model) deleteBlocker(target entry) string {
+	if target.kind != "key" {
+		return "Delete requires a current managed key; open Keys"
+	}
+	for _, reg := range m.view.State.Registrations {
+		if reg.KeyID == target.id && !(reg.Status == "removed" && reg.Stage == "complete" && reg.Operation == "unregister") {
+			return "Unregister outstanding recorded registrations first; local files preserved"
+		}
+	}
+	for _, deletion := range m.view.State.Deletions {
+		if deletion.Stage == "pending" && deletion.KeyID != target.id {
+			return "Requires review: resume unfinished deletion " + deletion.ID + " first"
+		}
+	}
+	for _, edit := range m.view.State.ConfigEdits {
+		if !edit.Complete {
+			return "Requires review: unfinished Include edit; preserve configuration before deletion"
+		}
+	}
+	return ""
+}
+
 func keyAvailability(key state.Key) string {
 	if key.PrivatePath == "" {
 		return "public only"
 	}
-	return "private key available"
+	return "private path recorded"
+}
+
+func shortReference(id string) string {
+	if len(id) > 24 {
+		return id[:12] + "…" + id[len(id)-6:]
+	}
+	return id
+}
+
+func (m model) keyChoiceEntry(key state.Key) entry {
+	title := key.Name
+	reference := ""
+	for _, other := range m.view.State.Keys {
+		if other.ID != key.ID && other.Name == key.Name {
+			reference = shortReference(key.ID)
+			title += " [" + reference + "]"
+			break
+		}
+	}
+	return entry{kind: "key", id: key.ID, title: title,
+		description: keyAvailability(key) + " · " + fingerprintHint(key.Fingerprint),
+		searchText:  key.Name + " " + key.Fingerprint, reference: reference}
 }
 
 func (m *model) openPicker(title string, entries []entry) {
+	m.pickerContext = ""
+	target := m.visibleTarget()
+	switch {
+	case m.page == "form" && m.action == "add":
+		m.pickerContext = "Destination: " + m.draft["alias"]
+	case m.formTarget.Host != "":
+		if host, ok := m.host(m.formTarget.Host); ok {
+			m.pickerContext = "Destination: " + host.Alias
+		}
+	case m.formTarget.Key != "":
+		if key, ok := m.key(m.formTarget.Key); ok {
+			m.pickerContext = "Key: " + key.Name
+		}
+	case target.id != "":
+		switch target.kind {
+		case "host":
+			m.pickerContext = "Destination: " + m.hostLabel(target.id)
+		case "key":
+			if key, ok := m.key(target.id); ok {
+				m.pickerContext = "Key: " + key.Name
+			}
+		default:
+			m.pickerContext = "From: " + target.title
+		}
+	case m.page == "result":
+		m.pickerContext = "Result: " + m.result.request.Operation
+		if host, ok := m.host(m.result.target.HostID); ok {
+			m.pickerContext = "Result: " + host.Alias
+		} else if key, ok := m.key(m.result.target.KeyID); ok {
+			m.pickerContext = "Result: " + key.Name
+		}
+	}
 	m.openDocument("picker", entry{}, "")
 	m.choices = list.New(nil, list.NewDefaultDelegate(), max(10, m.width-2), 12)
 	m.choices.DisableQuitKeybindings()

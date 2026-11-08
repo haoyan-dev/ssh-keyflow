@@ -79,7 +79,7 @@ func TestJourneyUnregisterReconciliationUnlocksDeletionWithoutRevivingOnboarding
 	}
 
 	// The result link must identify this registration; deletion is a fresh session.
-	session.send(press('v'))
+	session.send(press('v'), press('v'))
 	if screen := session.screen(t); !strings.Contains(screen, registration.ID) {
 		t.Fatalf("result linked to a different registration:\n%s", screen)
 	}
@@ -108,7 +108,7 @@ func TestJourneyUnregisterReconciliationUnlocksDeletionWithoutRevivingOnboarding
 	if runner.calls.Load() != calls {
 		t.Fatal("local deletion invoked SSH or dependency execution")
 	}
-	history := runScreen(t, home, press(tea.KeyTab), press('h'), press(tea.KeyEnd))
+	history := runScreen(t, home, press(tea.KeyTab), press('h')) + runScreen(t, home, press(tea.KeyTab), press('h'), press(tea.KeyEnd))
 	if !strings.Contains(history, "Deleted local key") || !strings.Contains(history, key.ID) {
 		t.Fatalf("restart cannot inspect retained key identity:\n%s", history)
 	}

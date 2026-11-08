@@ -396,3 +396,134 @@ with draft and prerelease both false.
 
 This documentation follow-up records publication without moving the tag or
 changing published binary assets.
+
+## Entry detail redesign (2026-11-08 JST)
+
+Final product/test source:
+`73fb603a2760207845bac607a8d2dd7e8b86423e` on local branch
+`feat/entry-detail-ux`, based on refreshed main
+`76d392826f757e8aa4cfdb72d2d7b5216660f0fc`.
+The completion follow-up changes evidence and ticket status only.
+
+- Windows 11 amd64, Go 1.26.2, clean source tree:
+  `go test -buildvcs=false ./... -count=1` PASS
+  (cmd 1.722s, app 41.832s, cli 2.202s, ssh 22.301s, tui 10.972s);
+  `go vet -buildvcs=false ./...` and native development build PASS.
+  Native fixtures used process-only PowerShell ExecutionPolicy Bypass.
+- `--version` reports `SSH KeyFlow dev`. Final executable SHA256:
+  `3c9d69822dbb3cbcfc0796cafc76b0ddd7aa87f0e3402cc8fef7fc343d92bb15`.
+- Native console inspection covered 80x24, 60x18 and 32x12 on preceding
+  `f6b6427c984146fd897342fe03e783c633372b8d`. The final source only refines
+  the below-60-column Task footer, its test and review record; its corrected
+  32x12 Task/technical/Help navigation was repeated natively. Public-event
+  tests cover all four overview and technical entry kinds at every size.
+- Synthetic public-only fixture state remained byte-identical through native
+  navigation. Separate local standards and specification review passes found
+  no unresolved issues. The review, specification and completed ticket are in
+  [entry-detail-ux](../.scratch/entry-detail-ux/spec.md); exact commands,
+  native source versions, hashes and review results are in the
+  [verification record](../.scratch/entry-detail-ux/verification.md).
+
+Linux/macOS/Windows arm64 native behavior, real SSH/server effects, elevated
+Windows shared administrator destinations and hosted CI remain untested for
+this change. Packaging/installer suites were not repeated; those sources and
+the state/CLI/backend contracts are unchanged. All work is committed locally;
+no push, merge, tag or release.
+
+## Local detail colors and panels (2026-11-08 JST)
+
+Product/test source `6fb51e850ef39fa76afeb4024df37e2dfab87246` on
+`feat/entry-detail-ux`, verified from a clean source tree. The subsequent
+completion commit records evidence and local ticket status only.
+
+- Windows 11 amd64 / Go 1.26.2: full uncached
+  `go test -buildvcs=false ./... -count=1` PASS (cmd 3.892s, app 47.215s,
+  cli 2.799s, ssh 25.705s, tui 13.790s), `go vet -buildvcs=false ./...`
+  PASS and native development build PASS. Native fixtures used process-only
+  PowerShell ExecutionPolicy Bypass.
+- Final binary reports `SSH KeyFlow dev`; SHA256:
+  `55661fba7db5cc71b624f5a12ac715ee7a26a986de26d725f6a3ed03e18f19d4`.
+- Native color inspection on that executable: destination panels at 80x24,
+  key panels and wrapped deletion blocker at 60x18, registration/Task plain
+  headings at 32x12, scrolling and Task technical/Help/back restoration.
+  Earlier exploratory inherited NO_COLOR inspection retained readable labels.
+  Color-enabled settings were process-local.
+- Automated checks cover semantic colors, ANSI-stripped labels, all four
+  overview/technical kinds at supported sizes, 59-column threshold behavior,
+  width reflow through Help/technical origins, Unicode, scrolling, unchanged
+  saved state and no external commands. Separate local standards/specification
+  reviews have no unresolved findings.
+
+Review → specification → ticket → implementation artifacts, exact native
+conditions, fixture hash and platform limits are in the
+[panel verification record](../.scratch/entry-detail-ux/panel-verification.md)
+and [ticket 02](../.scratch/entry-detail-ux/issues/02-detail-color-panels.md).
+Native resize itself, other OS/CPU targets, live SSH and hosted CI were not
+tested; packaging/installer suites were not repeated. All work remains local.
+
+## Whole-TUI readability redesign (2026-11-08 JST)
+
+Product/test source `280ccebb61d539590c55c019595d4e2029c5d4be` on local
+`feat/entry-detail-ux`, based on refreshed main
+`76d392826f757e8aa4cfdb72d2d7b5216660f0fc`. The completion follow-up changes
+documentation and ticket status only.
+
+- Windows 11 amd64 / Go1.26.2: full uncached
+  `go test -buildvcs=false ./... -count=1` PASS (cmd1.837s, app43.903s,
+  cli2.256s, ssh24.045s, tui16.363s), `go vet -buildvcs=false ./...` PASS,
+  native build PASS. Native test fixtures used process-only PowerShell
+  ExecutionPolicy Bypass.
+- Binary reports `SSH KeyFlow dev`; SHA256:
+  `e4f8c6541d0f6b711783db99db3413d3085c43ec2e72888a7139468befd9b337`.
+- Final source generated54 page captures across80×24,60×18,32×12. Public-event
+  regressions cover shared paging/selected IDs, same-name discrimination,
+  long-value form context, resized overlay focus, picker origin, supported result
+  actions, session instructions and history scope. Existing safety/handoff
+  journeys remain passing.
+- Native final-binary inspection covered32×12 with explicit `NO_COLOR` and80×24
+  with color enabled. The isolated synthetic state remained byte-identical.
+  Astra's separate standards/safety and specification/UI reviews have no
+  remaining blocking finding.
+
+The [local preview](../.scratch/tui-readability/preview.md),
+[design](../.scratch/tui-readability/design.md),
+[review resolutions](../.scratch/tui-readability/review-resolutions.md), and
+[exact verification record](../.scratch/tui-readability/verification.md) document
+the review → spec → ticket → implementation workflow and remaining platform
+limits. Native60×18 and runtime resize, other OS/CPU targets, live SSH and hosted
+CI were not repeated; automated WindowSize journeys cover resizing and all three
+sizes. Packaging/installer sources were unchanged and their suites were not
+repeated. All work remains local.
+
+## Selected A grouped-panel implementation (2026-11-08 JST)
+
+Product/test source `fbb2c377031d9526c1a35670973a7f3c2be8cc6c` on local
+`feat/tui-grouped-panels`, based on refreshed main
+`76d392826f757e8aa4cfdb72d2d7b5216660f0fc`. The completion follow-up changes
+documentation and ticket status only.
+
+- Windows amd64 / Go 1.26.2: full uncached
+  `go test -buildvcs=false ./... -count=1`, `go vet -buildvcs=false ./...`
+  and native development build PASS. Existing Windows fixture scripts used
+  process-only `PSExecutionPolicyPreference=Bypass`.
+- Final `.build/ssh-keyflow.exe` reports `SSH KeyFlow dev`; SHA256:
+  `a06ebffa3c5a2498d9edefcda238ef8e6fe3660c65a7fff4e97e3872df82bf1c`.
+- Generated 240 production frames across 40 page/scenario families, three
+  sizes (80×24, 60×18, 32×12), and both document ends, with matching text/ANSI.
+  Public-event regressions cover geometry, paging, reference discrimination,
+  exact selected IDs, forms, overlays, reflow and existing safety behavior.
+- Final native 80×24 `NO_COLOR` launch → unregister picker → Esc → quit
+  passed with isolated synthetic state byte-identical. Earlier implementation
+  inspection covered destination overview and technical panels.
+- Separate Astra standards/correctness and specification/visual reviews PASS
+  for the final source with no unresolved blockers. The standards reviewer
+  independently ran the TUI suite and TUI vet; full-repository and native
+  results were implementer-reported to both reviewers.
+
+The [selected specification](../.scratch/tui-grouped-panels/spec.md),
+[local test instructions](../.scratch/tui-grouped-panels/README.md) and
+[detailed verification](../.scratch/tui-grouped-panels/verification.md) record
+the review → spec → tickets → implementation workflow and review resolutions.
+Native narrow sizes and runtime resize were not repeated; automated journeys
+cover those layouts. Other native targets, live SSH, hosted CI and packaging/
+installer suites were not repeated. No push, merge, tag or publication.

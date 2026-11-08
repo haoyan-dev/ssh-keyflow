@@ -131,7 +131,7 @@ func (m *model) targetError(err error) {
 func (m model) keyChoices() []entry {
 	var choices []entry
 	for _, k := range m.view.State.Keys {
-		choices = append(choices, entry{kind: "key", id: k.ID, title: k.Name, description: k.Fingerprint + " · " + keyAvailability(k) + " · " + k.ID})
+		choices = append(choices, m.keyChoiceEntry(k))
 	}
 	return choices
 }
@@ -161,7 +161,7 @@ func (m model) resumeChoices(target entry) []entry {
 			}
 		}
 		if matches {
-			choices = append(choices, entry{kind: "resume", id: task.ResumeID, title: task.Title, description: strings.Join(task.Reasons, " · "), searchText: strings.Join(task.SourceIDs, " ")})
+			choices = append(choices, entry{kind: "resume", id: task.ResumeID, title: task.Title, reference: shortReference(task.ResumeID), description: strings.Join(task.Reasons, " · "), searchText: strings.Join(task.SourceIDs, " ")})
 		}
 	}
 	return choices

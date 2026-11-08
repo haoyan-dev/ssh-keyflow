@@ -57,8 +57,8 @@ func saveNavigationState(t *testing.T, home string, document state.State) {
 
 func TestNavigationSearchKeepsQueryAndCategoryIdentity(t *testing.T) {
 	home, _ := navigationHome(t)
-	screen := runScreen(t, home, press('/'), text("BUILD-7"), press(tea.KeyEnter), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter))
-	for _, want := range []string{"Destinations", "build-7", "alice@server-7.example:22", "host-7"} {
+	screen := runScreen(t, home, press('/'), text("BUILD-7"), press(tea.KeyEnter), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyTab), press(tea.KeyEnter), press('v'))
+	for _, want := range []string{"Technical details", "build-7", "alice@server-7.example:22", "host-7"} {
 		if !strings.Contains(screen, want) {
 			t.Fatalf("missing %q:\n%s", want, screen)
 		}
@@ -79,9 +79,15 @@ func TestNavigationDetailsJoinRecordedEvidenceAndHelpReturnsToOrigin(t *testing.
 	home, _ := navigationHome(t)
 	journey := []tea.Msg{press(tea.KeyTab), press(tea.KeyTab), press('/'), text("registration-7"), press(tea.KeyEnter), press(tea.KeyEnter)}
 	screen := runScreen(t, home, journey...)
-	for _, want := range []string{"build-7", "Laptop", "alice@server-7.example:22", "Registration: registered", "Connection: failed", "verification unavailable", "Configuration:", "History:"} {
+	for _, want := range []string{"build-7", "Laptop", "alice@server-7.example:22", "Registration: registered", "Connection: failed", "verification unavailable", "Next step"} {
 		if !strings.Contains(screen, want) {
 			t.Fatalf("missing %q:\n%s", want, screen)
+		}
+	}
+	lower := runScreen(t, home, append(append([]tea.Msg{}, journey...), press(tea.KeyEnd))...)
+	for _, want := range []string{"Configuration:", "History:"} {
+		if !strings.Contains(lower, want) {
+			t.Fatalf("supporting panel lost %q:\n%s", want, lower)
 		}
 	}
 	if strings.Contains(screen, `"key_id"`) {
@@ -144,7 +150,7 @@ func TestNavigationRefreshPreservesFixedIDAndAnnouncesRemoval(t *testing.T) {
 		return message
 	})}
 	selection := []tea.Msg{press(tea.KeyDown), press(tea.KeyDown), press(tea.KeyDown), press(tea.KeyDown), press(tea.KeyDown), press(tea.KeyDown)}
-	screen := runSizedScreenOptions(t, home, 80, 24, options, append(selection, replaceSavedState{reordered}, press(tea.KeyEnter))...)
+	screen := runSizedScreenOptions(t, home, 80, 24, options, append(selection, replaceSavedState{reordered}, press(tea.KeyEnter), press('v'))...)
 	if !strings.Contains(screen, "Destination ID: host-7") {
 		t.Fatalf("refresh retargeted selected entity:\n%s", screen)
 	}
@@ -154,7 +160,7 @@ func TestNavigationRefreshPreservesFixedIDAndAnnouncesRemoval(t *testing.T) {
 	removed.Registrations = append([]state.Registration{}, document.Registrations[:6]...)
 	removed.Registrations = append(removed.Registrations, document.Registrations[7:]...)
 	saveNavigationState(t, home, document)
-	screen = runSizedScreenOptions(t, home, 80, 24, options, append(selection, replaceSavedState{reordered}, replaceSavedState{removed}, press(tea.KeyEnter))...)
+	screen = runSizedScreenOptions(t, home, 80, 24, options, append(selection, replaceSavedState{reordered}, replaceSavedState{removed}, press(tea.KeyEnter), press('v'))...)
 	if !strings.Contains(screen, "Selection changed") || !strings.Contains(screen, "Destination ID: host-1") {
 		t.Fatalf("removed selection not announced/nearest:\n%s", screen)
 	}
@@ -237,7 +243,7 @@ func TestNavigationReadOnlyJourneysKeepStorageAndCategoryScroll(t *testing.T) {
 func TestNavigationRegistrationSearchIncludesRelatedIdentity(t *testing.T) {
 	home, document := navigationHome(t)
 	query := strings.TrimPrefix(document.Keys[6].Fingerprint, "SHA256:")[:12]
-	screen := runScreen(t, home, press(tea.KeyTab), press(tea.KeyTab), press('/'), text(query), press(tea.KeyEnter), press(tea.KeyEnter))
+	screen := runScreen(t, home, press(tea.KeyTab), press(tea.KeyTab), press('/'), text(query), press(tea.KeyEnter), press(tea.KeyEnter), press('v'))
 	if !strings.Contains(screen, "Registration ID: registration-7") {
 		t.Fatalf("related fingerprint not searchable:\n%s", screen)
 	}
@@ -248,16 +254,24 @@ func TestNavigationFullValuesRemainReachableByVerticalScroll(t *testing.T) {
 	document.Keys[0].PublicPath = filepath.Join(home, strings.Repeat("長い-path-", 20)+".pub")
 	saveNavigationState(t, home, document)
 	var seen strings.Builder
-	journey := []tea.Msg{press(tea.KeyTab), press(tea.KeyEnter)}
+	journey := []tea.Msg{press(tea.KeyTab), press(tea.KeyEnter), press('v')}
 	for i := 0; i < 20; i++ {
 		frame := strings.Split(ansi.Strip(runSizedScreen(t, home, 32, 12, journey...)), "\n")
-		// Inspect document text only, excluding the repeated category and controls.
-		seen.WriteString(strings.Join(frame[2:len(frame)-3], "\n"))
+		// Footer height is contextual; a fixed subtraction silently dropped a
+		// document line on every page when the compact footer became two rows.
+		end := len(frame)
+		for line := 2; line < len(frame); line++ {
+			if strings.HasPrefix(frame[line], "↑/↓ scroll") {
+				end = line
+				break
+			}
+		}
+		seen.WriteString(strings.Join(frame[2:end], "\n"))
 		journey = append(journey, press(tea.KeyPgDown))
 	}
 	compact := func(s string) string {
 		return strings.Map(func(r rune) rune {
-			if unicode.IsSpace(r) {
+			if unicode.IsSpace(r) || r == '│' {
 				return -1
 			}
 			return r
@@ -295,7 +309,7 @@ func TestNavigationSelectedTargetCannotBeReplacedByLegacyIDInput(t *testing.T) {
 	home, _ := navigationHome(t)
 	selectAll := tea.KeyPressMsg(tea.Key{Code: 'a', Mod: tea.ModCtrl})
 	review := runScreen(t, home, press('r'), press(tea.KeyEnter), selectAll, text("host-9"), press(tea.KeyTab), selectAll, text("key-9"), tea.KeyPressMsg(tea.Key{Code: 's', Mod: tea.ModCtrl}))
-	for _, want := range []string{"Review register", "Destination ID or alias: host-1", "Managed key ID / unique name: key-1"} {
+	for _, want := range []string{"Review register", "build-1 · alice@server-1.example:22 [host-1]", "Laptop [key-1]"} {
 		if !strings.Contains(review, want) {
 			t.Fatalf("selected target changed or review missing %q:\n%s", want, review)
 		}
@@ -321,7 +335,7 @@ func TestNavigationRepeatedRefreshFailureReturnsToDetailsAfterRecovery(t *testin
 		}
 		return message
 	})}
-	journey := []tea.Msg{press(tea.KeyEnter), corruptSavedState{}, press(tea.KeyF5), replaceSavedState{document}}
+	journey := []tea.Msg{press(tea.KeyEnter), corruptSavedState{}, press(tea.KeyF5), replaceSavedState{document}, press('v')}
 	screen := runSizedScreenOptions(t, home, 80, 24, options, journey...)
 	if !strings.Contains(screen, "Destination ID: host-1") || strings.Contains(screen, "Refresh failed:") {
 		t.Fatalf("refresh recovery lost detail origin:\n%s", screen)

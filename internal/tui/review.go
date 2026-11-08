@@ -35,7 +35,7 @@ func (m *model) renderDiscard() {
 	if m.discardSelected {
 		keep, discard = "  Keep editing", "> Discard draft"
 	}
-	m.content.SetContent("Discard changes?\n" + keep + "\n" + discard)
+	m.setContent(detailHeading("Discard changes?") + "\n" + actionTitle(m.action) + "\nUnsaved inputs will be lost.\n" + keep + "\n" + discard)
 	m.content.GotoTop()
 }
 
@@ -53,6 +53,12 @@ func (m *model) discardDraft() {
 func (m *model) editReview() {
 	m.inputGeneration++
 	m.page, m.content = "form", m.editContent
+	width, height := m.content.Width(), m.content.Height()
+	m.resizeBody()
+	m.setContent(m.formBody())
+	if width != m.content.Width() || height != m.content.Height() {
+		m.revealFormFocus()
+	}
 }
 
 func (m model) updateDiscard(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -76,14 +82,19 @@ func (m model) updateDiscard(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // A value copy preserves both the form's scroll and its textinput caret models.
 func (m *model) rememberEdit() {
-	m.content.SetContent(m.formBody())
+	m.setContent(m.formBody())
 	m.editContent = m.content
 }
 
 func (m model) reviewControls() string {
 	controls := []string{"Continue to terminal", "Edit", "Cancel", "Help"}
+	if m.width < 60 {
+		controls[0] = "Continue"
+		controls[m.reviewControl] = "[" + controls[m.reviewControl] + "]"
+		return strings.Join(controls, " ") + "\nTab choose · Enter select\n↑/↓ scroll · e/Esc edit"
+	}
 	controls[m.reviewControl] = "[" + controls[m.reviewControl] + "]"
-	return strings.Join(controls, " · ") + "\nTab choose · Enter select · e/Esc edit · ? Help"
+	return strings.Join(controls, " · ") + "\nTab choose · Enter select · e/Esc edit · ? Help\n↑/↓ scroll · PgUp/PgDn"
 }
 
 func (m model) expectedEffects() string {

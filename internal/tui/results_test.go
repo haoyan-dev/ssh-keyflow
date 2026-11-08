@@ -274,12 +274,12 @@ func TestResultAutomaticRegistrationOutcomeMatrix(t *testing.T) {
 				t.Fatal("wrong main config effects", err, string(current))
 			}
 			calls := runner.calls.Load()
-			session.send(press(tea.KeyHome), press('v'))
+			session.send(press(tea.KeyHome), press('v'), press('v'))
 			if !strings.Contains(session.screen(t), view.State.Registrations[0].ID) {
 				t.Fatal("result entity link has wrong target")
 			}
 			if scenario == "verify-failed" {
-				session.send(press(tea.KeyEscape), press('s'), reviewKey())
+				session.send(press(tea.KeyEscape), press(tea.KeyEscape), press('s'), reviewKey())
 				review := session.screen(t)
 				if !strings.Contains(review, "Review resume") || !strings.Contains(review, view.State.Registrations[0].ID) {
 					t.Fatalf("wrong verification follow-up:\n%s", review)
@@ -308,7 +308,7 @@ func TestResultCompactSizesAndUndersizeGuard(t *testing.T) {
 			session.returned(t)
 			session.send(tea.WindowSizeMsg{Width: size[0], Height: size[1]})
 			screen := session.screen(t)
-			for _, want := range []string{"enter:", "tab next", "? help", "esc back"} {
+			for _, want := range []string{"enter:", "Tab 1/", "? help", "esc back"} {
 				if !strings.Contains(screen, want) {
 					t.Fatalf("missing result control %q at %v:\n%s", want, size, screen)
 				}
@@ -321,7 +321,10 @@ func TestResultCompactSizesAndUndersizeGuard(t *testing.T) {
 			if lipgloss.Height(screen) > size[1] {
 				t.Fatalf("result height exceeds %v:\n%s", size, screen)
 			}
-			session.send(press(tea.KeyEnd), press('?'), press(tea.KeyEscape))
+			captureGroupedScreen(t, "result", size, false, screen)
+			session.send(press(tea.KeyEnd))
+			captureGroupedScreen(t, "result", size, true, session.screen(t))
+			session.send(press('?'), press(tea.KeyEscape))
 			if !strings.Contains(session.screen(t), "ssh-ed25519") && size[1] >= 18 {
 				t.Fatal("help lost diagnostic viewport")
 			}
