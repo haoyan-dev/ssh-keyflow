@@ -3,45 +3,44 @@ package tui
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"strings"
 
 	"ssh-keyflow/internal/app"
 )
 
-// operationResult keeps independent facts separate from Run's error and Snapshot.
-// Allocated target IDs are not proof of persistence; use reports.Saved and view.
 type operationResult struct {
-	request     app.Request
-	target      app.ReportTarget
-	reports     []app.Report
-	err         error
-	diagnostics string
-	reloadErr   error
+	request        app.Request
+	reports        []app.Report
+	err, reloadErr error
+	diagnostics    string
 }
 type completed struct{ result operationResult }
 
-// execution keeps Bubble Tea's original terminal input for native credentials.
+// Only native processes receive stdin; credentials never enter TUI text fields.
 type execution struct {
 	ctx     context.Context
 	options app.Options
 	request app.Request
-	target  app.ReportTarget
 	reports []app.Report
-	output  bytes.Buffer
+	output  diagnosticBuffer
 }
 
 func (operation *execution) SetStdin(input io.Reader)   { operation.options.Input = input }
 func (operation *execution) SetStdout(output io.Writer) { operation.options.Output = output }
 func (operation *execution) SetStderr(io.Writer)        {}
-
 func (operation *execution) Run() error {
 	options := operation.options
 	options.Request = &operation.request
+	if options.Output == nil {
+		options.Output = io.Discard
+	}
 	options.Output = io.MultiWriter(options.Output, &operation.output)
 	options.Confirm = func(string) (bool, error) { return readNativeConfirmation(operation.ctx, options.Input) }
 	options.Report = func(report app.Report) {
 		operation.reports = append(operation.reports, report)
-		operation.target = mergeTarget(operation.target, report.ReportTarget)
 		if operation.options.Report != nil {
 			operation.options.Report(report)
 		}
@@ -51,54 +50,74 @@ func (operation *execution) Run() error {
 	}
 	return app.Run(operation.ctx, options)
 }
-
 func (operation *execution) complete(err error) completed {
-	return completed{operationResult{request: operation.request, target: operation.target, reports: operation.reports, err: err, diagnostics: operation.output.String()}}
+	return completed{operationResult{request: operation.request, reports: operation.reports, err: err, diagnostics: operation.output.String()}}
 }
 
-func mergeTarget(old, current app.ReportTarget) app.ReportTarget {
-	if current.HostID != "" {
-		old.HostID = current.HostID
-	}
-	if current.KeyID != "" {
-		old.KeyID = current.KeyID
-	}
-	if current.RegistrationID != "" {
-		old.RegistrationID = current.RegistrationID
-	}
-	if current.OnboardingID != "" {
-		old.OnboardingID = current.OnboardingID
-	}
-	if current.CreationID != "" {
-		old.CreationID = current.CreationID
-	}
-	if current.DeletionID != "" {
-		old.DeletionID = current.DeletionID
-	}
-	return old
+type diagnosticBuffer struct {
+	bytes.Buffer
+	truncated bool
 }
 
-func (m model) handoffTarget() app.ReportTarget {
-	target := app.ReportTarget{HostID: m.request.Host, KeyID: m.request.Key, RegistrationID: m.request.Registration}
-	for _, r := range m.view.State.Registrations {
-		if r.ID == m.request.Registration || r.ID == m.request.Resume {
-			target = mergeTarget(target, app.ReportTarget{HostID: r.HostID, KeyID: r.KeyID, RegistrationID: r.ID})
+func (buffer *diagnosticBuffer) Write(data []byte) (int, error) {
+	count := len(data)
+	remaining := max(0, 32768-buffer.Len())
+	if len(data) > remaining {
+		buffer.truncated = true
+		data = data[:remaining]
+	}
+	_, err := buffer.Buffer.Write(data)
+	return count, err
+}
+func (buffer *diagnosticBuffer) String() string {
+	text := safeText(buffer.Buffer.String())
+	if buffer.truncated {
+		text += "\n[diagnostics truncated]"
+	}
+	return text
+}
+func (result operationResult) text() string {
+	title := "Local operation completed"
+	if errors.Is(result.err, app.ErrCancelled) {
+		title = "Cancelled before further changes"
+	} else if result.err != nil {
+		title = "Operation stopped; saved checkpoints remain"
+	}
+	var text strings.Builder
+	fmt.Fprintf(&text, "%s\n%s\n", title, actionTitle(result.request.Operation))
+	if result.request.Key != "" {
+		fmt.Fprintf(&text, "Key: %s\n", result.request.Key)
+	}
+	if result.request.Host != "" {
+		fmt.Fprintf(&text, "Destination: %s\n", result.request.Host)
+	}
+	for _, report := range result.reports {
+		fmt.Fprintf(&text, "\n%s: %s", report.Kind, report.Outcome)
+		if report.Stage != "" {
+			fmt.Fprintf(&text, " · %s", report.Stage)
+		}
+		if report.Saved {
+			text.WriteString(" (saved)")
+		}
+		if report.KeyID != "" {
+			fmt.Fprintf(&text, "\nKey: %s", report.KeyID)
+		}
+		if report.HostID != "" {
+			fmt.Fprintf(&text, "\nDestination: %s", report.HostID)
+		}
+		if report.CreationID != "" {
+			fmt.Fprintf(&text, "\nCreation: %s", report.CreationID)
 		}
 	}
-	for _, j := range m.view.State.Onboardings {
-		if j.ID == m.request.Resume {
-			target = mergeTarget(target, app.ReportTarget{HostID: j.HostID, KeyID: j.KeyID, OnboardingID: j.ID, CreationID: j.CreationID})
-		}
+	if result.err != nil {
+		fmt.Fprintf(&text, "\n\nError: %v", result.err)
 	}
-	for _, c := range m.view.State.Creations {
-		if c.ID == m.request.Resume {
-			target = mergeTarget(target, app.ReportTarget{KeyID: c.KeyID, CreationID: c.ID})
-		}
+	if result.reloadErr != nil {
+		fmt.Fprintf(&text, "\n\nReload failed: %v\nSaved state is stale. F5 refresh before continuing.", result.reloadErr)
 	}
-	for _, d := range m.view.State.Deletions {
-		if d.ID == m.request.Resume {
-			target = mergeTarget(target, app.ReportTarget{KeyID: d.KeyID, DeletionID: d.ID})
-		}
+	text.WriteString("\n\nRemote placement and connection are unverified.\nEsc: Keys / Destinations. Select unfinished local creation and press s to resume.")
+	if result.diagnostics != "" {
+		text.WriteString("\n\nNative diagnostics:\n" + result.diagnostics)
 	}
-	return target
+	return text.String()
 }

@@ -40,7 +40,7 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 		options.Version = "dev"
 	}
 	root := &cobra.Command{
-		Use: "ssh-keyflow", Short: "Manage SSH keys, destinations and registration history",
+		Use: "ssh-keyflow", Short: "Manage local SSH keys and copy-paste destination setup",
 		Version:       options.Version,
 		Args:          cobra.NoArgs,
 		SilenceErrors: true, SilenceUsage: true,
@@ -57,14 +57,14 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 	root.SetIn(options.Input)
 	root.SetOut(options.Output)
 	root.SetErr(options.Error)
-	for _, category := range []string{"hosts", "keys", "registrations"} {
+	for _, category := range []string{"hosts", "keys"} {
 		parent := &cobra.Command{
 			Use: category, Short: "Manage " + category, Args: cobra.NoArgs,
 			RunE: func(command *cobra.Command, _ []string) error { return command.Help() },
 		}
 		asJSON := false
 		list := &cobra.Command{
-			Use: "list", Short: "List " + category + " and saved operation progress", Args: cobra.NoArgs,
+			Use: "list", Short: "List saved " + category, Args: cobra.NoArgs,
 			RunE: func(command *cobra.Command, _ []string) error {
 				home, err := userHome(options)
 				if err != nil {
@@ -75,7 +75,7 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 					return executionError{err}
 				}
 				if view.Review != "" {
-					fmt.Fprintln(options.Error, view.Review, "(updates stopped)")
+					fmt.Fprintln(options.Error, view.Review)
 				}
 				if asJSON {
 					return asExecutionError(json.NewEncoder(options.Output).Encode(records(category, view)))
@@ -98,50 +98,43 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 			importKey.Flags().StringVar(&importRequest.PrivatePath, "private", "", "Existing private key path; omitted for public-only import")
 			importKey.MarkFlagRequired("name")
 			importKey.MarkFlagRequired("public")
-			deleteRequest := &app.Request{Operation: "delete"}
-			deleteKey := operationCommand("delete", "Delete managed local files after recorded registrations are removed", deleteRequest, options)
-			deleteKey.Flags().StringVar(&deleteRequest.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
-			deleteKey.MarkFlagRequired("key")
-			parent.AddCommand(create, importKey, deleteKey)
+			publicRequest := &app.Request{Operation: "public"}
+			public := readCommand("public", "Print a managed public key for copying", publicRequest, options)
+			public.Flags().StringVar(&publicRequest.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
+			public.MarkFlagRequired("key")
+			parent.AddCommand(create, importKey, public)
 		case "hosts":
 			request := &app.Request{Operation: "add"}
-			add := operationCommand("add", "Add a destination and register a new or managed key", request, options)
+			add := operationCommand("add", "Save a destination associated with an existing key; no remote changes", request, options)
 			add.Flags().StringVar(&request.Destination.Alias, "alias", "", "Destination alias (required)")
 			add.Flags().StringVar(&request.Destination.Hostname, "hostname", "", "Hostname, Tailscale name or IP (required)")
 			add.Flags().StringVar(&request.Destination.User, "user", "", "Login user (required)")
 			add.Flags().IntVar(&request.Destination.Port, "port", 22, "SSH port")
-			add.Flags().StringVar(&request.Destination.OS, "os", "", "Confirmed remote OS: linux, macos, windows (required)")
+			add.Flags().StringVar(&request.Destination.OS, "os", "", "Destination OS: linux, macos, windows (required)")
 			add.Flags().StringVar(&request.Destination.WindowsAccount, "windows-account", "", "Windows account: standard or administrator (required for Windows)")
-			add.Flags().StringVar(&request.Key, "key", "", "Existing managed key fixed ID or unambiguous name")
-			add.Flags().StringVar(&request.Name, "new-key", "", "Management name for a new Ed25519 key")
-			for _, flag := range []string{"alias", "hostname", "user", "os"} {
+			add.Flags().StringVar(&request.Key, "key", "", "Existing managed key fixed ID or unambiguous name (required)")
+			for _, flag := range []string{"alias", "hostname", "user", "os", "key"} {
 				add.MarkFlagRequired(flag)
 			}
-			add.MarkFlagsOneRequired("key", "new-key")
-			add.MarkFlagsMutuallyExclusive("key", "new-key")
-			authenticationFlags(add, request)
-			parent.AddCommand(add)
+			associateRequest := &app.Request{Operation: "associate"}
+			associate := operationCommand("associate", "Save a key association; remote registration is not verified", associateRequest, options)
+			guideRequest := &app.Request{Operation: "guide"}
+			guide := readCommand("guide", "Print copy-paste setup and removal instructions without changing files", guideRequest, options)
+			for command, request := range map[*cobra.Command]*app.Request{associate: associateRequest, guide: guideRequest} {
+				command.Flags().StringVar(&request.Host, "host", "", "Destination fixed ID or alias (required)")
+				command.Flags().StringVar(&request.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
+				command.MarkFlagRequired("host")
+				command.MarkFlagRequired("key")
+			}
+			parent.AddCommand(add, associate, guide)
 		}
 		root.AddCommand(parent)
 	}
-	registerRequest := &app.Request{Operation: "register"}
-	register := operationCommand("register", "Register a managed public key at a saved destination", registerRequest, options)
-	register.Flags().StringVar(&registerRequest.Host, "host", "", "Destination fixed ID or alias (required)")
-	register.Flags().StringVar(&registerRequest.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
-	register.MarkFlagRequired("host")
-	register.MarkFlagRequired("key")
-	authenticationFlags(register, registerRequest)
-	unregisterRequest := &app.Request{Operation: "unregister"}
-	unregister := operationCommand("unregister", "Remove one public-key registration using fresh alternate authentication", unregisterRequest, options)
-	unregister.Flags().StringVar(&unregisterRequest.Registration, "registration", "", "Registration fixed ID (required)")
-	unregister.MarkFlagRequired("registration")
-	authenticationFlags(unregister, unregisterRequest)
 	resumeRequest := &app.Request{Operation: "resume"}
-	resume := operationCommand("resume", "Resume a saved creation, onboarding, registration or local deletion", resumeRequest, options)
-	resume.Flags().StringVar(&resumeRequest.Resume, "id", "", "Saved operation fixed ID from a list (required)")
+	resume := operationCommand("resume", "Resume an unfinished local key creation", resumeRequest, options)
+	resume.Flags().StringVar(&resumeRequest.Resume, "id", "", "Unfinished local creation fixed ID shown by keys list (required)")
 	resume.MarkFlagRequired("id")
-	authenticationFlags(resume, resumeRequest)
-	root.AddCommand(register, unregister, resume, &cobra.Command{
+	root.AddCommand(resume, &cobra.Command{
 		Use: "tui", Short: "Open the terminal user interface", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			return openTUI(command.Context(), options)
@@ -182,20 +175,10 @@ func userHome(options Options) (string, error) {
 }
 
 func records(category string, view app.View) map[string]any {
-	result := map[string]any{}
-	switch category {
-	case "hosts":
-		result["hosts"], result["onboardings"] = view.State.Hosts, array(view.State.Onboardings)
-	case "keys":
-		result["keys"], result["creations"] = view.State.Keys, array(view.State.Creations)
-		result["deleted_keys"], result["deletions"] = array(view.State.DeletedKeys), array(view.State.Deletions)
-	case "registrations":
-		result["registrations"], result["history"] = view.State.Registrations, array(view.State.History)
+	if category == "hosts" {
+		return map[string]any{"hosts": array(view.State.Hosts), "associations": array(view.State.Associations)}
 	}
-	if category == "hosts" || category == "keys" {
-		result["discovery"] = view.Discovery
-	}
-	return result
+	return map[string]any{"keys": array(view.State.Keys), "creations": array(view.State.Creations)}
 }
 
 func array[T any](items []T) []T {
@@ -213,40 +196,21 @@ func printRecords(output io.Writer, category string, view app.View) error {
 		for _, host := range view.State.Hosts {
 			fmt.Fprintf(table, "%s\t%s\t%s@%s:%d\t%s\n", host.ID, host.Alias, host.User, host.Hostname, host.Port, host.OS)
 		}
-		for _, job := range view.State.Onboardings {
-			fmt.Fprintf(table, "onboarding %s\thost=%s\tkey=%s\tstage=%s\n", job.ID, job.HostID, job.KeyID, job.Stage)
+		for _, association := range view.State.Associations {
+			fmt.Fprintf(table, "association\thost=%s\tkey=%s\n", association.HostID, association.KeyID)
 		}
 	case "keys":
-		fmt.Fprintln(table, "ID\tNAME\tFINGERPRINT\tCONNECTION\tPUBLIC PATH")
+		fmt.Fprintln(table, "ID\tNAME\tFINGERPRINT\tPUBLIC PATH")
 		for _, key := range view.State.Keys {
-			fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\n", key.ID, key.Name, key.Fingerprint, key.ConnectionCheck, key.PublicPath)
+			fmt.Fprintf(table, "%s\t%s\t%s\t%s\n", key.ID, key.Name, key.Fingerprint, key.PublicPath)
 		}
 		for _, creation := range view.State.Creations {
-			fmt.Fprintf(table, "creation %s\t%s\tstage=%s\n", creation.ID, creation.Name, creation.Stage)
-		}
-		for _, deletion := range view.State.Deletions {
-			fmt.Fprintf(table, "deletion %s\tkey=%s\tstage=%s\n", deletion.ID, deletion.KeyID, deletion.Stage)
-		}
-		for _, deleted := range view.State.DeletedKeys {
-			fmt.Fprintf(table, "deleted %s\t%s\t%s\t%s\n", deleted.Key.ID, deleted.Key.Name, deleted.Key.Fingerprint, deleted.DeletedAt)
-		}
-	case "registrations":
-		fmt.Fprintln(table, "ID\tHOST\tKEY\tSTATUS\tCONNECTION\tOPERATION\tSTAGE")
-		for _, registration := range view.State.Registrations {
-			fmt.Fprintf(table, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", registration.ID, registration.HostID, registration.KeyID, registration.Status, registration.ConnectionCheck, registration.Operation, registration.Stage)
-		}
-		for _, event := range view.State.History {
-			fmt.Fprintf(table, "history %s\t%s\t%s\t%s\t%s\t%s\t%s\n", event.RegistrationID, event.At, "", event.Status, event.ConnectionCheck, event.Operation, event.Stage)
+			if creation.Stage != "complete" {
+				fmt.Fprintf(table, "creation %s\t%s\tstage=%s\n", creation.ID, creation.Name, creation.Stage)
+			}
 		}
 	}
-	if err := table.Flush(); err != nil {
-		return err
-	}
-	if category == "hosts" || category == "keys" {
-		_, err := fmt.Fprint(output, "\nDiscovery (read-only; unmanaged files are not imported)\n", view.Discovery)
-		return err
-	}
-	return nil
+	return table.Flush()
 }
 
 func terminal(input io.Reader) bool {
@@ -273,6 +237,32 @@ func terminalWriter(output io.Writer) bool {
 	return ok && term.IsTerminal(file.Fd())
 }
 
+func readCommand(name, description string, request *app.Request, options Options) *cobra.Command {
+	return &cobra.Command{
+		Use: name, Short: description, Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if err := request.Validate(); err != nil {
+				return err
+			}
+			home, err := userHome(options)
+			if err != nil {
+				return executionError{err}
+			}
+			var text string
+			if request.Operation == "public" {
+				text, err = app.PublicKey(home, request.Key)
+			} else {
+				text, err = app.Guide(home, request.Host, request.Key)
+			}
+			if err != nil {
+				return asExecutionError(err)
+			}
+			_, err = fmt.Fprint(options.Output, text)
+			return asExecutionError(err)
+		},
+	}
+}
+
 func operationCommand(name, description string, request *app.Request, options Options) *cobra.Command {
 	return &cobra.Command{
 		Use: name, Short: description, Args: cobra.NoArgs,
@@ -281,7 +271,7 @@ func operationCommand(name, description string, request *app.Request, options Op
 				return err
 			}
 			if !terminal(options.Input) {
-				return executionError{fmt.Errorf("this operation requires a real terminal for explicit confirmation and OpenSSH authentication")}
+				return executionError{fmt.Errorf("this operation requires a real terminal for explicit confirmation")}
 			}
 			home, err := userHome(options)
 			if err != nil {
@@ -292,13 +282,5 @@ func operationCommand(name, description string, request *app.Request, options Op
 				Confirm: func(string) (bool, error) { return app.ReadConfirmation(options.Input) },
 			}))
 		},
-	}
-}
-
-func authenticationFlags(command *cobra.Command, request *app.Request) {
-	command.Flags().StringVar(&request.Bootstrap, "auth", "manual", "Bootstrap/alternate authentication: manual, password, key")
-	command.Flags().StringVar(&request.Identity, "identity", "", "Existing private key for key authentication; secrets stay in OpenSSH")
-	if request.Operation != "unregister" {
-		command.Flags().BoolVar(&request.Configure, "configure", false, "Offer managed SSH configuration and explicit Include consent after registration")
 	}
 }

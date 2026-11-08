@@ -2,85 +2,62 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
-	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"ssh-keyflow/internal/app"
 )
 
+type entry struct{ kind, id, title, description string }
+type screen struct {
+	page, document, copyText string
+	target                   entry
+	offset                   int
+}
 type model struct {
-	inputGeneration uint64
-	signals         *handoffSignals
-	result          operationResult
-	resultControl   int
-	initialDraft    map[string]string
-	initialTarget   app.Request
-	discardSelected bool
-	editContent     viewport.Model
-	reviewControl   int
-	stale           bool
-	formTarget      app.Request
-	choices         list.Model
-	choiceEntries   []entry
-	choiceQuery     string
-	pickerContext   string
-	target          entry
-	origins         []returnContext
-	ctx             context.Context
-	options         app.Options
-	view            app.View
-	list            list.Model
-	lists           [4]list.Model
-	queries         [4]string
-	search          textinput.Model
-	searching       bool
-	tab             int
-	width           int
-	height          int
-	page            string
-	status          string
-	content         viewport.Model
-	document        string
-	draft           map[string]string
-	step            int
-	formError       string
-	errorField      string
-	fields          []field
-	focus           int
-	action          string
-	request         app.Request
-	running         bool
-}
-
-type entry struct {
-	title, description, kind, id, searchText string
-	reference                                string
-	readOnly                                 bool
-}
-
-func (item entry) Title() string       { return item.title }
-func (item entry) Description() string { return item.description }
-func (item entry) FilterValue() string {
-	return item.title + " " + item.description + " " + item.id + " " + item.searchText
+	ctx                context.Context
+	options            app.Options
+	view               app.View
+	signals            *handoffSignals
+	width, height, tab int
+	selected           [2]int
+	queries            [2]string
+	page, status       string
+	target             entry
+	origins            []screen
+	content            viewport.Model
+	document, copyText string
+	search             textinput.Model
+	searching          bool
+	inputGeneration    uint64
+	inputRow           int
+	fields             []field
+	focus              int
+	action, formError  string
+	request            app.Request
+	choices            []entry
+	choiceIndex        int
+	choiceQuery        string
+	pickerAction       string
+	running, stale     bool
+	result             operationResult
 }
 
 func Run(ctx context.Context, options app.Options) error {
-	program, err := NewProgram(ctx, options)
+	p, err := NewProgram(ctx, options)
 	if err != nil {
 		return err
 	}
-	_, err = program.Run()
+	_, err = p.Run()
 	return err
 }
 
-// NewProgram exposes the same TUI entry for embedding and event-driven tests.
 func NewProgram(ctx context.Context, options app.Options, programOptions ...tea.ProgramOption) (*tea.Program, error) {
 	if options.Input == nil {
 		options.Input = os.Stdin
@@ -92,455 +69,471 @@ func NewProgram(ctx context.Context, options app.Options, programOptions ...tea.
 	if err != nil {
 		return nil, err
 	}
-	initial := model{ctx: ctx, options: options, view: view, width: 80, height: 24, page: "list",
-		content: viewport.New(viewport.WithWidth(76), viewport.WithHeight(15))}
-	// Pre-wrap documents using terminal cell width so the viewport's logical
-	// line count matches its rendered height, including long CJK values.
-	initial.content.SoftWrap = false
-	initial.search = textinput.New()
-	initial.search.CharLimit = 4096
-	initial.search.Prompt = "Search: "
-	for index := range initial.lists {
-		initial.lists[index] = list.New(nil, list.NewDefaultDelegate(), 76, 16)
-		initial.lists[index].SetFilteringEnabled(false)
-		initial.lists[index].SetShowHelp(false)
-	}
-	initial.list = initial.lists[0]
-	initial.refreshList()
+	initial := newModel(ctx, options, view)
 	defaults := []tea.ProgramOption{tea.WithContext(ctx), tea.WithInput(options.Input), tea.WithOutput(options.Output), tea.WithWindowSize(80, 24)}
-	initial.signals = &handoffSignals{}
-	program := tea.NewProgram(initial, append(append(defaults, programOptions...), tea.WithoutSignalHandler())...)
-	initial.signals.program = program
-	return program, nil
+	p := tea.NewProgram(initial, append(append(defaults, programOptions...), tea.WithoutSignalHandler())...)
+	initial.signals.program = p
+	return p, nil
+}
+
+func newModel(ctx context.Context, options app.Options, view app.View) model {
+	m := model{ctx: ctx, options: options, view: view, width: 80, height: 24, page: "list", signals: &handoffSignals{},
+		content: viewport.New(viewport.WithWidth(80), viewport.WithHeight(18))}
+	m.content.SoftWrap = false
+	m.search = textinput.New()
+	m.search.SetVirtualCursor(false)
+	m.search.Prompt = "Search: "
+	m.search.CharLimit = 4096
+	m.resize()
+	return m
 }
 
 func (m model) Init() tea.Cmd { return m.signals.listen }
 
 func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
-	m.resizeBody()
+	m.resize()
 	if response, ok := message.(inputResponse); ok {
 		if response.generation != m.inputGeneration {
 			return m, nil
 		}
 		message = response.message
 	}
-	switch message := message.(type) {
+	if m.running {
+		switch message.(type) {
+		case tea.WindowSizeMsg, completed:
+		default:
+			return m, nil
+		}
+	}
+	switch msg := message.(type) {
 	case tea.WindowSizeMsg:
-		m.width, m.height = message.Width, message.Height
-		m.resizeBody()
-		for index := range m.fields {
-			m.fields[index].input.SetWidth(max(1, m.width-8))
-		}
+		m.width, m.height = msg.Width, msg.Height
+		m.resize()
 		if m.page == "form" {
-			m.revealFormFocus()
+			m.renderForm()
 		}
+		return m, nil
+	case completed:
+		m.signals.finish()
+		m.running = false
+		m.result = msg.result
+		m.origins = nil
+		m.page, m.target, m.copyText = "result", entry{}, ""
+		m.reload()
+		m.setDocument(m.result.text())
+		return m, nil
 	case tea.KeyPressMsg:
-		pressed := message.String()
+		key := msg.String()
 		if m.running {
 			return m, nil
 		}
 		if m.width < 32 || m.height < 12 {
-			if pressed == "q" || pressed == "ctrl+c" {
+			if key == "q" || key == "ctrl+c" {
 				return m, tea.Quit
 			}
 			return m, nil
 		}
-		if m.page == "help" && (pressed == "esc" || pressed == "?" || pressed == "ctrl+c") {
+		if m.searching {
+			if key == "enter" || key == "esc" {
+				m.searching = false
+				m.search.Blur()
+				m.inputGeneration++
+				return m, nil
+			}
+			return m.updateInput(message)
+		}
+		if m.page == "form" {
+			if key == "ctrl+c" || key == "esc" {
+				m.status = "Draft cancelled"
+				m.back()
+				return m, nil
+			}
+			if key == "?" && m.focus >= len(m.fields) {
+				m.open("help", entry{}, helpText, "")
+				return m, nil
+			}
+			return m.updateForm(message)
+		}
+		if key == "ctrl+c" {
+			return m, tea.Quit
+		}
+		if key == "esc" || (m.page == "help" && key == "?") {
 			m.back()
 			return m, nil
 		}
-		if m.page == "discard" {
-			return m.updateDiscard(message)
-		}
-		if pressed == "ctrl+c" && m.draftActive() {
-			m.cancelDraft()
-			return m, nil
-		}
-		if pressed == "ctrl+c" {
+		if key == "q" {
 			return m, tea.Quit
 		}
-		if m.searching {
-			switch pressed {
-			case "enter", "esc":
-				m.searching = false
-				m.inputGeneration++
-				m.search.Blur()
-			default:
-				return m.updateSearch(message)
-			}
+		if key == "?" {
+			m.open("help", entry{}, helpText, "")
 			return m, nil
 		}
-		if (m.page == "list" || m.page == "picker") && pressed == "/" {
+		if key == "f5" && m.page != "picker" {
+			m.reloadPage()
+			return m, nil
+		}
+		if (m.page == "list" || m.page == "details") && (key == "tab" || key == "shift+tab") {
+			m.tab = 1 - m.tab
+			m.page, m.target, m.origins, m.status = "list", entry{}, nil, ""
+			return m, nil
+		}
+		if (m.page == "list" || m.page == "picker") && key == "/" {
 			m.searching = true
 			m.inputGeneration++
+			value := m.queries[m.tab]
 			if m.page == "picker" {
-				m.search.SetValue(m.choiceQuery)
-			} else {
-				m.search.SetValue(m.queries[m.tab])
+				value = m.choiceQuery
 			}
+			m.search.SetValue(value)
 			return m, m.inputCommand(m.search.Focus())
 		}
-		if (m.page == "list" || m.page == "picker") && pressed == "x" {
+		if (m.page == "list" || m.page == "picker") && key == "x" {
 			if m.page == "picker" {
 				m.choiceQuery = ""
-				m.refreshChoices()
+				m.choiceIndex = 0
 			} else {
 				m.queries[m.tab] = ""
-				m.refreshList()
+				m.selected[m.tab] = 0
 			}
 			return m, nil
 		}
-		if pressed == "q" && !m.draftActive() && m.page != "help" {
-			return m, tea.Quit
+		if m.page == "picker" {
+			return m.updateSelection(key)
 		}
-		if m.page == "form" {
-			next, command := m.updateForm(message)
-			updated := next.(model)
-			return updated, updated.inputCommand(command)
-		}
-		if (pressed == "home" || pressed == "end") && m.page != "list" && m.page != "picker" {
-			if pressed == "home" {
-				m.content.GotoTop()
-			} else {
-				m.content.GotoBottom()
-			}
-			return m, nil
-		}
-		if m.page == "review" && (pressed == "esc" || pressed == "e") {
-			m.editReview()
-			return m, nil
-		}
-		if pressed == "esc" {
-			m.back()
-			return m, nil
-		}
-		if m.page == "review" {
-			switch pressed {
-			case "tab", "shift+tab":
-				direction := 1
-				if pressed == "shift+tab" {
-					direction = 3
-				}
-				m.reviewControl = (m.reviewControl + direction) % 4
-			case "?":
-				m.openDocument("help", entry{}, m.helpText())
-			case "c":
-				m.cancelDraft()
+		if m.page == "list" {
+			switch key {
+			case "up", "k", "down", "j", "home", "end", "pgup", "pgdown":
+				return m.updateSelection(key)
 			case "enter":
-				switch m.reviewControl {
-				case 1:
-					m.editReview()
-				case 2:
-					m.cancelDraft()
-				case 3:
-					m.openDocument("help", entry{}, m.helpText())
-				default:
-					if err := m.resolveFormTargets(); err != nil {
-						m.targetError(err)
-						return m, nil
-					}
-					m.running = true
-					ctx, cancel := context.WithCancel(m.ctx)
-					m.signals.start(cancel)
-					operation := &execution{ctx: ctx, options: m.options, request: m.request, target: m.handoffTarget()}
-					return m, tea.Exec(operation, func(err error) tea.Msg {
-						return operation.complete(err)
-					})
+				if item := m.visibleTarget(); item.id != "" {
+					m.open("details", item, m.details(item), "")
 				}
-			default:
-				var command tea.Cmd
-				m.content, command = m.content.Update(message)
+				return m, nil
+			}
+		}
+		if m.page == "document" && key == "y" && m.copyText != "" && !m.stale {
+			m.status = "Copy requested (OSC52); remote state unchanged"
+			return m, tea.SetClipboard(m.copyText)
+		}
+		if m.page == "list" || m.page == "details" {
+			switch key {
+			case "c", "i", "a":
+				action := map[string]string{"c": "create", "i": "import", "a": "add"}[key]
+				if (m.tab == 0 && key != "a") || (m.tab == 1 && key == "a") {
+					command := m.beginForm(action)
+					return m, command
+				}
+			case "l":
+				command := m.beginPair("associate")
 				return m, command
+			case "g":
+				command := m.beginPair("guide")
+				return m, command
+			case "p":
+				target := m.visibleTarget()
+				if target.kind == "key" {
+					m.showPublic(target.id)
+				} else if target.kind == "host" {
+					command := m.beginPair("public")
+					return m, command
+				}
+				return m, nil
+			case "s":
+				if target := m.visibleTarget(); target.kind == "creation" {
+					command := m.execute(app.Request{Operation: "resume", Resume: target.id})
+					return m, command
+				}
+			case "v":
+				if target := m.visibleTarget(); target.id != "" {
+					m.open("technical", target, m.technical(target), "")
+				} else if m.view.Review != "" {
+					m.open("technical", entry{}, m.view.Review, "")
+				}
+				return m, nil
 			}
+		}
+		if key == "home" {
+			m.content.GotoTop()
 			return m, nil
 		}
-		if (m.page == "list" || m.page == "details") && (pressed == "tab" || pressed == "shift+tab") {
-			m.lists[m.tab] = m.list
-			if pressed == "tab" {
-				m.tab = (m.tab + 1) % 4
-			} else {
-				m.tab = (m.tab + 3) % 4
-			}
-			m.page, m.target, m.origins = "list", entry{}, nil
-			m.list = m.lists[m.tab]
-			m.refreshList()
+		if key == "end" {
+			m.content.GotoBottom()
 			return m, nil
-		}
-		if pressed == "f5" && (m.page == "list" || m.page == "details" || m.page == "result" || m.page == "reload-error") {
-			m.refreshSnapshot()
-			return m, nil
-		}
-		if pressed == "h" && (m.page == "list" || m.page == "details") {
-			target := m.visibleTarget()
-			if m.page == "list" {
-				target = entry{}
-			}
-			m.openDocument("history", entry{}, m.historyDetails(target))
-			return m, nil
-		}
-		if pressed == "g" && m.page != "help" {
-			m.openDocument("discovery", entry{}, m.discoveryDetails())
-			return m, nil
-		}
-		if pressed == "?" {
-			m.openDocument("help", entry{}, m.helpText())
-			return m, nil
-		}
-		if pressed == "v" && m.page == "details" {
-			m.openDocument("technical", m.target, m.technicalDetails(m.target))
-			return m, nil
-		}
-		if m.page == "result" {
-			return m.updateResult(message)
-		}
-		if m.page == "help" {
-			var command tea.Cmd
-			m.content, command = m.content.Update(message)
-			return m, command
-		}
-		if pressed == "enter" && m.page == "picker" {
-			m.chooseTarget()
-			return m, nil
-		}
-		if pressed == "enter" && m.page == "list" {
-			if item, ok := m.list.SelectedItem().(entry); ok {
-				m.openDocument("details", item, m.entityDetails(item))
-			}
-			return m, nil
-		}
-		actions := map[string]string{"c": "create", "i": "import", "a": "add", "r": "register", "u": "unregister", "d": "delete", "s": "resume"}
-		if action := actions[pressed]; action != "" {
-			m.beginAction(action)
-			return m, nil
-		}
-	case completed:
-		m.signals.finish()
-		m.running = false
-		m.result = message.result
-		m.resultControl = 0
-		m.page, m.target, m.origins = "result", entry{}, nil
-		view, err := app.Snapshot(m.options)
-		m.result.reloadErr = err
-		if err != nil {
-			m.stale = true
-		} else {
-			m.view, m.stale = view, false
-			m.refreshList()
-		}
-		m.renderOperationResult()
-		m.content.GotoTop()
-		return m, nil
-	}
-	if !m.running && m.width >= 32 && m.height >= 12 {
-		if m.searching && (m.page == "list" || m.page == "picker") {
-			return m.updateSearch(message)
-		}
-		if m.page == "form" {
-			next, command := m.updateForm(message)
-			updated := next.(model)
-			return updated, updated.inputCommand(command)
 		}
 	}
-	var command tea.Cmd
-	if m.page == "list" {
-		m.list, command = m.list.Update(message)
-	} else if m.page == "picker" {
-		m.choices, command = m.choices.Update(message)
-	} else {
+	if m.searching || m.page == "form" {
+		return m.updateInput(message)
+	}
+	if m.page != "list" && m.page != "picker" && !m.running {
+		var command tea.Cmd
 		m.content, command = m.content.Update(message)
+		return m, command
 	}
-	return m, command
+	return m, nil
 }
 
 func (m model) chrome() (string, string) {
-	tabs := []string{"Destinations", "Keys", "Registrations", "Tasks"}
-	tabs[m.tab] = "[" + tabs[m.tab] + "]"
-	categories := strings.Join(tabs, " | ")
-	if m.width < 60 {
-		categories = tabs[m.tab] + " (tab: switch)"
+	tabs := "[Keys] | Destinations"
+	if m.tab == 1 {
+		tabs = "Keys | [Destinations]"
 	}
-	footer := "↑/↓ select · enter details · / search · x Clear search\n? help · h history · g discovery · F5 refresh · q quit"
+	title := "SSH KeyFlow\n" + tabs
 	switch m.page {
-	case "details":
-		footer = "v technical · h history · F5 refresh\n↑/↓ scroll · ? help · esc back · q quit"
-	case "technical":
-		footer = "↑/↓ scroll · Home/End · ? help\nesc overview · q quit"
-	case "history", "discovery", "result", "reload-error", "instructions":
-		footer = "↑/↓ scroll · ? help · esc back · q quit"
-	case "help":
-		footer = "↑/↓ scroll · esc/? back · ctrl+c back"
-	case "picker":
-		footer = "↑/↓ select · enter choose · / search\nx Clear search · ? help · esc back"
 	case "form":
-		footer = "tab/shift+tab move · enter next · ctrl+s review · esc back\nPgUp/PgDn scroll · Help control"
-	case "discard":
-		footer = "tab/↑/↓ choose · enter select · esc keep editing\n? help"
-	case "review":
-		footer = m.reviewControls()
+		title = "SSH KeyFlow\n" + actionTitle(m.action)
+	case "picker":
+		title = "SSH KeyFlow\nChoose " + m.choiceKind()
+	case "document":
+		title = "SSH KeyFlow\nCopy-paste instructions"
+	case "technical":
+		title = "SSH KeyFlow\nTechnical details (historical)"
+	case "help":
+		title = "SSH KeyFlow\nHelp"
+	case "result":
+		title = "SSH KeyFlow\nLocal operation result"
 	}
-	if m.width < 60 {
-		switch m.page {
-		case "list":
-			footer = "/ search · enter details\n? help · q quit"
-		case "details":
-			footer = "v technical · F5 refresh\n↑/↓ scroll · ? help\nesc back · q quit"
-		case "technical":
-			footer = "↑/↓ scroll · ? help\nesc overview · q quit"
-		case "history", "discovery", "result", "reload-error", "instructions":
-			footer = "↑/↓ scroll · ? help\nesc back · q quit"
-		case "picker":
-			footer = "enter choose · / search\n? help · esc back"
-		case "help":
-			footer = "↑/↓ scroll · esc/? back"
-		case "form":
-			footer = "tab move · ctrl+s review\nesc back · PgUp/PgDn scroll"
-		case "review":
-			footer = m.reviewControls()
+	footer := "↑/↓ select · Enter details · / search\nTab switch · ? help · q quit"
+	switch m.page {
+	case "list":
+		if m.tab == 0 {
+			footer = "c create · i import · s resume\n" + footer
+		} else {
+			footer = "a add · l associate · g guide\n" + footer
 		}
-	}
-	if m.page == "details" && m.target.kind == "task" {
-		footer = "v technical · ↑/↓ scroll\n? help · esc back · q quit"
-		if m.width < 60 {
-			footer = "v technical\n↑/↓ scroll · ? help\nesc back · q quit"
+	case "details":
+		footer = "p public · g guide · l associate\nv details · ↑/↓ scroll · Esc back"
+		if m.target.kind == "creation" {
+			footer = "s resume local creation\n↑/↓ scroll · Esc back"
 		}
-		if !m.target.readOnly && !m.stale {
-			footer = "s Continue · " + footer
-			if m.width < 60 {
-				footer = "s Continue · v technical\n↑/↓ scroll · ? help\nesc back · q quit"
-			}
-		}
-	}
-	if m.page == "result" {
-		footer = m.resultFooter()
-	}
-	if m.draftActive() && m.page == "discovery" {
-		footer = "↑/↓ scroll · ? help · esc back\nctrl+c cancel draft"
+	case "picker":
+		footer = "↑/↓ select · Enter choose\n/ search · x clear · Esc back"
+	case "form":
+		footer = "Tab move · Ctrl+S continue\nPgUp/PgDn scroll · Esc cancel"
+	case "document":
+		footer = "y copy (OSC52) · ↑/↓ scroll\nHome/End · Esc back · ? help"
+	default:
+		footer = "↑/↓ scroll · Home/End\nEsc back · F5 refresh · ? help"
 	}
 	if m.searching {
-		footer = "enter filter · esc keep query"
+		footer = "Enter apply · Esc keep search"
 	}
-	if m.page == "list" && !m.searching {
-		actions := m.listActions()
-		footer = actions + "\n↑/↓ select · Enter details · / search · Tab category · ? help · q quit"
-		if m.width < 60 {
-			// Keep primary actions on one row; Help contains the rest.
-			actions = ansi.Truncate(actions, m.width, "…")
-			footer = "Enter details · / search\n" + actions + "\nTab category · ? help · q quit"
-		}
-	}
-	if m.page != "list" && m.page != "picker" && m.page != "form" && m.page != "discard" {
-		footer = strings.Replace(footer, "↑/↓ scroll", "↑/↓ scroll "+m.scrollPosition(), 1)
+	if m.running {
+		footer = "Native terminal operation in progress"
 	}
 	status := m.status
-	if m.stale {
-		status = "Saved state stale; F5 Refresh / q Exit"
-	}
 	if status == "" && m.view.Review != "" && m.page == "list" {
-		status = "Requires review (g: details)"
+		status = "Manual review notice: v details"
 	}
-	if status == "" && m.view.Review != "" && m.page == "details" {
-		if m.width < 60 {
-			if m.target.kind == "task" && m.target.readOnly {
-				footer = strings.Replace(footer, "v technical\n", "v technical · g review\n", 1)
-			} else {
-				footer = strings.Replace(footer, "esc back · q quit", "g review · esc back · q quit", 1)
-			}
-		} else {
-			footer = strings.Replace(footer, "F5 refresh", "g review · F5 refresh", 1)
-		}
+	if m.stale {
+		status = "State stale; F5 refresh required"
 	}
 	if status != "" {
-		footer = ansi.Truncate(status, max(1, m.width), "…") + "\n" + footer
+		footer = ansi.Truncate(safeText(status), max(1, m.width), "…") + "\n" + footer
 	}
-	return detailHeading("SSH KeyFlow") + "\n" + ansi.Truncate(m.location(categories), max(1, m.width), "…"), ansi.Hardwrap(footer, max(1, m.width), false)
+	return title, footer
 }
 
-func (m *model) resizeBody() {
+func (m *model) resize() {
 	header, footer := m.chrome()
 	extra := 0
 	if (m.page == "list" && (m.searching || m.queries[m.tab] != "")) || (m.page == "picker" && (m.searching || m.choiceQuery != "")) {
 		extra = 1
 	}
-	available := max(1, m.height-lipgloss.Height(header)-lipgloss.Height(footer)-extra)
-	m.search.SetWidth(max(1, m.width-10))
-	m.content.SetHeight(available)
-	m.sizeSelection(&m.list)
-	width := max(10, m.width-2)
-	if m.content.Width() != width {
-		// Restored document origins may have been composed at an older width.
-		offset := m.content.YOffset()
-		m.content.SetWidth(width)
-		switch m.page {
-		case "details":
-			m.setContent(m.entityDetails(m.target))
-		case "form":
-			m.setContent(m.formBody())
-		default:
-			m.setContent(m.document)
-		}
-		m.content.SetYOffset(offset)
-	}
-	if m.page == "picker" {
-		m.sizeSelection(&m.choices)
+	height := max(1, m.height-strings.Count(header, "\n")-strings.Count(footer, "\n")-4-extra)
+	width := max(1, m.width)
+	offset := m.content.YOffset()
+	m.content.SetWidth(width)
+	m.content.SetHeight(height)
+	m.search.SetWidth(max(1, width-10))
+	m.content.SetContent(ansi.Hardwrap(safeText(m.document), width, true))
+	m.content.SetYOffset(offset)
+	for i := range m.fields {
+		m.fields[i].input.SetWidth(max(1, width-4))
 	}
 }
 
 func (m model) View() tea.View {
 	if m.width < 32 || m.height < 12 {
-		lines := strings.Split(ansi.Hardwrap("Resize: minimum 32x12\nq quit", max(1, m.width), false), "\n")
-		view := tea.NewView(strings.Join(lines[:min(len(lines), max(1, m.height))], "\n"))
-		view.AltScreen = true
-		return view
+		return terminalView(fit("Resize: minimum 32x12\nq quit", m.width, m.height))
 	}
-	m.resizeBody()
+	m.resize()
 	header, footer := m.chrome()
-	body := m.selectionView(m.list)
-	if m.page == "list" && len(m.list.Items()) == 0 {
-		body = panel([]string{"Destinations", "Managed keys", "Registrations", "Tasks"}[m.tab], m.emptyList(), max(10, m.width-2))
-	}
-	if m.page == "list" && (m.searching || m.queries[m.tab] != "") {
-		m.search.SetWidth(max(1, m.width-10))
-		m.search.SetValue(m.queries[m.tab])
-		body = m.search.View() + "\n" + body
-	}
-	if m.page == "form" {
-		body = m.formView()
-	} else if m.page == "picker" {
-		body = m.selectionView(m.choices)
-		if len(m.choices.Items()) == 0 {
-			body = panel("No matches", "No matching eligible targets.\nx: Clear search · esc: Back", max(10, m.width-2))
+	body := m.content.View()
+	if m.page == "list" || m.page == "picker" {
+		items, index := m.visibleEntries(), m.selected[m.tab]
+		if m.page == "picker" {
+			index = m.choiceIndex
 		}
-		if m.searching || m.choiceQuery != "" {
-			m.search.SetWidth(max(1, m.width-10))
+		body = m.listText(items, index)
+		query := m.queries[m.tab]
+		if m.page == "picker" {
+			query = m.choiceQuery
+		}
+		if m.searching || query != "" {
+			m.search.SetValue(query)
 			body = m.search.View() + "\n" + body
 		}
-	} else if m.page != "list" {
-		body = m.content.View()
 	}
-	if m.page == "list" || m.page == "picker" {
-		extra := 0
-		if m.searching || (m.page == "list" && m.queries[m.tab] != "") || (m.page == "picker" && m.choiceQuery != "") {
-			extra = 1
+	view := terminalView(fit(header+"\n"+body+"\n"+footer, m.width, m.height))
+	if m.page == "form" {
+		view.Cursor = m.formCursor()
+	}
+	if m.searching {
+		view.Cursor = m.search.Cursor()
+		if view.Cursor != nil {
+			view.Cursor.Y += 2
 		}
-		body = lipgloss.NewStyle().Height(m.content.Height() + extra).Render(body)
 	}
-	view := tea.NewView(header + "\n" + body + "\n" + footer)
-	view.AltScreen = true
 	return view
 }
 
-func (m model) emptyList() string {
-	if m.queries[m.tab] != "" {
-		return "No matching records.\nx: Clear search"
+func terminalView(text string) tea.View {
+	view := tea.NewView(text)
+	view.AltScreen = true
+	return view
+}
+func fit(text string, width, height int) string {
+	lines := strings.Split(text, "\n")
+	for i := range lines {
+		lines[i] = ansi.Truncate(lines[i], max(1, width), "…")
 	}
-	switch m.tab {
-	case 0:
-		return "No destinations yet.\na: Add destination\nc: Create key / i: Import key"
-	case 1:
-		return "Managed keys\nNo managed keys yet.\nc: Create key / i: Import key"
-	case 2:
-		return "No registrations recorded.\nSelect a destination or key to register."
-	default:
-		return "No recorded follow-up.\nRemote access is not verified."
+	return strings.Join(lines[:min(len(lines), max(1, height))], "\n")
+}
+func safeText(text string) string {
+	text = ansi.Strip(text)
+	return strings.Map(func(r rune) rune {
+		if r == '\n' || r == '\t' {
+			return r
+		}
+		if r < 32 || (r >= 0x7f && r < 0xa0) {
+			return -1
+		}
+		return r
+	}, text)
+}
+func (m *model) setDocument(text string) { m.document = text; m.resize(); m.content.GotoTop() }
+func (m *model) open(page string, target entry, text, copyText string) {
+	m.origins = append(m.origins, screen{m.page, m.document, m.copyText, m.target, m.content.YOffset()})
+	m.page, m.target, m.copyText, m.searching = page, target, copyText, false
+	m.inputGeneration++
+	m.status = ""
+	m.setDocument(text)
+}
+func (m *model) back() {
+	m.inputGeneration++
+	m.searching = false
+	if len(m.origins) == 0 {
+		m.page, m.target = "list", entry{}
+		return
 	}
+	previous := m.origins[len(m.origins)-1]
+	m.origins = m.origins[:len(m.origins)-1]
+	m.page, m.target, m.copyText = previous.page, previous.target, previous.copyText
+	m.setDocument(previous.document)
+	m.content.SetYOffset(previous.offset)
+	if m.page == "form" {
+		m.renderForm()
+	}
+}
+func (m *model) reload() {
+	// Returning from Help must not restore copy data from before this reload.
+	m.copyText = ""
+	for i := range m.origins {
+		m.origins[i].copyText = ""
+	}
+	view, err := app.Snapshot(m.options)
+	if err != nil {
+		m.stale = true
+		m.status = "Reload failed: " + err.Error()
+		m.result.reloadErr = err
+		return
+	}
+	m.view, m.stale = view, false
+	m.result.reloadErr = nil
+	m.status = "State refreshed"
+}
+func (m *model) reloadPage() {
+	m.reload()
+	switch m.page {
+	case "result":
+		m.setDocument(m.result.text())
+	case "details":
+		m.setDocument(m.details(m.target))
+	case "technical":
+		m.setDocument(m.technical(m.target))
+	case "document":
+		m.status = "Reopen public key or guide to copy refreshed text"
+	}
+}
+
+const helpText = `Keys / Destinations
+Tab / Shift+Tab: switch category
+↑/↓ or j/k: select; Enter: details
+/ search; x clear; Home/End; PgUp/PgDn
+Esc: back; F5: refresh; q / Ctrl+C: quit
+
+Keys
+c create Ed25519 key; i import existing key
+p display public key; y copies displayed text
+s resumes the selected unfinished local creation
+Passphrases are entered only in native ssh-keygen.
+
+Destinations
+a add using an existing key; l associate a key
+g display placement/removal guidance, SSH Host snippet and connection command
+p display a selected public key
+
+Copy uses terminal OSC52 support. If unavailable, run:
+ssh-keyflow keys public --key ID
+ssh-keyflow hosts guide --host ID --key ID
+Use the CLI output with the system clipboard or an editor, preserving the public key as a single line. Do not select wrapped TUI text.
+Copying never confirms remote registration or a working connection. No SSH config is edited.
+
+Forms
+Tab / Shift+Tab move; Enter next or activate control
+Ctrl+S continue; Esc / Ctrl+C cancel draft
+Continue hands off to the native terminal for confirmation.
+
+v technical details: historical records are read-only.
+Legacy remote operations cannot be resumed. Only local key creation can resume.
+Paths are shown for manual local cleanup; this utility does not delete key files.`
+
+func actionTitle(action string) string {
+	return map[string]string{"create": "Create Ed25519 key", "import": "Import existing key", "add": "Add destination", "associate": "Associate key", "resume": "Resume local creation"}[action]
+}
+func (m model) choiceKind() string {
+	if len(m.choices) > 0 && m.choices[0].kind == "host" {
+		return "destination"
+	}
+	return "key"
+}
+func (m model) listText(items []entry, index int) string {
+	height := m.content.Height()
+	if len(items) == 0 {
+		text := "No matching records. x: clear search"
+		if m.page == "list" && m.queries[m.tab] == "" {
+			if m.tab == 0 {
+				text = "No keys yet. c: create / i: import"
+			} else {
+				text = "No destinations yet. a: add\nCreate or import a key first."
+			}
+		}
+		return padLines(fit(text, m.width, height), height)
+	}
+	index = max(0, min(index, len(items)-1))
+	perPage := max(1, (height-1)/2)
+	start := (index / perPage) * perPage
+	var lines []string
+	lines = append(lines, fmt.Sprintf("%d/%d", index+1, len(items)))
+	for i := start; i < min(len(items), start+perPage); i++ {
+		prefix := "  "
+		if i == index {
+			prefix = "> "
+		}
+		lines = append(lines, prefix+safeText(items[i].title), "  "+safeText(items[i].description))
+	}
+	return padLines(fit(strings.Join(lines, "\n"), m.width, height), height)
+}
+func padLines(text string, height int) string {
+	return text + strings.Repeat("\n", max(0, height-strings.Count(text, "\n")-1))
 }

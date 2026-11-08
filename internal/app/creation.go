@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -25,7 +24,7 @@ func newID(prefix string) (string, error) {
 	return prefix + "-" + hex.EncodeToString(identifier), nil
 }
 
-func createKey(ctx context.Context, options Options, store *state.LockedStore, document *state.State, name, onboardingID string) (state.Key, error) {
+func createKey(ctx context.Context, options Options, store *state.LockedStore, document *state.State, name string) (state.Key, error) {
 	for _, creation := range document.Creations {
 		if creation.Stage != "complete" {
 			return state.Key{}, fmt.Errorf("unfinished creation %s at %s; resume this saved operation before allocating another pair", creation.ID, creation.PrivatePath)
@@ -84,7 +83,9 @@ func createKey(ctx context.Context, options Options, store *state.LockedStore, d
 			break
 		}
 	}
-	fmt.Fprintf(options.Output, "Create Ed25519 %q\nPrivate: %s\nPublic: %s.pub\nEnter passphrase in native ssh-keygen; an empty passphrase is allowed.\n", name, privatePath, privatePath)
+	if _, err := fmt.Fprintf(options.Output, "Create Ed25519 %q\nPrivate: %s\nPublic: %s.pub\nEnter passphrase in native ssh-keygen; an empty passphrase is allowed.\n", name, privatePath, privatePath); err != nil {
+		return state.Key{}, err
+	}
 	answer, err := prompt(options, "Type yes to create:")
 	if err != nil {
 		return state.Key{}, err
@@ -103,33 +104,9 @@ func createKey(ctx context.Context, options Options, store *state.LockedStore, d
 		}
 	}
 	document.Creations = append(document.Creations, state.Creation{ID: creationID, KeyID: keyID, Name: name, PrivatePath: privatePath, PublicPath: privatePath + ".pub", CreatedAt: createdAt.Format(time.RFC3339Nano), Stage: "planned"})
-	if onboardingID != "" {
-		found := false
-		for jobIndex := range document.Onboardings {
-			job := &document.Onboardings[jobIndex]
-			if job.ID == onboardingID && job.KeyID == "" {
-				job.KeyID, job.CreationID, job.Stage = keyID, creationID, "key_pending"
-				found = true
-				break
-			}
-		}
-		if !found {
-			return state.Key{}, fmt.Errorf("requires review: creation onboarding identity missing")
-		}
-	}
-	options.target = ReportTarget{KeyID: keyID, CreationID: creationID, OnboardingID: onboardingID}
-	if onboardingID != "" {
-		for _, job := range document.Onboardings {
-			if job.ID == onboardingID {
-				options.target.HostID = job.HostID
-			}
-		}
-	}
+	options.target = ReportTarget{KeyID: keyID, CreationID: creationID}
 	if err := options.saveReport(store, *document, Report{Kind: ReportCreation, Outcome: OutcomePending, Stage: "planned", Path: privatePath}); err != nil {
 		return state.Key{}, err
-	}
-	if onboardingID != "" {
-		options.report(Report{Kind: ReportOnboarding, Outcome: OutcomePending, Stage: "key_pending", Saved: true})
 	}
 	return finishCreation(ctx, options, store, document, len(document.Creations)-1)
 }
@@ -137,11 +114,6 @@ func createKey(ctx context.Context, options Options, store *state.LockedStore, d
 func finishCreation(ctx context.Context, options Options, store *state.LockedStore, document *state.State, creationIndex int) (result state.Key, err error) {
 	creation := &document.Creations[creationIndex]
 	options.target = ReportTarget{KeyID: creation.KeyID, CreationID: creation.ID}
-	for _, job := range document.Onboardings {
-		if job.CreationID == creation.ID {
-			options.target.HostID, options.target.OnboardingID = job.HostID, job.ID
-		}
-	}
 	options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
 	fact := Report{Kind: ReportCreation, Outcome: OutcomeRequiresReview, Path: creation.PrivatePath}
 	defer func() {
@@ -227,29 +199,6 @@ func finishCreation(ctx context.Context, options Options, store *state.LockedSto
 	}
 	fmt.Fprintln(options.Output, "Created", key.Name, key.Fingerprint, "connection=unverified")
 	return key, nil
-}
-
-func selectCreation(options Options, document state.State) (int, error) {
-	var choices []int
-	for creationIndex, creation := range document.Creations {
-		if creation.Stage == "complete" {
-			continue
-		}
-		choices = append(choices, creationIndex)
-		fmt.Fprintf(options.Output, "%d: Resume %s [%s] %s stage=%s\n", len(choices), creation.Name, creation.ID, creation.PrivatePath, creation.Stage)
-	}
-	if len(choices) == 0 {
-		return 0, fmt.Errorf("no unfinished creation")
-	}
-	answer, err := prompt(options, "Creation number (0 cancels):")
-	if err != nil {
-		return 0, err
-	}
-	selected, err := strconv.Atoi(answer)
-	if err != nil || selected < 1 || selected > len(choices) {
-		return 0, fmt.Errorf("no creation selected")
-	}
-	return choices[selected-1], nil
 }
 
 func creationLocation(home string, creation state.Creation) error {

@@ -1,11 +1,9 @@
 package app
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"ssh-keyflow/internal/state"
@@ -14,31 +12,18 @@ import (
 var ErrCancelled = errors.New("cancelled; no further changes made")
 var ErrInvalidInput = errors.New("invalid operation input")
 
-// Request contains operation inputs, never credentials or simulated menu answers.
 type Request struct {
-	Operation    string
-	Name         string
-	PublicPath   string
-	PrivatePath  string
-	Key          string
-	Destination  Destination
-	Host         string
-	Registration string
-	Resume       string
-	Bootstrap    string
-	Identity     string
-	Configure    bool
+	Operation, Name, PublicPath, PrivatePath, Key, Host, Resume string
+	Destination                                                 Destination
 }
-
 type Destination = state.Host
 
 type View struct {
-	State     state.State `json:"state"`
-	Discovery string      `json:"discovery"`
-	Review    string      `json:"review,omitempty"`
+	State  state.State `json:"state"`
+	Review string      `json:"review,omitempty"`
 }
 
-// Snapshot reads existing data without probing dependencies or creating storage.
+// Snapshot never initializes storage, probes commands or changes legacy records.
 func Snapshot(options Options) (View, error) {
 	if options.Home == "" {
 		return View{}, fmt.Errorf("Home is required")
@@ -51,191 +36,25 @@ func Snapshot(options Options) (View, error) {
 	if err := integrity(document); err != nil {
 		view.Review = err.Error()
 	}
-	var output bytes.Buffer
-	options.Output = &output
-	discover(options, document)
-	view.Discovery = output.String()
+	for _, deletion := range document.Deletions {
+		if deletion.Stage != "complete" {
+			view.Review += fmt.Sprintf("\nLegacy deletion %s for key %s requires manual review; this key cannot be used. Files and record are preserved.", deletion.ID, deletion.KeyID)
+		}
+	}
 	return view, nil
 }
 
-func execute(ctx context.Context, options Options) error {
-	request := options.Request
-	if err := request.Validate(); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
-	}
-	if err := request.checkTargets(options.Home); err != nil {
-		return err
-	}
-	switch request.Operation {
-	case "list":
-		view, err := Snapshot(options)
-		if err == nil {
-			if view.Review != "" {
-				fmt.Fprintln(options.Output, view.Review, "(updates stopped)")
-			}
-			listManaged(options, view.State)
-			fmt.Fprint(options.Output, view.Discovery)
-		}
-		return err
-	case "import":
-		if _, err := options.Runner.LookPath("ssh-keygen"); err != nil {
-			return err
-		}
-		if err := state.CheckWritable(options.Home); err != nil {
-			return err
-		}
-		return state.WithLock(options.Home, func(store *state.LockedStore) error {
-			return importLocked(ctx, options, store)
-		})
-	case "create":
-		if _, err := options.Runner.LookPath("ssh-keygen"); err != nil {
-			return err
-		}
-		if err := state.CheckWritable(options.Home); err != nil {
-			return err
-		}
-		return state.WithLock(options.Home, func(store *state.LockedStore) error {
-			document, err := store.Load()
-			if err != nil {
-				return err
-			}
-			if err := integrity(document); err != nil {
-				return err
-			}
-			_, err = createKey(ctx, options, store, &document, request.Name, "")
-			return err
-		})
-	case "delete":
-		return deleteLocal(options)
-	case "register":
-		return state.WithLock(options.Home, func(store *state.LockedStore) error {
-			document, err := store.Load()
-			if err != nil {
-				return err
-			}
-			if err := integrity(document); err != nil {
-				return err
-			}
-			hostIndex, err := destinationIndex(document, request.Host)
-			if err != nil {
-				return err
-			}
-			keyIndex, err := keyIndex(document, request.Key)
-			if err != nil {
-				return err
-			}
-			return registerSelected(ctx, options, store, &document, document.Hosts[hostIndex], document.Keys[keyIndex])
-		})
-	case "unregister":
-		return unregister(ctx, options)
-	case "resume":
-		return resumeOperation(ctx, options)
-	case "add":
-		if request.Destination.Port == 0 {
-			request.Destination.Port = 22
-		}
-		if err := state.CheckWritable(options.Home); err != nil {
-			return err
-		}
-		return state.WithLock(options.Home, func(store *state.LockedStore) error {
-			document, err := store.Load()
-			if err != nil {
-				return err
-			}
-			if err := integrity(document); err != nil {
-				return err
-			}
-			for _, host := range document.Hosts {
-				if strings.EqualFold(host.Alias, request.Destination.Alias) {
-					return fmt.Errorf("%w: destination alias already managed", ErrInvalidInput)
-				}
-			}
-			if err := checkAlias(options, request.Destination.Alias); err != nil {
-				return err
-			}
-			var key state.Key
-			if request.Key != "" {
-				index, err := keyIndex(document, request.Key)
-				if err != nil {
-					return err
-				}
-				key = document.Keys[index]
-			}
-			return saveDestination(ctx, options, store, &document, request.Destination, key, request.Key == "")
-		})
-	default:
-		return fmt.Errorf("unknown operation %q", request.Operation)
-	}
-}
-
-func (request Request) checkTargets(home string) error {
-	switch request.Operation {
-	case "list", "create", "import":
-		return nil
-	case "add":
-		if request.Key == "" {
-			return nil
-		}
-	}
-	document, err := state.Load(home)
-	if err != nil {
-		return err
-	}
-	switch request.Operation {
-	case "add", "delete":
-		_, err = keyIndex(document, request.Key)
-		return err
-	case "register":
-		if _, err := destinationIndex(document, request.Host); err != nil {
-			return err
-		}
-		_, err = keyIndex(document, request.Key)
-		return err
-	case "unregister":
-		for _, registration := range document.Registrations {
-			if registration.ID == request.Registration {
-				return nil
-			}
-		}
-		return fmt.Errorf("%w: registration %q not found", ErrInvalidInput, request.Registration)
-	case "resume":
-		for _, creation := range document.Creations {
-			if creation.ID == request.Resume {
-				return nil
-			}
-		}
-		for _, job := range document.Onboardings {
-			if job.ID == request.Resume {
-				return nil
-			}
-		}
-		for _, registration := range document.Registrations {
-			if registration.ID == request.Resume {
-				return nil
-			}
-		}
-		for _, deletion := range document.Deletions {
-			if deletion.ID == request.Resume && deletion.Stage != "complete" {
-				return nil
-			}
-		}
-		return fmt.Errorf("%w: resumable operation %q not found", ErrInvalidInput, request.Resume)
-	}
-	return nil
-}
-
-// Validate checks operation arguments without accessing disk or invoking SSH.
 func (request Request) Validate() error {
+	validName := func(name string) bool { return strings.TrimSpace(name) != "" && !strings.ContainsAny(name, "\x00\r\n") }
 	switch request.Operation {
 	case "list":
-		return nil
 	case "create":
-		if strings.TrimSpace(request.Name) == "" || strings.ContainsAny(request.Name, "\x00\r\n") {
+		if !validName(request.Name) {
 			return fmt.Errorf("create requires a valid management name")
 		}
 	case "import":
-		if strings.TrimSpace(request.Name) == "" || strings.ContainsAny(request.Name, "\x00\r\n") || request.PublicPath == "" {
-			return fmt.Errorf("import requires a valid management name and public key path")
+		if !validName(request.Name) || request.PublicPath == "" {
+			return fmt.Errorf("import requires a valid name and public key path")
 		}
 	case "add":
 		host := request.Destination
@@ -248,38 +67,185 @@ func (request Request) Validate() error {
 		if host.OS == "unknown" || (host.OS == "windows" && host.WindowsAccount == "") {
 			return fmt.Errorf("select the confirmed destination OS and Windows account type")
 		}
-		if (request.Key == "") == (strings.TrimSpace(request.Name) == "") {
-			return fmt.Errorf("destination requires exactly one managed key or new key name")
+		if request.Key == "" || request.Name != "" {
+			return fmt.Errorf("destination requires an existing managed key; create or import it first")
 		}
-		if strings.ContainsAny(request.Name, "\x00\r\n") {
-			return fmt.Errorf("invalid new key management name")
-		}
-	case "delete":
-		if request.Key == "" {
-			return fmt.Errorf("delete requires a managed key")
-		}
-	case "register":
+	case "associate", "guide":
 		if request.Host == "" || request.Key == "" {
-			return fmt.Errorf("register requires a destination and managed key")
+			return fmt.Errorf("%s requires a destination and managed key", request.Operation)
 		}
-	case "unregister":
-		if request.Registration == "" {
-			return fmt.Errorf("unregister requires a registration ID")
+	case "public":
+		if request.Key == "" {
+			return fmt.Errorf("public requires a managed key")
 		}
 	case "resume":
 		if request.Resume == "" {
-			return fmt.Errorf("resume requires an operation ID")
+			return fmt.Errorf("resume requires an unfinished local creation ID")
 		}
 	default:
-		return fmt.Errorf("unknown operation %q", request.Operation)
+		return fmt.Errorf("unknown operation %q; remote operations and local file deletion are no longer supported", request.Operation)
 	}
-	if request.Operation == "add" || request.Operation == "register" || request.Operation == "unregister" || request.Operation == "resume" {
-		if _, err := bootstrapMode(request.Bootstrap); err != nil {
+	return nil
+}
+
+func execute(ctx context.Context, options Options) error {
+	request := options.Request
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
+	}
+	switch request.Operation {
+	case "list":
+		view, err := Snapshot(options)
+		if err != nil {
 			return err
 		}
-		if request.Bootstrap == "key" && request.Identity == "" {
-			return fmt.Errorf("key authentication requires an identity path")
+		for _, key := range view.State.Keys {
+			fmt.Fprintf(options.Output, "Key %s %q %s\nPublic: %s\nPrivate: %s\n", key.ID, key.Name, key.Fingerprint, key.PublicPath, key.PrivatePath)
 		}
+		for _, host := range view.State.Hosts {
+			fmt.Fprintf(options.Output, "Destination %s %s %s@%s:%d\n", host.ID, host.Alias, host.User, host.Hostname, host.Port)
+		}
+		if view.Review != "" {
+			fmt.Fprintln(options.Output, view.Review)
+		}
+		return nil
+	case "public", "guide":
+		var text string
+		var err error
+		if request.Operation == "public" {
+			text, err = PublicKey(options.Home, request.Key)
+		} else {
+			text, err = Guide(options.Home, request.Host, request.Key)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(options.Output, text)
+		return err
+	}
+	document, err := state.Load(options.Home)
+	if err != nil {
+		return err
+	}
+	if err := request.checkTargets(document); err != nil {
+		return err
+	}
+	if request.Operation == "create" || request.Operation == "import" || request.Operation == "resume" {
+		if _, err := options.Runner.LookPath("ssh-keygen"); err != nil {
+			return err
+		}
+	}
+	if err := state.CheckWritable(options.Home); err != nil {
+		return err
+	}
+	return state.WithLock(options.Home, func(store *state.LockedStore) error {
+		document, err := store.Load()
+		if err != nil {
+			return err
+		}
+		if err := request.checkTargets(document); err != nil {
+			return err
+		}
+		switch request.Operation {
+		case "import":
+			return importLocked(ctx, options, store)
+		case "create":
+			_, err := createKey(ctx, options, store, &document, request.Name)
+			return err
+		case "resume":
+			for index, creation := range document.Creations {
+				if creation.ID != request.Resume {
+					continue
+				}
+				options.target = ReportTarget{KeyID: creation.KeyID, CreationID: creation.ID}
+				if _, err := fmt.Fprintf(options.Output, "Resume %s %q stage=%s\nPrivate: %s\nPublic: %s\nExisting files are preserved; only this recorded local key creation will run.\n", creation.ID, creation.Name, creation.Stage, creation.PrivatePath, creation.PublicPath); err != nil {
+					return err
+				}
+				if _, err := prompt(options, "Type yes to resume this creation:"); err != nil {
+					return err
+				}
+				_, err := finishCreation(ctx, options, store, &document, index)
+				return err
+			}
+		case "add", "associate":
+			return saveAssociation(options, store, document)
+		}
+		return fmt.Errorf("%w: operation target disappeared", ErrInvalidInput)
+	})
+}
+
+func saveAssociation(options Options, store *state.LockedStore, document state.State) error {
+	request := options.Request
+	key, err := usableKey(document, request.Key)
+	if err != nil {
+		return err
+	}
+	host := request.Destination
+	if request.Operation == "add" {
+		host.ID, err = newID("host")
+		if err != nil {
+			return err
+		}
+		host.ConfigKeyID = ""
+		if host.Port == 0 {
+			host.Port = 22
+		}
+		for _, existing := range document.Hosts {
+			if strings.EqualFold(existing.Alias, host.Alias) {
+				return fmt.Errorf("%w: destination alias already managed", ErrInvalidInput)
+			}
+		}
+	} else {
+		index, err := destinationIndex(document, request.Host)
+		if err != nil {
+			return err
+		}
+		host = document.Hosts[index]
+		for _, association := range document.Associations {
+			if association.HostID == host.ID && association.KeyID == key.ID {
+				return fmt.Errorf("%w: key already associated with destination", ErrInvalidInput)
+			}
+		}
+	}
+	options.target = ReportTarget{KeyID: key.ID, HostID: host.ID}
+	if _, err := fmt.Fprintf(options.Output, "Associate %q [%s] %s\nDestination %s [%s]: %s@%s:%d\nOnly local metadata is saved. Remote registration and connection are not checked.\n", key.Name, key.ID, key.Fingerprint, host.Alias, host.ID, host.User, host.Hostname, host.Port); err != nil {
+		return err
+	}
+	if _, err := prompt(options, "Type yes to save this association:"); err != nil {
+		return err
+	}
+	if _, err := usableKey(document, key.ID); err != nil {
+		return err
+	}
+	if request.Operation == "add" {
+		document.Hosts = append(document.Hosts, host)
+	}
+	document.Associations = append(document.Associations, state.Association{HostID: host.ID, KeyID: key.ID})
+	if err := options.saveReport(store, document, Report{Kind: ReportDestination, Outcome: OutcomeApplied}); err != nil {
+		return err
+	}
+	fmt.Fprintln(options.Output, "Association saved. Open the copy-paste guide to place the public key.")
+	return nil
+}
+
+func (request Request) checkTargets(document state.State) error {
+	switch request.Operation {
+	case "add":
+		_, err := usableKey(document, request.Key)
+		return err
+	case "associate":
+		if _, err := destinationIndex(document, request.Host); err != nil {
+			return err
+		}
+		_, err := usableKey(document, request.Key)
+		return err
+	case "resume":
+		for _, creation := range document.Creations {
+			if creation.ID == request.Resume && creation.Stage != "complete" {
+				return nil
+			}
+		}
+		return fmt.Errorf("%w: unfinished local creation %q not found; legacy remote/deletion records require manual review", ErrInvalidInput, request.Resume)
 	}
 	return nil
 }
@@ -305,17 +271,19 @@ func keyIndex(document state.State, reference string) (int, error) {
 	return found, nil
 }
 
-func bootstrapMode(value string) (string, error) {
-	switch value {
-	case "", "manual":
-		return "0", nil
-	case "password":
-		return "p", nil
-	case "key":
-		return "k", nil
-	default:
-		return "", fmt.Errorf("authentication must be manual, password or key")
+func usableKey(document state.State, reference string) (state.Key, error) {
+	index, err := keyIndex(document, reference)
+	if err != nil {
+		return state.Key{}, err
 	}
+	key := document.Keys[index]
+	if pendingDeletion(document, key.ID) {
+		return state.Key{}, fmt.Errorf("requires manual review: key %s has an unfinished legacy deletion; files and record are preserved", key.ID)
+	}
+	if err := integrity(state.State{Keys: []state.Key{key}}); err != nil {
+		return state.Key{}, err
+	}
+	return key, nil
 }
 
 func destinationIndex(document state.State, reference string) (int, error) {
@@ -330,92 +298,4 @@ func destinationIndex(document state.State, reference string) (int, error) {
 		}
 	}
 	return 0, fmt.Errorf("%w: destination %q not found", ErrInvalidInput, reference)
-}
-
-func resumeOperation(ctx context.Context, options Options) error {
-	document, err := state.Load(options.Home)
-	if err != nil {
-		return err
-	}
-	id := options.Request.Resume
-	for _, deletion := range document.Deletions {
-		if deletion.ID == id && deletion.Stage != "complete" {
-			options.Request.Key = deletion.KeyID
-			return deleteLocal(options)
-		}
-	}
-	for _, registration := range document.Registrations {
-		if registration.ID == id {
-			options.Request.Registration = id
-			if registration.Operation == "unregister" {
-				return unregister(ctx, options)
-			}
-			options.Request.Operation = "register"
-			options.Request.Host, options.Request.Key = registration.HostID, registration.KeyID
-			return execute(ctx, options)
-		}
-	}
-	return state.WithLock(options.Home, func(store *state.LockedStore) error {
-		document, err := store.Load()
-		if err != nil {
-			return err
-		}
-		if err := integrity(document); err != nil {
-			return err
-		}
-		for index, creation := range document.Creations {
-			if creation.ID == id {
-				if creation.Stage == "complete" {
-					return fmt.Errorf("creation is already complete")
-				}
-				options.target = ReportTarget{KeyID: creation.KeyID, CreationID: creation.ID}
-				for _, job := range document.Onboardings {
-					if job.CreationID == creation.ID {
-						options.target.HostID, options.target.OnboardingID = job.HostID, job.ID
-					}
-				}
-				options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
-				printCreationResume(options.Output, creation)
-				if _, err := prompt(options, "Type yes to resume this recorded creation; existing files are preserved:"); err != nil {
-					return err
-				}
-				_, err := finishCreation(ctx, options, store, &document, index)
-				return err
-			}
-		}
-		for index, job := range document.Onboardings {
-			if job.ID == id {
-				options.target = pairTarget(&document, job.HostID, job.KeyID)
-				options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
-				fmt.Fprintf(options.Output, "Resume onboarding %s stage=%s\n", job.ID, job.Stage)
-				for _, host := range document.Hosts {
-					if host.ID == job.HostID {
-						fmt.Fprintf(options.Output, "Destination %s [%s]: %s@%s:%d OS=%s account=%s\n",
-							host.Alias, host.ID, host.User, host.Hostname, host.Port, host.OS, host.WindowsAccount)
-					}
-				}
-				for _, key := range document.Keys {
-					if key.ID == job.KeyID {
-						fmt.Fprintf(options.Output, "Saved key %q [%s] %s\nPrivate: %s\nPublic: %s\n", key.Name, key.ID, key.Fingerprint, key.PrivatePath, key.PublicPath)
-					}
-				}
-				for _, creation := range document.Creations {
-					if creation.ID == job.CreationID && creation.Stage != "complete" {
-						printCreationResume(options.Output, creation)
-					}
-				}
-				fmt.Fprintln(options.Output, "Continue saved key work, then register at this destination or show manual guidance using the requested authentication; reconcile unknown results before retrying.")
-				if _, err := prompt(options, "Type yes to resume saved destination and key:"); err != nil {
-					return err
-				}
-				return finishOnboarding(ctx, options, store, &document, index)
-			}
-		}
-		return fmt.Errorf("%w: resumable operation %q not found", ErrInvalidInput, id)
-	})
-}
-
-func printCreationResume(output io.Writer, creation state.Creation) {
-	fmt.Fprintf(output, "Resume creation %s %q stage=%s\nPrivate: %s\nPublic: %s\nWill reconcile these saved paths, generate only if absent, and validate the pair; existing files are preserved.\n",
-		creation.ID, creation.Name, creation.Stage, creation.PrivatePath, creation.PublicPath)
 }
