@@ -527,3 +527,43 @@ the review → spec → tickets → implementation workflow and review resolutio
 Native narrow sizes and runtime resize were not repeated; automated journeys
 cover those layouts. Other native targets, live SSH, hosted CI and packaging/
 installer suites were not repeated. No push, merge, tag or publication.
+
+## v0.4.0 release verification (2026-11-08 JST)
+
+The release candidate is `a191d39afeae20b3dbf75663e10b538839b53672`.
+PR #6 merged it into main with merge commit
+`5a4710db25d552af5932afa4dd0101edbcb18bd5` at 2026-11-08T10:58:58Z.
+Ancestry and identical trees were verified after refreshing origin/main;
+both identify tree `54971e8f178de50a5e9bf0cc6ca36601462fab46`.
+The annotated tag targets the reviewed, tested source commit already merged
+into main, rather than the additional merge commit.
+
+Preparation and exact-candidate checks:
+
+- The source working tree was clean during local verification. Windows amd64,
+  Go 1.26.2 and CPython 3.12.13 ran the full uncached
+  `go test -buildvcs=false ./... -count=1` (cmd 1.900s, app 46.617s,
+  cli 2.255s, ssh 30.232s, tui 24.443s) and
+  `go vet -buildvcs=false ./...`: PASS. Native fixture scripts inherited only
+  process-local `PSExecutionPolicyPreference=Bypass`.
+- Hosted Verify runs `42473210314` (push) and `42473214254` (PR) both passed
+  on the exact source. Each ran Go, Portable, installer and profile suites on
+  Linux/macOS/Windows, plus six-target crossbuild and Linux amd64 CI-version
+  smoke. The installer suites were not redundantly rerun locally.
+- `python -X utf8 scripts/package_release.py --version v0.4.0 --output
+  .tmp/release-v0.4.0/local-assets` built six real targets from that source.
+  The audit verified seven assets, six unique LF manifest rows and all hashes,
+  two regular members per archive, notices matching checkout bytes, Unix
+  modes 0755/0644 and uid/gid 0, platform formats and GOOS/GOARCH/CGO-disabled/
+  trimpath metadata, and embedded version markers. Local manifest SHA256:
+  `c61de919769645db3c3d41709fb7d2c1ff0b0b4b8c057f0067e7e34a99b51457`.
+- Extracted local Windows amd64 reported `SSH KeyFlow v0.4.0`; help and all
+  three read-only JSON lists passed under a temporary home without creating
+  `.ssh`. Other target binaries were not executed locally.
+- Separate Astra release standards and specification reviews approved the
+  candidate. The stale layout-contract sentence was corrected before final
+  CI; release notes cover the changes since v0.3.0, version-1 compatibility,
+  install/update instructions and remaining native/live-SSH limits.
+
+Publication and downloaded-asset audit are pending in this preparation record.
+The evidence follow-up does not change the tagged source or distribution files.
