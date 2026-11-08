@@ -1,6 +1,6 @@
 # Essential SSH key utility
 
-Status: implementation
+Status: implemented and verified locally; awaiting human integration review
 Base: 404a3ebe616799b582a9bc8438bf47360065847c
 
 ## Objective
@@ -40,3 +40,11 @@ Existing local Report types remain available for native handoff; remote reports 
 
 Backend/state and CLI/TUI implementation can proceed independently against this interface.
 Documentation and final standards/specification reviews follow integration.
+
+## Completion
+
+Source: `22275867764d74f5dc60c4fc8d48a70d141e856b`.
+Local implementation and verification completed on 2026-11-08. Tickets 01–03 are ready-for-human.
+See `docs/verification.md` for tested conditions, archive evidence and native execution limits.
+Connection commands use the validated destination alias after the user pastes the SSH Host snippet.
+Standards and Astra specification findings were resolved; no remote publication or merge is part of this task.

@@ -603,3 +603,75 @@ the tag or change binary assets. Live SSH/server mutations, other native
 OS/CPU interactive sessions and elevated Windows shared-administrator behavior
 were not repeated. Cleanup is limited to task-owned branches whose tips are
 ancestors of integrated main, after checking worktree cleanliness.
+
+## 必須機能への縮小：dev（2026-11-08）
+
+仕様は [.scratch/essential-key-utility/spec.md](../.scratch/essential-key-utility/spec.md)、
+チケットは [01](../issues/01-essential-key-backend.md)・
+[02](../issues/02-essential-key-cli-tui.md)・
+[03](../issues/03-essential-key-contract-verification.md)。
+この節だけが簡素化後の実装に対する証拠であり、上記の公開版・自動登録機能の記録は履歴として保持する。
+
+- ソース：`22275867764d74f5dc60c4fc8d48a70d141e856b`。
+  ベースは `404a3ebe616799b582a9bc8438bf47360065847c`。
+  作業ブランチは `refactor/01-essential-key-utility`。
+  ソースコミット時の作業ツリーはクリーン。後続の完了記録はチケット・仕様の状態と本節だけを変更し、
+  実行コード・依存・配布スクリプトを変更しない。
+- 環境：Windows amd64、Go 1.26.2、Python 3.12、PowerShell 7.6.9、
+  Windows OpenSSH 9.5p2。Goキャッシュは作業用 `.tmp/go-cache`。
+  インストーラーは一時ホーム・配布物のfixtureを使い、Windows PowerShell 5.1と
+  Git Bash経由のshを含む。実ユーザーの鍵・SSH設定・プロファイル・PATH、
+  接続先サーバーは変更していない。
+- ソース確定後の `go test -buildvcs=false -count=1 ./...` と
+  `go vet -buildvcs=false ./...` は成功。
+  読取操作の無変更、鍵ペア・指紋・ダイジェスト、不正状態の拒否、v1履歴保持、
+  削除途中の対象鍵だけの隔離、作成中断から同じパスへの再開、上書き拒否、
+  ロック・バックアップ失敗、確認前の出力失敗で保存しないことを検証した。
+  CLIの終了コード・JSONと診断の分離・非端末での読取、TUIの検索・戻る・スクロール・
+  最小32×12・入力カーソル・ネイティブ端末引き渡しも対象に含む。
+- `scripts/test_portable.py -v` は確定ソースで5件成功。
+  `scripts/test_installers.py -v` は50件、
+  `scripts/test_installer_profiles.py -v` は30件成功。
+  後者2スイートはソース確定前の統合作業中に実行したが、その対象となる
+  `install.sh`・`install.ps1`・`scripts/` はベースから確定ソースまで差分ゼロである。
+  インストーラーfixtureはアプリのリモート操作を実行しない。
+- `scripts/package_release.py --version v0.0.0-check --output
+  .tmp/essential-key-utility-assets-2227586` を確定ソースから実行し、
+  Linux / macOS / Windows × amd64 / arm64の6対象を実クロスビルドした。
+  `v0.0.0-check` はローカル検証用の版注入であり、タグ・リリースを作成していない。
+  配布物は6アーカイブと `SHA256SUMS` の7件。
+  manifestのSHA256は
+  `cd1ff422d9e2a16dd55d2bcb2a8902639760db354274ee8058d29fb7ddd66c80`。
+- 実アーカイブ全6件について、manifestのLF・一意な6行・全SHA256、
+  実行ファイルと `THIRD_PARTY_NOTICES.txt` の2メンバー、
+  同梱文書のチェックアウトとのバイト一致、Unixの0755/0644・uid/gid 0、
+  GOOS / GOARCH / CGO無効 / trimpath情報、検証版の埋め込みを照合した。
+  6対象の実行用モジュールの和集合22件すべてについて同梱ライセンス項目を確認した。
+- 展開したWindows amd64配布版で `SSH KeyFlow v0.0.0-check`、
+  `keys list --json` と `hosts list --json` を確認。
+  空の一時ホームで読取だけでは `.ssh` が作成されないことを確認した。
+  同じ配布版をWindows実PTYと別の一時ホームで実行し、
+  確認入力からネイティブssh-keygenへ引き渡して空パスフレーズのEd25519作成が終了0、
+  未確認状態で保存されることを確認した。
+  TUIのKeys表示・公開鍵表示・OSC52要求の出力・正常終了も確認した。
+  端末側のクリップボード内容の読戻しは行っていない。
+- 生成スニペットをネイティブ `ssh -G` で解釈し、
+  ローカルの `ProxyCommand=ssh -V` を使って実際のIdentityFile展開を検証した。
+  ネットワーク接続なしで、空白・アポストロフィ・`%` を含むパスを元の鍵へ解決できた。
+  `${...}`を含むパスは誤ったコマンドを生成せず、公開鍵の配置案内だけを残す。
+  接続コマンドは、利用者がスニペットを貼り付けた後の `ssh 別名` に統一した。
+- StandardsとAstraの仕様レビューを別々に実施。
+  出力失敗の無視、保持する状態検証のテスト不足、OpenSSHのパス展開、
+  ヘルプ経由の再読込後の古いコピー復元、フォームの `?` 入力を修正し、回帰テストを追加した。
+  `.bak`を恒久v1バックアップと誤解させる文言を修正し、必要な場合は最初の変更前に
+  v1を利用者が別途退避する契約へ統一した。OSC52非対応時は折り返し画面の手動選択ではなく、
+  CLI出力で公開鍵の1行を保つ案内とした。最終レビューの残指摘はない。
+
+本作業ではpush・mainへのマージ・タグ作成・公開・ホストCIを実行していない。
+Linux / macOS / Windows arm64のネイティブ実行、実OSシグナルによる中断、
+他の端末でのOSC52受信・クリップボード読戻し、実SSHサーバーへの設定・接続は未検証。
+クロスビルドとローカルfixtureの成功を、それらの実機確認とは区別する。
+作業用の空パスフレーズ鍵と実験スクリプトは削除し、
+ローカル配布物はレビュー用に保持する。
+並行作業の3作業ツリーは各作業ブランチへコミット済みでクリーンにし、
+main統合前の履歴保全のため保持する。
