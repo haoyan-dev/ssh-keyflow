@@ -124,8 +124,10 @@ failed at last check, not checked and outcome unknown refer to saved evidence,
 never a live SSH probe. Public-only verification limits remain explicit.
 A saved alias binding identifies its key separately from Include activation.
 
-Saved status and Next actions use thin bordered panels at 60 columns or wider,
-with terminal-default backgrounds. Narrower views use plain headings. Cyan
+All supported terminal sizes use thin bordered groups with terminal-default
+backgrounds. At 70 columns or wider, Saved status and Next step share a row;
+narrower views stack a concise identity/status/action summary before complete
+supporting groups. Cyan
 headings/action hints, green successful saved evidence, yellow unknown,
 unchecked or unfinished evidence and red failures/blockers supplement explicit
 text labels. Removed registrations remain neutral. Supporting text inherits
