@@ -1298,3 +1298,42 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   identity, passing CI, asset/version/source agreement, stable/latest status,
   installer source tracking, migration notes, limits, and publication
   immutability satisfy the release contract. No unresolved findings.
+
+## 2026-11-10: Guide platform selection integration
+
+- The user accepted integration through a PR to `main`. Refreshed base:
+  `87f58ba68afe1c42827f3205ebe25e71be8ffc0f`. Merged it into
+  `feat/06-guide-platform-selection` without rewriting published history.
+  Integration source commit: `9db8806143c6f2d3880853573d52fa381cc0187f`.
+  Resolved four conflicts in CLI flag registration, TUI action titles, the
+  application contract, and this verification log, preserving both guide
+  options and v0.7.0 removal/dissociation behavior.
+- Windows amd64, Go 1.26.2, Python 3.12.13, PowerShell 7.6.9:
+  `go test ./... -count=1` and `go vet ./...` passed. The tested source/test
+  tree matches the integration commit, whose clean working tree was confirmed.
+  Existing tests cover the 3x3 platform matrix, invalid options, public-only
+  guidance, unchanged saved records, TUI form/copy/refresh/cancellation, and
+  removal/dissociation confirmation, target selection and data preservation.
+- Built the integrated Windows amd64 executable and confirmed
+  `SSH KeyFlow dev`. Help exposes all four guide options and retains
+  `keys remove`, `hosts remove`, and `hosts dissociate`. Go formatting of all
+  11 changed Go files passed after normalizing checkout CRLF to LF;
+  `git diff --check` passed and no merge markers remain.
+- `python scripts/test_portable.py -v` passed all 5 tests, and
+  `python scripts/test_installers.py -v` passed all 50 tests.
+- `python scripts/test_installer_profiles.py -v` passed all 30 tests.
+  These three Python suites ran against the same integration commit's inputs;
+  later changes are verification and ticket documentation only.
+- Standards review, performed separately: shared backend and validation,
+  existing form/navigation patterns, read-only guide generation, domain
+  vocabulary and documentation remain consistent. No dependencies or saved
+  state schema changes. No unresolved findings.
+- Specification review, performed separately against
+  `.scratch/guide-platform-selection/spec.md`: explicit local/destination OS,
+  account selection, foreign-terminal path validation, unchanged defaults,
+  public-only behavior, identity checks and script-only copying satisfy the
+  acceptance criteria. Removal and dissociation remain reachable in CLI/TUI.
+  No unresolved findings.
+- Native binary smoke is Windows amd64 only. Fullscreen TUI/clipboard and live
+  SSH-server sessions were not manually exercised. Hosted verification and
+  six-target packaging will run on the PR; no new tag or release is requested.
