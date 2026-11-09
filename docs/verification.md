@@ -1165,3 +1165,31 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
 - The release target will be the latest `origin/main` after this PR is merged.
   Record its exact candidate SHA and CI evidence before pushing the annotated
   tag, then integrate candidate/publication records through a documentation PR.
+
+## 2026-11-10: v0.7.0 candidate
+
+- [PR #15](https://github.com/haoyan-dev/ssh-keyflow/pull/15) merged at
+  2026-11-09 15:26:54 UTC (2026-11-10 00:26:54 JST). Candidate and latest
+  `origin/main`: `2a70645c5e1c7f03ed96ec97a08718961010b3c0`.
+  `git diff --exit-code d989c08964ae02a6fd0a497a1bb66a5f74b4f162 origin/main`
+  confirms the entire candidate tree is identical to the final tested PR head.
+  Checked out this candidate cleanly before starting the documentation branch.
+- All eight checks passed on final PR head
+  `d989c08964ae02a6fd0a497a1bb66a5f74b4f162`: [push run
+  42643438459](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42643438459)
+  and [PR run
+  42643534983](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42643534983).
+  Each passed Linux, macOS, and Windows Go/Portable/installer/profile suites plus
+  six-target packaging and Linux amd64 injected-version smoke. Reuse these
+  results for the identical candidate tree, along with the unchanged-source
+  local vet and verification recorded above. No required review or protection
+  rule is configured; mergeability was clean and no check was failing/pending.
+- v0.7.0 is the next stable MINOR after v0.6.0 for this pre-v1 feature and archive
+  compatibility change. The tag remains unused locally/remotely. The user
+  authorized publication; report version and full target SHA before pushing
+  only the annotated v0.7.0 tag. Let the release workflow rerun its verification
+  and build matrix before publishing.
+- Candidate records are committed separately on
+  `docs/v070-publication-verification` before tag push and will be integrated
+  with publication results in a documentation PR. They do not change the
+  selected candidate commit or move a published tag.

@@ -29,3 +29,7 @@ cancellation, failure paths, identity reuse, and existing behavior.
 - 2026-11-10: User authorized PR integration and a new publication. Prepared
   v0.7.0 release notes and verification reuse evidence. Await hosted CI before
   merge; publication results will follow in a documentation PR.
+- 2026-11-10: PR #15 merged as
+  `2a70645c5e1c7f03ed96ec97a08718961010b3c0` after all eight checks passed.
+  The merge tree equals final tested head `d989c08`. v0.7.0 publication targets
+  this candidate; post-publication audit is pending.
