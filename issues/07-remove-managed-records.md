@@ -26,3 +26,6 @@ cancellation, failure paths, identity reuse, and existing behavior.
   [verification record](../docs/verification.md#2026-11-09-managed-keydestination-removal-and-dissociation)
   for environment, source SHA, and verification limits.
 - Ready for human review. Changes are local; no push, merge, or release.
+- 2026-11-10: User authorized PR integration and a new publication. Prepared
+  v0.7.0 release notes and verification reuse evidence. Await hosted CI before
+  merge; publication results will follow in a documentation PR.

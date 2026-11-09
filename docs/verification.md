@@ -1137,3 +1137,31 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   live SSH-server exercise, hosted CI, push, merge, or release was performed.
   Older binaries reject states containing the optional archive arrays; a separate
   prechange state copy is required when downgrading to such binaries.
+
+## 2026-11-10: v0.7.0 preparation
+
+- The user authorized a PR to `main` and publication of the next version.
+  Refreshed `origin/main` remains
+  `c226ffb5302fed539f36aa7400d8732ddd55e935`; the feature worktree is clean at
+  `3ecb3b2` before release-document preparation. The existing guide-platform
+  branch/worktree remains separate and unchanged.
+- The latest published stable version is v0.6.0. v0.7.0 is unused locally and
+  remotely and is selected as the next MINOR for the new removal/dissociation
+  feature and its pre-v1 state compatibility impact. Release notes are in
+  `.scratch/remove-managed-records/release-v0.7.0.md`, including installation,
+  file preservation, downgrade migration, and verification limits.
+- Reuse the passing local verification for source commit
+  `fa9442bbd74a30abc4797abb4abd13cdb9f597fa` recorded above: `git diff --exit-code
+  fa9442b HEAD -- internal cmd scripts go.mod go.sum` passes, and the Windows
+  amd64 / Go 1.26.2 / PowerShell 7.6.9 conditions are unchanged. Further changes
+  are documentation only. Hosted PR and release CI remain required.
+- Final standards review: terminal confirmation, locking, atomic save/backup,
+  domain vocabulary, CLI/TUI integration, archive identity validation, and
+  documentation comply with the existing contracts. No unresolved findings.
+- Final specification review, separate from standards: selective dissociation,
+  cascaded removal, file/history preservation, cancellation/error handling,
+  reuse with fresh IDs, and CLI/TUI acceptance criteria are covered. No unresolved
+  findings. No unrelated guide-platform changes are included.
+- The release target will be the latest `origin/main` after this PR is merged.
+  Record its exact candidate SHA and CI evidence before pushing the annotated
+  tag, then integrate candidate/publication records through a documentation PR.
