@@ -72,10 +72,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
 
 コピーは端末のOSC52対応が必要です。使えない場合はCLIの `keys public --key ID` / `hosts guide --host ID --key ID` の出力を、エディターやOSのクリップボードへ取り込んでください。公開鍵は1行を維持し、TUI表示の折り返しを改行として貼り付けないでください。長い本文は矢印、PgUp / PgDn、Home / Endで読み進められます。最小端末サイズは32列×12行です。フォームではTab / Shift+Tabで移動、Ctrl+Sで続行し、Esc / Ctrl+Cで入力を取り消します。
 
-ガイドは、対応する端末へそのまま貼り付けて実行できるスクリプトをステップごとに表示します。`g` で開き、← / →または `b` / `n` でステップを選び、`y` でそのスクリプトだけをコピーしてください。説明文や他の端末向けのスクリプトはコピーに含みません。CLIの `hosts guide` は全ステップを表示します。
+ガイドは、対応する端末へそのまま貼り付けて実行できるスクリプトをステップごとに表示します。`g` で接続先と鍵を選ぶと、ローカルと接続先それぞれのOS（linux / macos / windows）を確認・変更するフォームが開きます。既定はアプリ実行元OSと保存済み接続先OSです。Windows接続先ではアカウント種別も指定します。Ctrl+Sでガイドを生成し、← / →または `b` / `n` でステップを選び、`y` でそのスクリプトだけをコピーしてください。説明文や他の端末向けのスクリプトはコピーに含みません。CLIの `hosts guide` は全ステップを表示します。
 
-1. **接続先の端末**：接続先の保存済みOSに応じた公開鍵配置スクリプトを実行します。Linux/macOSはログインユーザーのPOSIXシェル、Windows標準アカウントは本人のPowerShell、Windows管理者アカウントは管理者として開いたPowerShellを使います。既存の公開鍵を保持して追記し、必要な権限を設定します。同じ公開鍵があれば再追記しません。
-2. **ローカルの端末**：秘密鍵のある鍵では、SSH KeyFlowを実行しているOS向けのSSH config追記スクリプトを実行します。WindowsはPowerShell、Linux/macOSはPOSIXシェルです。既存内容を保持し、同じ明示的な別名があれば停止します。Include・ワイルドカード・Match・優先順位は実行前に自分で確認してください。
+1. **接続先の端末**：選択した接続先OSに応じた公開鍵配置スクリプトを実行します。Linux/macOSはログインユーザーのPOSIXシェル、Windows標準アカウントは本人のPowerShell、Windows管理者アカウントは管理者として開いたPowerShellを使います。既存の公開鍵を保持して追記し、必要な権限を設定します。同じ公開鍵があれば再追記しません。
+2. **ローカルの端末**：秘密鍵のある鍵では、選択したローカルOS向けのSSH config追記スクリプトを実行します。WindowsはPowerShell、Linux/macOSはPOSIXシェルです。アプリ実行元と異なるOSを選ぶ場合は、その端末から見た対応する秘密鍵パスを指定してください。既存内容を保持し、同じ明示的な別名があれば停止します。Include・ワイルドカード・Match・優先順位は実行前に自分で確認してください。
 3. **ローカルの端末**：最後のステップの `ssh 別名` を実行します。
 
 公開鍵のみの場合は配置ステップだけを表示し、対応する秘密鍵を別途用意する案内を示します。ガイドには手動解除案内も含みます。SSHサーバーとネットワークは事前に利用可能にし、カスタム構成の接続先では実際の `AuthorizedKeysFile` / `Match` を確認してください。Windowsの追記スクリプトはUTF-8の既存ファイルを扱い、UTF-16などは書き換えず停止します。
@@ -98,6 +98,7 @@ ssh-keyflow hosts dissociate --host my-server --key existing
 ssh-keyflow hosts remove --host my-server
 ssh-keyflow keys remove --key existing
 ssh-keyflow hosts guide --host my-server --key laptop
+ssh-keyflow hosts guide --host my-server --key laptop --local-os linux --identity-file /home/alice/.ssh/id_ed25519 --remote-os windows --windows-account standard
 ssh-keyflow resume --id creation-example
 ssh-keyflow tui
 ```
@@ -107,6 +108,8 @@ ssh-keyflow tui
 `keys remove` / `hosts remove` は確認後に管理対象とその全関連付けを削除します。`hosts dissociate` は指定した組の関連付けだけを解除し、鍵と接続先は残します。TUIでは一覧・詳細で `d`、関連付けの解除は `u` を押して既存の組を選びます。いずれも鍵ファイル・SSH設定・接続先の公開鍵登録を変更せず、SSHアクセスを失効させません。ファイルが見つからない鍵も管理から削除できます。未完了の旧鍵削除がある場合は手動確認が必要です。作成結果と旧履歴を保つため削除したメタデータは状態内の `removed_keys` / `removed_hosts` に保持し、再取り込み・同じ別名の接続先追加では新しいIDを割り当てます。これらの配列を含む状態を旧バイナリは読めないため、旧版へ戻す場合は事前に別途保管した状態を使ってください。
 
 接続先は固定IDまたは別名、鍵は固定IDまたは一意の管理名で指定します。曖昧な鍵名を自動選択しません。`hosts guide` は接続先と鍵を明示する読み取り専用操作で、関連付けを保存しません。変更操作には確認用の実端末が必要です。パスフレーズはOSの `ssh-keygen` に直接入力します。`list`・`keys public`・`hosts guide` はリダイレクトでき、読み取りだけで保存領域を作成・移行しません。
+
+`hosts guide` の `--local-os` と `--remote-os` は `linux` / `macos` / `windows` を指定できます。`--windows-account` は接続先Windows用です。省略時は実行元OS・保存済み接続先OSとアカウントを使います。`--identity-file` はローカル端末から見た秘密鍵パスで、実行元と異なるローカルOSを選んだ鍵ペアでは必須です。指定OSの絶対パスまたは `~/path` を使ってください。Windows版からWSLへ貼り付ける場合は `--local-os linux` を選び、WSLから見える対応する鍵のパスを指定します。アプリはそのパスの鍵を検証・転送せず、ドライブ対応も推測しません。これらの指定はガイドだけに適用し、保存済み接続先や管理済み鍵のパスを変更しません。
 
 JSONは標準出力、診断は標準エラーへ分けます。`keys list --json` は `keys` と `creations`、`hosts list --json` は `hosts` と `associations` を返します。終了コードは成功0、実行失敗・取消1、引数・使用法エラー2です。非端末の引数なし起動はヘルプを表示して0で終了します。
 

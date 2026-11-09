@@ -526,6 +526,10 @@ u disconnects an existing association from either category
 Removal and disconnect require confirmation; key files and SSH access stay unchanged.
 g display terminal scripts for destination setup, local config and connection
 p display a selected public key
+Before the guide, choose the local and destination OS: linux / macos / windows.
+Defaults: running app OS locally; saved destination OS/account remotely.
+If local OS differs, supply the matching private-key path in that terminal.
+Platform/path choices apply only to this guide; saved records stay the same.
 In a guide: ←/→ or b/n select step; y copies only that step's script.
 Each step names the terminal and platform where you should paste it.
 
@@ -539,14 +543,14 @@ Scripts change files only when you paste and run them in the named terminal.
 Forms
 Tab / Shift+Tab move; Enter next or activate control
 Ctrl+S continue; Esc / Ctrl+C cancel draft
-Continue hands off to the native terminal for confirmation.
+Continue prepares the guide or hands off a local change for confirmation.
 
 v technical details: historical records are read-only.
 Legacy remote operations cannot be resumed. Only local key creation can resume.
 Paths are shown for manual local cleanup; this utility does not delete key files.`
 
 func actionTitle(action string) string {
-	return map[string]string{"create": "Create Ed25519 key", "import": "Import existing key", "add": "Add destination", "associate": "Associate key", "dissociate": "Disconnect association", "remove-key": "Remove managed key", "remove-host": "Remove destination", "resume": "Resume local creation"}[action]
+	return map[string]string{"create": "Create Ed25519 key", "import": "Import existing key", "add": "Add destination", "associate": "Associate key", "dissociate": "Disconnect association", "remove-key": "Remove managed key", "remove-host": "Remove destination", "resume": "Resume local creation", "guide": "Guide platforms (this guide only)"}[action]
 }
 func (m model) choiceKind() string {
 	if len(m.choices) > 0 && m.choices[0].kind == "host" {

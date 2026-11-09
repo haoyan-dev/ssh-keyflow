@@ -181,14 +181,7 @@ func (m *model) finishPair() tea.Cmd {
 	case "public":
 		m.showPublic(m.request.Key)
 	case "guide":
-		guide, err := app.PrepareGuide(m.options.Home, m.request.Host, m.request.Key)
-		if err != nil {
-			m.status = err.Error()
-			return nil
-		}
-		m.open("document", entry{}, "", "")
-		m.guideSteps, m.guideIndex = guide.Steps, 0
-		m.showGuideStep()
+		return m.beginForm("guide")
 	}
 	return nil
 }
@@ -196,8 +189,8 @@ func (m *model) showGuideStep() {
 	step := m.guideSteps[m.guideIndex]
 	m.copyText = step.Script
 	m.status = ""
-	m.setDocument(fmt.Sprintf("Step %d/%d: %s\n\nCopy this script with y, then paste it into the terminal named above:\n\n%s\n\n%s\n\nRemote registration and connection: not checked. Copying records no success.",
-		m.guideIndex+1, len(m.guideSteps), step.Title, step.Script, step.Instructions))
+	m.setDocument(fmt.Sprintf("Step %d/%d: %s\nLocal platform: %s · Destination platform: %s\n\nCopy this script with y, then paste it into the terminal named above:\n\n%s\n\n%s\n\nRemote registration and connection: not checked. Copying records no success.",
+		m.guideIndex+1, len(m.guideSteps), step.Title, m.request.GuideOptions.LocalOS, m.request.GuideOptions.RemoteOS, step.Script, step.Instructions))
 }
 
 func (m *model) showPublic(key string) {

@@ -79,7 +79,7 @@ SSH KeyFlowはローカルの鍵管理とコピペによる接続設定支援に
 | `hosts associate` | 必須 `--host`、`--key`。ローカルの関連付けを保存 |
 | `hosts dissociate` | 必須 `--host`、`--key`。指定した既存の関連付けだけを解除 |
 | `hosts remove` | 必須 `--host`。管理から接続先と全関連付けを削除 |
-| `hosts guide` | 必須 `--host`、`--key`。読み取り専用の配置・解除・接続設定ガイド |
+| `hosts guide` | 必須 `--host`、`--key`。任意の `--local-os`、`--remote-os`、`--windows-account`、`--identity-file`。読み取り専用の配置・解除・接続設定ガイド |
 | `resume` | 必須 `--id`。未完了のローカルCreation IDのみ |
 | `tui` | 追加引数なし。入力・出力とも実端末が必要 |
 
@@ -105,7 +105,9 @@ listの通常出力は表形式。JSONは改行で終わる1オブジェクト�
 
 `app.Snapshot(Options)` は `View{State, Review}` を返し、保存領域の初期化・依存コマンドのプローブ・旧記録の変更を行わない。`app.PublicKey(home, keyRef)` と `app.Guide(home, hostRef, keyRef)` は対象鍵の同一性を検証してテキストを返す。`app.PrepareGuide` は同じ検証を通した `SetupGuide{Text, Steps}` を返し、各 `GuideStep` の `Title` / `Instructions` / `Script` をTUIで使う。ガイド表示は保存済みの関連付けを前提とせず、新しい関連付けも保存しない。
 
-ガイドは公開鍵のアルゴリズムとblob、指紋、配置先、手動解除案内、ローカルファイルパスを含む。接続先の保存済みOS・アカウント種別に応じて、端末へ貼り付ける公開鍵配置スクリプトを最初のステップにする。Linux/macOSはPOSIXシェル、WindowsはPowerShell。既存の鍵の内容を保持し、同じ公開鍵がすでに含まれる場合は追記しない。改行のない既存の最終行とも分離して追記する。シンボリックリンク・reparse pointは拒否する。POSIXはログインユーザー名、Windows標準アカウントはユーザー名、Windows管理者アカウントは昇格済み端末を確認する。標準OpenSSH構成の配置先は次のとおり。
+`app.PrepareGuideWithOptions(home, hostRef, keyRef, GuideOptions)` は同じ検証に加え、ガイド専用の `LocalOS` / `RemoteOS` / `WindowsAccount` / `IdentityFile` を受け取る。`app.Request.GuideOptions` も同じ選択を共通バックエンドに渡す。OSは `linux` / `macos` / `windows`、省略時は実行元OS・保存済み接続先OSとアカウントを使う。異なる接続先OSへ変更すると元のWindowsアカウント種別は引き継がない。Windowsではstandard / administratorを必須とし、非Windows宛てのアカウント指定は拒否する。TUIでは接続先と鍵の選択後、これらの既定値をフォームに表示し変更できる。選択は保存しない。
+
+ガイドは公開鍵のアルゴリズムとblob、指紋、配置先、手動解除案内、ローカルファイルパスを含む。選択した接続先OS・アカウント種別に応じて、端末へ貼り付ける公開鍵配置スクリプトを最初のステップにする。Linux/macOSはPOSIXシェル、WindowsはPowerShell。既存の鍵の内容を保持し、同じ公開鍵がすでに含まれる場合は追記しない。改行のない既存の最終行とも分離して追記する。シンボリックリンク・reparse pointは拒否する。POSIXはログインユーザー名、Windows標準アカウントはユーザー名、Windows管理者アカウントは昇格済み端末を確認する。標準OpenSSH構成の配置先は次のとおり。
 
 | 接続先 | 配置先と確認事項 |
 | --- | --- |
@@ -115,7 +117,7 @@ listの通常出力は表形式。JSONは改行で終わる1オブジェクト�
 
 カスタム構成では実際の `AuthorizedKeysFile` / `Match` を利用者が確認する。SSHサーバーとネットワークは事前に利用可能であることを前提とする。解除時は別の有効なアクセス手段を残し、同じファイルから一致する公開鍵の行だけを手動で取り除く。解除の成否は検証しない。
 
-秘密鍵パスがあれば、クライアント用の `HostName` / `User` / `Port` / `IdentityFile` / `IdentitiesOnly yes` を含むHostスニペットを `~/.ssh/config` に追記するスクリプトを第2ステップにする。実行中のアプリのOSに従い、WindowsはPowerShell、Linux/macOSはPOSIXシェルを使う。既存内容を保持し、グループ化されたHost行を含め、同じ明示的な別名があれば停止する。Include・ワイルドカード・Matchの解決や優先順位の保証は行わない。PowerShellの既存ファイルはUTF-8を要求し、UTF-16・不正なUTF-8は追記前に拒否する。標準アカウント用のWindows公開鍵配置では `.ssh` ディレクトリと鍵ファイルのDACLを本人・SYSTEM・Administratorsに限定し、管理者用では共有ファイルだけのDACLをSYSTEM・Administratorsに限定する。所有者と監査情報を保持し、Windows PowerShell 5.1 / PowerShell 7それぞれの.NET ACL APIを使う。
+秘密鍵パスがあれば、クライアント用の `HostName` / `User` / `Port` / `IdentityFile` / `IdentitiesOnly yes` を含むHostスニペットを `~/.ssh/config` に追記するスクリプトを第2ステップにする。選択したローカルOSに従い、WindowsはPowerShell、Linux/macOSはPOSIXシェルを使う。実行元と異なるローカルOSでは、対応する秘密鍵の端末内パスをIdentityFileで必須とする。指定OSの絶対パスまたは ~/pathを受け付け、制御文字・相対パス・異なるOSのパスは拒否する。指定パスのファイルは読み取らず、鍵の転送・パス変換・一致の保証はしない。管理済み元ファイルの同一性検証は維持し、公開鍵のみの鍵をIdentityFile指定で鍵ペアへ変更しない。既存内容を保持し、グループ化されたHost行を含め、同じ明示的な別名があれば停止する。Include・ワイルドカード・Matchの解決や優先順位の保証は行わない。PowerShellの既存ファイルはUTF-8を要求し、UTF-16・不正なUTF-8は追記前に拒否する。標準アカウント用のWindows公開鍵配置では `.ssh` ディレクトリと鍵ファイルのDACLを本人・SYSTEM・Administratorsに限定し、管理者用では共有ファイルだけのDACLをSYSTEM・Administratorsに限定する。所有者と監査情報を保持し、Windows PowerShell 5.1 / PowerShell 7それぞれの.NET ACL APIを使う。
 
 第3ステップは、前の2ステップを実行した後にローカル端末で使う `ssh 別名` 接続コマンドとする。接続コマンドはPOSIXシェル / PowerShell共通とし、秘密鍵パスをコマンド引数へ重複展開しない。OpenSSH自身の展開も考慮し、`%`はIdentityFile内でエスケープする。`${...}`を含むパスではリテラル参照を保証できないため、公開鍵の配置案内を維持し、理由を示してconfig追記・接続ステップを省略する。公開鍵のみなら利用可能なIdentityFileや接続コマンドを生成できない旨を示す。どのスクリプト・コマンドもアプリは実行しない。
 

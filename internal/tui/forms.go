@@ -26,7 +26,9 @@ func (m *model) beginForm(action string) tea.Cmd {
 		return nil
 	}
 	m.action, m.focus, m.fields, m.formError = action, 0, nil, ""
-	m.request = app.Request{Operation: action}
+	if action != "guide" {
+		m.request = app.Request{Operation: action}
+	}
 	add := func(name, label, value string) {
 		input := textinput.New()
 		input.SetVirtualCursor(false)
@@ -49,6 +51,16 @@ func (m *model) beginForm(action string) tea.Cmd {
 		add("port", "Port", "22")
 		add("os", "OS: linux / macos / windows", "")
 		add("account", "Windows only: standard / administrator", "")
+	case "guide":
+		host, ok := m.host(m.request.Host)
+		if !ok {
+			m.status = "Destination is no longer present; F5 refresh"
+			return nil
+		}
+		add("local-os", "Local terminal OS: linux / macos / windows", app.LocalPlatform())
+		add("remote-os", "Destination OS: linux / macos / windows", host.OS)
+		add("account", "Destination Windows account: standard / administrator (blank otherwise)", host.WindowsAccount)
+		add("identity-file", "Local private-key path (required if local OS differs; blank uses managed path)", "")
 	}
 	m.open("form", entry{}, "", "")
 	command := m.fields[0].input.Focus()
@@ -124,6 +136,27 @@ func (m *model) submitForm() tea.Cmd {
 	}
 	request := app.Request{Operation: m.action}
 	switch m.action {
+	case "guide":
+		for _, name := range []string{"local-os", "remote-os"} {
+			if !require(name) {
+				return nil
+			}
+		}
+		if values["remote-os"] == "windows" && !require("account") {
+			return nil
+		}
+		options := app.GuideOptions{LocalOS: values["local-os"], RemoteOS: values["remote-os"], WindowsAccount: values["account"], IdentityFile: values["identity-file"]}
+		guide, err := app.PrepareGuideWithOptions(m.options.Home, m.request.Host, m.request.Key, options)
+		if err != nil {
+			m.formError = err.Error()
+			m.renderForm()
+			return nil
+		}
+		m.request.GuideOptions = options
+		m.open("document", entry{}, "", "")
+		m.guideSteps, m.guideIndex = guide.Steps, 0
+		m.showGuideStep()
+		return nil
 	case "create", "import":
 		if !require("name") {
 			return nil

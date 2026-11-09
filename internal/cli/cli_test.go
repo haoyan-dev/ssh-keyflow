@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -182,6 +183,57 @@ func TestCopyableOutputWorksRedirectedAndPreservesFiles(test *testing.T) {
 	}
 	if after := tree(test, home); !reflect.DeepEqual(before, after) {
 		test.Fatalf("read-only commands changed files: before=%v after=%v", before, after)
+	}
+}
+
+func TestGuidePlatformFlagsAndUsageErrors(test *testing.T) {
+	home := fixture(test)
+	path := filepath.Join(state.Directory(home), "state.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		test.Fatal(err)
+	}
+	var document state.State
+	if err := json.Unmarshal(data, &document); err != nil {
+		test.Fatal(err)
+	}
+	privatePath := filepath.Join(home, "private")
+	private := []byte("private fixture")
+	if err := os.WriteFile(privatePath, private, 0600); err != nil {
+		test.Fatal(err)
+	}
+	digest := sha256.Sum256(private)
+	document.Keys[0].PrivatePath = privatePath
+	document.Keys[0].PrivateSHA256 = fmt.Sprintf("%x", digest)
+	data, err = json.Marshal(document)
+	if err != nil {
+		test.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		test.Fatal(err)
+	}
+	before := tree(test, home)
+	code, output, diagnostics := run(test, home, "hosts", "guide", "--host", "server", "--key", "known",
+		"--local-os", "linux", "--identity-file", "/home/alice/.ssh/key", "--remote-os", "windows", "--windows-account", "administrator")
+	for _, want := range []string{"Local platform: linux", "Destination platform: windows (administrator)", "administrators_authorized_keys", `IdentityFile "/home/alice/.ssh/key"`, "set -eu"} {
+		if code != 0 || diagnostics != "" || !strings.Contains(output, want) {
+			test.Fatalf("override lost %s: exit=%d stderr=%s stdout=%s", want, code, diagnostics, output)
+		}
+	}
+	for _, flags := range [][]string{
+		{"--local-os", "win"}, {"--remote-os", "darwin"},
+		{"--windows-account", "root"}, {"--windows-account", "standard"},
+		{"--remote-os", "windows"}, {"--identity-file", "relative/key"},
+		{"--local-os", "linux", "--identity-file", `C:\Users\alice\key`},
+	} {
+		args := append([]string{"hosts", "guide", "--host", "server", "--key", "known"}, flags...)
+		code, output, diagnostics := run(test, home, args...)
+		if code != 2 || output != "" || !strings.Contains(diagnostics, "Usage:") {
+			test.Fatalf("invalid guide flags %v: exit=%d stdout=%s stderr=%s", flags, code, output, diagnostics)
+		}
+	}
+	if !reflect.DeepEqual(before, tree(test, home)) {
+		test.Fatal("guide flags changed saved files")
 	}
 }
 
