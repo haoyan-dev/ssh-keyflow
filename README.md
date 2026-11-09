@@ -62,6 +62,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
 | `/` / `x` | 検索 / 検索解除 |
 | `c` / `i` | Keysで鍵作成 / 取り込み |
 | `a` / `l` | 接続先追加 / 鍵と接続先を関連付け |
+| `d` / `u` | 選択した鍵・接続先を管理から削除 / 既存の関連付けを解除 |
 | `p` / `g` | 公開鍵 / 配置・解除・接続ガイドを表示 |
 | `y` | 公開鍵、またはガイドの選択中ステップの実行用スクリプトをコピー |
 | ← / →、`b` / `n` | ガイドの前 / 次のステップ |
@@ -93,6 +94,9 @@ ssh-keyflow keys import --name existing --public /absolute/path/id_ed25519.pub
 ssh-keyflow keys public --key laptop
 ssh-keyflow hosts add --alias my-server --hostname server.example --user alice --os linux --key laptop
 ssh-keyflow hosts associate --host my-server --key existing
+ssh-keyflow hosts dissociate --host my-server --key existing
+ssh-keyflow hosts remove --host my-server
+ssh-keyflow keys remove --key existing
 ssh-keyflow hosts guide --host my-server --key laptop
 ssh-keyflow hosts guide --host my-server --key laptop --local-os linux --identity-file /home/alice/.ssh/id_ed25519 --remote-os windows --windows-account standard
 ssh-keyflow resume --id creation-example
@@ -100,6 +104,8 @@ ssh-keyflow tui
 ```
 
 `keys import` に `--private /absolute/path/id_ed25519` を追加すると鍵ペアを検証して取り込みます。省略すると公開鍵のみです。パスは自分の環境の絶対パスに置き換えてください。`hosts add` の `--port` は既定で22、`--os` は `linux` / `macos` / `windows`。Windowsでは `--windows-account standard` または `--windows-account administrator` も指定します。`resume` のIDは `keys list` に表示される未完了のローカル鍵作成IDに置き換えてください。
+
+`keys remove` / `hosts remove` は確認後に管理対象とその全関連付けを削除します。`hosts dissociate` は指定した組の関連付けだけを解除し、鍵と接続先は残します。TUIでは一覧・詳細で `d`、関連付けの解除は `u` を押して既存の組を選びます。いずれも鍵ファイル・SSH設定・接続先の公開鍵登録を変更せず、SSHアクセスを失効させません。ファイルが見つからない鍵も管理から削除できます。未完了の旧鍵削除がある場合は手動確認が必要です。作成結果と旧履歴を保つため削除したメタデータは状態内の `removed_keys` / `removed_hosts` に保持し、再取り込み・同じ別名の接続先追加では新しいIDを割り当てます。これらの配列を含む状態を旧バイナリは読めないため、旧版へ戻す場合は事前に別途保管した状態を使ってください。
 
 接続先は固定IDまたは別名、鍵は固定IDまたは一意の管理名で指定します。曖昧な鍵名を自動選択しません。`hosts guide` は接続先と鍵を明示する読み取り専用操作で、関連付けを保存しません。変更操作には確認用の実端末が必要です。パスフレーズはOSの `ssh-keygen` に直接入力します。`list`・`keys public`・`hosts guide` はリダイレクトでき、読み取りだけで保存領域を作成・移行しません。
 

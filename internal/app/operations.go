@@ -71,7 +71,7 @@ func (request Request) Validate() error {
 		if request.Key == "" || request.Name != "" {
 			return fmt.Errorf("destination requires an existing managed key; create or import it first")
 		}
-	case "associate", "guide":
+	case "associate", "dissociate", "guide":
 		if request.Host == "" || request.Key == "" {
 			return fmt.Errorf("%s requires a destination and managed key", request.Operation)
 		}
@@ -81,6 +81,14 @@ func (request Request) Validate() error {
 	case "public":
 		if request.Key == "" {
 			return fmt.Errorf("public requires a managed key")
+		}
+	case "remove-key":
+		if request.Key == "" {
+			return fmt.Errorf("remove-key requires a managed key")
+		}
+	case "remove-host":
+		if request.Host == "" {
+			return fmt.Errorf("remove-host requires a destination")
 		}
 	case "resume":
 		if request.Resume == "" {
@@ -175,6 +183,8 @@ func execute(ctx context.Context, options Options) error {
 			}
 		case "add", "associate":
 			return saveAssociation(options, store, document)
+		case "remove-key", "remove-host", "dissociate":
+			return removeManaged(options, store, document)
 		}
 		return fmt.Errorf("%w: operation target disappeared", ErrInvalidInput)
 	})
@@ -236,6 +246,21 @@ func saveAssociation(options Options, store *state.LockedStore, document state.S
 
 func (request Request) checkTargets(document state.State) error {
 	switch request.Operation {
+	case "remove-key":
+		index, err := keyIndex(document, request.Key)
+		if err != nil {
+			return err
+		}
+		if pendingDeletion(document, document.Keys[index].ID) {
+			return fmt.Errorf("requires manual review: unfinished legacy deletion; files and record are preserved")
+		}
+		return nil
+	case "remove-host":
+		_, err := destinationIndex(document, request.Host)
+		return err
+	case "dissociate":
+		_, _, err := associationTargets(document, request.Host, request.Key)
+		return err
 	case "add":
 		_, err := usableKey(document, request.Key)
 		return err

@@ -1129,3 +1129,172 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   端末内の指定秘密鍵パスは利用者の申告であり、一致の検証・転送はしない。
   この追補は文書だけで、上記ソースの検証入力を変更しない。
   本変更はローカルコミットのみで、push・merge・新しいタグは行っていない。
+
+## 2026-11-09: Managed key/destination removal and dissociation
+
+- Source commit: `fa9442bbd74a30abc4797abb4abd13cdb9f597fa` on
+  `feat/07-remove-managed-records`, based on freshly fetched `origin/main`
+  `c226ffb5302fed539f36aa7400d8732ddd55e935`.
+  Worktree: `.worktrees/remove-managed-records/`. The existing guide-platform
+  worktree/branch at `a5acdde40f662991b791ac65446f40271bb60d55` stays unchanged.
+- Environment: Windows amd64, Go 1.26.2, Python 3.12.13, PowerShell 7.6.9,
+  installed Git Bash and Windows PowerShell. Tests use temporary homes and
+  fixture processes; no real SSH data, persistent PATH, or remote access changes.
+- `go test ./...` and `go vet ./...` passed against the exact source/test tree
+  committed as the source SHA above. Subsequent `git diff HEAD -- internal cmd
+  go.mod go.sum scripts` was empty. Formatting of all changed Go files and
+  `git diff --check` passed.
+- Regression coverage includes key/destination removal and association-only
+  removal, unrelated associations, public/private/config preservation, exact
+  prior-state backup, confirmation decline/missing/error, preview-output failure,
+  existing locks, backup failures, missing files, ambiguous/missing identities,
+  nonexistent associations, pending legacy deletion quarantine, archived-state
+  validation, history/creation retention, and key/alias reuse with fresh IDs.
+  TUI tests exercise fixed-ID targeting, associated-only pickers, cancellation,
+  stale-state guards, native confirmation handoff, result reload, and 32×12 fit.
+  CLI tests check required flags and nonterminal rejection before storage changes.
+- `python scripts/test_portable.py -v` passed all 5 tests.
+  `python scripts/test_installers.py -v` passed all 50 tests, and
+  `python scripts/test_installer_profiles.py -v` passed all 30 tests.
+  `python scripts/package_release.py --version v0.0.0-check --output
+  .tmp/remove-verification-dist` built all six OS/CPU targets successfully.
+  The generated set contained exactly seven assets, six matching SHA256 checksums,
+  and exactly the executable and notices in each archive. The Windows amd64 binary
+  printed `SSH KeyFlow v0.0.0-check`; help for all three new commands succeeded.
+  This was local verification only, with no tag or publication.
+- Standards review, performed separately: existing common-backend/terminal/lock/
+  atomic-save/report conventions retained; no dependency changes, physical key
+  deletion, remote execution, or unrelated feature edits. Archived IDs remain
+  validated and new associations require active records. No unresolved findings.
+- Specification review, performed separately against
+  `.scratch/remove-managed-records/spec.md`: all three CLI commands and both TUI
+  actions implemented; cascade versus selective removal, confirmations, data
+  preservation, reuse, error handling, help, and domain/API documentation match
+  the acceptance criteria. No unresolved findings.
+- Limits: native binary smoke was Windows amd64 only; other targets were
+  crossbuilt. No manual full-screen TUI/physical console Ctrl+C session,
+  live SSH-server exercise, hosted CI, push, merge, or release was performed.
+  Older binaries reject states containing the optional archive arrays; a separate
+  prechange state copy is required when downgrading to such binaries.
+
+## 2026-11-10: v0.7.0 preparation
+
+- The user authorized a PR to `main` and publication of the next version.
+  Refreshed `origin/main` remains
+  `c226ffb5302fed539f36aa7400d8732ddd55e935`; the feature worktree is clean at
+  `3ecb3b2` before release-document preparation. The existing guide-platform
+  branch/worktree remains separate and unchanged.
+- The latest published stable version is v0.6.0. v0.7.0 is unused locally and
+  remotely and is selected as the next MINOR for the new removal/dissociation
+  feature and its pre-v1 state compatibility impact. Release notes are in
+  `.scratch/remove-managed-records/release-v0.7.0.md`, including installation,
+  file preservation, downgrade migration, and verification limits.
+- Reuse the passing local verification for source commit
+  `fa9442bbd74a30abc4797abb4abd13cdb9f597fa` recorded above: `git diff --exit-code
+  fa9442b HEAD -- internal cmd scripts go.mod go.sum` passes, and the Windows
+  amd64 / Go 1.26.2 / PowerShell 7.6.9 conditions are unchanged. Further changes
+  are documentation only. Hosted PR and release CI remain required.
+- Final standards review: terminal confirmation, locking, atomic save/backup,
+  domain vocabulary, CLI/TUI integration, archive identity validation, and
+  documentation comply with the existing contracts. No unresolved findings.
+- Final specification review, separate from standards: selective dissociation,
+  cascaded removal, file/history preservation, cancellation/error handling,
+  reuse with fresh IDs, and CLI/TUI acceptance criteria are covered. No unresolved
+  findings. No unrelated guide-platform changes are included.
+- The release target will be the latest `origin/main` after this PR is merged.
+  Record its exact candidate SHA and CI evidence before pushing the annotated
+  tag, then integrate candidate/publication records through a documentation PR.
+
+## 2026-11-10: v0.7.0 candidate
+
+- [PR #15](https://github.com/haoyan-dev/ssh-keyflow/pull/15) merged at
+  2026-11-09 15:26:54 UTC (2026-11-10 00:26:54 JST). Candidate and latest
+  `origin/main`: `2a70645c5e1c7f03ed96ec97a08718961010b3c0`.
+  `git diff --exit-code d989c08964ae02a6fd0a497a1bb66a5f74b4f162 origin/main`
+  confirms the entire candidate tree is identical to the final tested PR head.
+  Checked out this candidate cleanly before starting the documentation branch.
+- All eight checks passed on final PR head
+  `d989c08964ae02a6fd0a497a1bb66a5f74b4f162`: [push run
+  42643438459](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42643438459)
+  and [PR run
+  42643534983](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42643534983).
+  Each passed Linux, macOS, and Windows Go/Portable/installer/profile suites plus
+  six-target packaging and Linux amd64 injected-version smoke. Reuse these
+  results for the identical candidate tree, along with the unchanged-source
+  local vet and verification recorded above. No required review or protection
+  rule is configured; mergeability was clean and no check was failing/pending.
+- v0.7.0 is the next stable MINOR after v0.6.0 for this pre-v1 feature and archive
+  compatibility change. The tag remains unused locally/remotely. The user
+  authorized publication; report version and full target SHA before pushing
+  only the annotated v0.7.0 tag. Let the release workflow rerun its verification
+  and build matrix before publishing.
+- Candidate records are committed separately on
+  `docs/v070-publication-verification` before tag push and will be integrated
+  with publication results in a documentation PR. They do not change the
+  selected candidate commit or move a published tag.
+
+## 2026-11-10: v0.7.0 publication verification
+
+- Annotated tag v0.7.0 identifies
+  `2a70645c5e1c7f03ed96ec97a08718961010b3c0`; tag object
+  `ce235f6d6983305e2c437db9c0c0ff2053cbc591`. The remote tag object and peeled
+  commit match the local values. Only this tag was pushed, after rechecking that
+  the version was unused, latest stable was v0.6.0, and remote main still matched
+  the candidate.
+- [Main integration CI
+  42644767845](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42644767845)
+  passed all four jobs at the candidate SHA. Release verification also passed
+  its three OS suites and six-target crossbuild at that same tagged commit
+  before the publish job started.
+- [Release workflow
+  42644953520](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42644953520)
+  succeeded with all five jobs at the tag's source SHA, including publish.
+  [SSH KeyFlow v0.7.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.7.0)
+  was published on 2026-11-09 at 15:35:49 UTC (2026-11-10 00:35:49 JST).
+  Draft/prerelease are false; the latest-release API returns v0.7.0. Release
+  notes cover changes since v0.6.0, downgrade compatibility, installation/update,
+  and verification limits. Updating only the notes/title preserved all seven
+  asset IDs and digests.
+- Downloaded every published asset to `.tmp/v0.7.0-published/`: exactly six
+  OS/CPU archives and SHA256SUMS. Each size and SHA256 matches GitHub API
+  metadata. The manifest has exactly six unique LF-only entries, all matching
+  their archive hashes. Its SHA256 is
+  `d570f76829d1055635691727fcab76b3bcac353c525de79197eb598b2b70ffb9`.
+- Each archive contains exactly the regular executable and
+  THIRD_PARTY_NOTICES.txt; notices match the tagged Git blob byte for byte.
+  Unix modes are 0755/0644 with uid/gid zero. All six binaries report the
+  expected GOOS/GOARCH, CGO disabled, and trimpath in Go build metadata and
+  contain v0.7.0. All 22 runtime dependencies match the licensed module/version
+  inventory at the tagged source.
+- Published Windows amd64 smoke: exact version `SSH KeyFlow v0.7.0`, empty
+  keys/creations and hosts/associations JSON in a temporary home, and successful
+  help for keys remove, hosts remove, and hosts dissociate. Read-only operations
+  did not create `.ssh`.
+- Source-hosted installers were fetched separately from raw `main` at commit
+  `2a70645c5e1c7f03ed96ec97a08718961010b3c0` and match their Git blobs byte for
+  byte. SHA256: install.sh
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f`;
+  install.ps1
+  `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`.
+  Source delivery is tracked against this main commit independently of the tag.
+- The downloaded PowerShell installer passed latest install, same-version
+  update, and uninstall in a disposable home, using production GitHub URLs.
+  Installed version was v0.7.0; binary receipt hashes and bundled notices
+  matched. Existing SSH data/configuration and profile bytes were preserved.
+  No persistent PATH change was approved; the temporary home was removed.
+- Publication audit environment: Windows amd64, Go 1.26.2, Python 3.12.13,
+  PowerShell 7.6.9. Native smoke covers Windows amd64 only. Other published
+  binaries, manual fullscreen TUI, OSC52 readback, and live SSH servers are not
+  exercised locally. Hosted tests and crossbuilds do not establish native runtime
+  behavior of all six published binaries.
+- Audit JSON, release metadata before/after notes, asset fingerprints, source
+  installers, published assets, and workflow logs are retained under
+  `.tmp/v0.7.0-*` in the original workspace. Temporary auditor and installer homes
+  were removed. Integrate these records through a documentation PR without
+  moving the published tag or changing binary assets.
+- Documentation standards review: only verification and local-ticket records
+  change, links/SHAs/timestamps agree with audit outputs, and whitespace checks
+  pass. No unresolved findings. Separate specification review: candidate
+  identity, passing CI, asset/version/source agreement, stable/latest status,
+  installer source tracking, migration notes, limits, and publication
+  immutability satisfy the release contract. No unresolved findings.

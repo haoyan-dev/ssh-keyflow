@@ -73,9 +73,12 @@ SSH KeyFlowはローカルの鍵管理とコピペによる接続設定支援に
 | `keys create` | 必須 `--name`。Ed25519鍵を作成 |
 | `keys import` | 必須 `--name`、`--public`。任意の `--private` で鍵ペアを検証。省略時は公開鍵のみ |
 | `keys public` | 必須 `--key`。公開鍵のアルゴリズムとblobを表示し、ファイルのコメントは含めない |
+| `keys remove` | 必須 `--key`。管理から鍵と全関連付けを削除し、鍵ファイルを保持 |
 | `hosts list` | 任意の `--json`。接続先と新しい関連付けを表示 |
 | `hosts add` | 必須 `--alias`、`--hostname`、`--user`、`--os`、既存鍵の `--key`。`--port` は22が既定。Windowsでは `--windows-account standard\|administrator` が必要 |
 | `hosts associate` | 必須 `--host`、`--key`。ローカルの関連付けを保存 |
+| `hosts dissociate` | 必須 `--host`、`--key`。指定した既存の関連付けだけを解除 |
+| `hosts remove` | 必須 `--host`。管理から接続先と全関連付けを削除 |
 | `hosts guide` | 必須 `--host`、`--key`。任意の `--local-os`、`--remote-os`、`--windows-account`、`--identity-file`。読み取り専用の配置・解除・接続設定ガイド |
 | `resume` | 必須 `--id`。未完了のローカルCreation IDのみ |
 | `tui` | 追加引数なし。入力・出力とも実端末が必要 |
@@ -83,6 +86,10 @@ SSH KeyFlowはローカルの鍵管理とコピペによる接続設定支援に
 `--os` は `linux` / `macos` / `windows` を明示する。接続先は固定IDまたは大文字小文字を区別しない別名、鍵は固定IDまたは一意の完全一致管理名で解決する。曖昧・不在の対象は拒否する。管理済み接続先の別名重複は拒否するが、SSH config内の別名は探索しない。接続先追加は既存鍵を要求し、同時に新規鍵を作成しない。
 
 `register`、`unregister`、`registrations list`、`keys delete`、`--new-key`、`--auth`、`--identity`、`--configure` は提供しない。旧リモート・削除IDの `resume` は実行せず手動確認を求める。
+
+ADR 0004により管理メタデータの削除・関連付け解除を追加する。`remove-key` / `remove-host` / `dissociate` は共通バックエンドのOperationで、実端末と完全一致 `yes` の確認、ロック下での対象再解決、原子的保存・直前状態バックアップを使う。鍵・接続先の削除はその全関連付けを除き、解除は指定した1組だけを除く。存在しない組は引数エラー。鍵ファイルの検証や外部プロセスを必要とせず、欠損した鍵の管理情報も整理できる。未完了の旧鍵削除がある鍵は手動確認を要求し、管理からの削除を拒否する。
+
+削除した鍵・接続先はv2の任意配列 `removed_keys` / `removed_hosts` に保持する。旧登録・作成結果・オンボーディング・設定履歴の参照はアーカイブ先のIDでも検証し、履歴自体を書き換えない。現行の関連付けは管理対象の鍵・接続先だけを参照できる。アーカイブの指紋・パス・別名は再利用でき、再取り込みと接続先再追加は新しいIDを作る。list・公開鍵・ガイド・選択候補は削除済みレコードを対象としない。鍵ファイル・SSH設定・リモート登録は変更せず、アクセス失効を意味しない。旧バイナリはアーカイブ配列を含む状態を拒否するため、ダウングレードには事前に保管した状態を使う。TUIは一覧・詳細の `d` で削除、`u` で選択対象の既存関連付けだけを候補にして解除し、既存の実端末確認へ引き渡す。
 
 変更操作はストレージ初期化・プロセス実行より前に実端末入力を要求し、共通の `app.Run` へ明示的なRequestと確認関数を渡す。前後の空白を除いた完全一致 `yes` のみ承認する。`ReadConfirmation` は1行を1バイトずつ読み、後続のネイティブパスフレーズ入力を先読みしない。秘密値や無条件承認のフラグは設けない。
 
@@ -94,7 +101,7 @@ listの通常出力は表形式。JSONは改行で終わる1オブジェクト�
 
 ## 共通バックエンドと手動ガイド
 
-`app.Request` のOperationは `list` / `create` / `import` / `add` / `associate` / `guide` / `public` / `resume`。`app.Run` は明示的なRequestを要求し、旧番号メニューを起動しない。変更対象はロック下でも再解決・再検証する。
+`app.Request` のOperationは `list` / `create` / `import` / `add` / `associate` / `dissociate` / `remove-key` / `remove-host` / `guide` / `public` / `resume`。`app.Run` は明示的なRequestを要求し、旧番号メニューを起動しない。変更対象はロック下でも再解決・再検証する。
 
 `app.Snapshot(Options)` は `View{State, Review}` を返し、保存領域の初期化・依存コマンドのプローブ・旧記録の変更を行わない。`app.PublicKey(home, keyRef)` と `app.Guide(home, hostRef, keyRef)` は対象鍵の同一性を検証してテキストを返す。`app.PrepareGuide` は同じ検証を通した `SetupGuide{Text, Steps}` を返し、各 `GuideStep` の `Title` / `Instructions` / `Script` をTUIで使う。ガイド表示は保存済みの関連付けを前提とせず、新しい関連付けも保存しない。
 
@@ -118,7 +125,7 @@ listの通常出力は表形式。JSONは改行で終わる1オブジェクト�
 
 ## TUI
 
-`tui.Run(ctx, app.Options)` をCLIのTUI入口とし、Keys / Destinationsの2画面を中心にする。鍵作成・取り込み、既存鍵を使った接続先追加、関連付け、公開鍵とガイドの表示・コピーを提供する。新しい鍵は独立して作成する。旧Registrations / Tasks、リモート認証・設定編集のフォーム、削除操作は提供しない。Tabで画面切替、c/iで鍵作成・取り込み、aで接続先追加、lで関連付け、p/gで公開鍵・ガイド表示、sで選択したローカル作成を再開する。表示中のテキストはyでOSC52コピーを要求し、端末非対応時はCLIの公開鍵・ガイド出力を利用するよう案内する。公開鍵は1行のまま扱い、TUIの折り返しを改行としてコピーしない。vの技術詳細で旧記録を読み取り専用表示する。最小端末は32列×12行。キー操作の詳細は画面内ヘルプを正とする。
+`tui.Run(ctx, app.Options)` をCLIのTUI入口とし、Keys / Destinationsの2画面を中心にする。鍵作成・取り込み、既存鍵を使った接続先追加、関連付けと解除、管理対象からの削除、公開鍵とガイドの表示・コピーを提供する。新しい鍵は独立して作成する。旧Registrations / Tasks、リモート認証・設定編集のフォーム、鍵ファイルの削除操作は提供しない。Tabで画面切替、c/iで鍵作成・取り込み、aで接続先追加、lで関連付け、uで既存関連付け解除、dで管理対象からの削除、p/gで公開鍵・ガイド表示、sで選択したローカル作成を再開する。表示中のテキストはyでOSC52コピーを要求し、端末非対応時はCLIの公開鍵・ガイド出力を利用するよう案内する。公開鍵は1行のまま扱い、TUIの折り返しを改行としてコピーしない。vの技術詳細で旧記録を読み取り専用表示する。最小端末は32列×12行。キー操作の詳細は画面内ヘルプを正とする。
 
 ガイドは第1ステップから表示し、← / →または `b` / `n` で切り替える。`y` は選択中の `Script` だけをコピーし、説明文・他の端末向けスクリプトを混ぜない。各ステップにローカル / 接続先、OS、端末、必要なアカウントと権限を明示する。Helpから戻った場合も選択ステップを保つ。F5再読込時は履歴内も含めてスクリプトを無効化し、ステップ切替でも古いコピーを復活させない。
 
@@ -137,7 +144,7 @@ v1とv2を読む。v1は読み込みだけでは内容・バージョン・バ�
 | Association | `host_id`, `key_id` |
 | Creation | `id`, `key_id`, `name`, `private_path`, `public_path`, `created_at`, `stage`, 任意の `private_sha256` / `fingerprint` |
 
-必須配列は `keys` / `hosts` / `registrations`。任意の `creations` / `associations` と、旧 `onboardings` / `history` / `configs` / `config_edits` / `deletions` / `deleted_keys` を保持する。過去の固定ID・登録履歴・設定ダイジェスト・中断意図・削除済み鍵情報と参照を維持し、新規操作の成功・完了へ書き換えない。旧履歴専用の閲覧コマンドは設けないが、保存データを残す。v2保存ではJSONを再整形するため、過去レコードの値を保つことと状態ファイルのバイト列不変は区別する。
+必須配列は `keys` / `hosts` / `registrations`。任意の `creations` / `associations` / `removed_keys` / `removed_hosts` と、旧 `onboardings` / `history` / `configs` / `config_edits` / `deletions` / `deleted_keys` を保持する。過去の固定ID・登録履歴・設定ダイジェスト・中断意図・削除済み鍵情報と参照を維持し、新規操作の成功・完了へ書き換えない。旧履歴専用の閲覧コマンドは設けないが、保存データを残す。v2保存ではJSONを再整形するため、過去レコードの値を保つことと状態ファイルのバイト列不変は区別する。
 
 鍵IDは固定のランダム `key-<128-bit hex>`、指紋はOpenSSH公開blobのSHA256形式、パスは絶対パス。インポートは `origin: imported` と非ゼロのUTC RFC3339Nano `imported_at`、作成は `origin: created` と `created_at` を保存する。秘密鍵ダイジェストはパスフレーズを求めず置換を検出するためのもので、秘密鍵の内容を保存しない。新しい鍵の `connection_check` は `unverified` とし、関連付けには成功状態のフィールドを設けない。
 

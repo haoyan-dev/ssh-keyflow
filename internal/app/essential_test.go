@@ -486,6 +486,9 @@ func TestLegacyPendingDeletionIsQuarantinedWithoutBlockingOtherKeys(t *testing.T
 	if _, err := app.PublicKey(home, old.ID); err == nil {
 		t.Fatal("quarantined key used")
 	}
+	if _, err := run(t, home, app.Request{Operation: "remove-key", Key: old.ID}); err == nil || !strings.Contains(err.Error(), "manual review") {
+		t.Fatal("quarantined key removed", err)
+	}
 	second := imported(t, home, "healthy", otherPublicKey, false)
 	if _, err := run(t, home, app.Request{Operation: "add", Key: second.ID, Destination: destination("server", "linux", "")}); err != nil {
 		t.Fatal(err)
