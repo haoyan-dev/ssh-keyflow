@@ -242,6 +242,23 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			case "l":
 				command := m.beginPair("associate")
 				return m, command
+			case "u":
+				command := m.beginPair("dissociate")
+				return m, command
+			case "d":
+				target := m.visibleTarget()
+				request := app.Request{}
+				switch target.kind {
+				case "key":
+					request.Operation, request.Key = "remove-key", target.id
+				case "host":
+					request.Operation, request.Host = "remove-host", target.id
+				default:
+					m.status = "Select a managed key or destination to remove"
+					return m, nil
+				}
+				command := m.execute(request)
+				return m, command
 			case "g":
 				command := m.beginPair("guide")
 				return m, command
@@ -312,12 +329,12 @@ func (m model) chrome() (string, string) {
 	switch m.page {
 	case "list":
 		if m.tab == 0 {
-			footer = "c create · i import · s resume\n" + footer
+			footer = "c create · i import · d remove · u unlink\n" + footer
 		} else {
-			footer = "a add · l associate · g guide\n" + footer
+			footer = "a add · l link · u unlink · d remove\n" + footer
 		}
 	case "details":
-		footer = "p public · g guide · l associate\nv details · ↑/↓ scroll · Esc back"
+		footer = "p public · g guide · d remove · u unlink\nv details · ↑/↓ scroll · Esc back"
 		if m.target.kind == "creation" {
 			footer = "s resume local creation\n↑/↓ scroll · Esc back"
 		}
@@ -499,10 +516,14 @@ Keys
 c create Ed25519 key; i import existing key
 p display public key; y copies displayed text
 s resumes the selected unfinished local creation
+d removes the selected managed key and its local associations
 Passphrases are entered only in native ssh-keygen.
 
 Destinations
 a add using an existing key; l associate a key
+d removes the selected destination and its local associations
+u disconnects an existing association from either category
+Removal and disconnect require confirmation; key files and SSH access stay unchanged.
 g display terminal scripts for destination setup, local config and connection
 p display a selected public key
 In a guide: ←/→ or b/n select step; y copies only that step's script.
@@ -525,7 +546,7 @@ Legacy remote operations cannot be resumed. Only local key creation can resume.
 Paths are shown for manual local cleanup; this utility does not delete key files.`
 
 func actionTitle(action string) string {
-	return map[string]string{"create": "Create Ed25519 key", "import": "Import existing key", "add": "Add destination", "associate": "Associate key", "resume": "Resume local creation"}[action]
+	return map[string]string{"create": "Create Ed25519 key", "import": "Import existing key", "add": "Add destination", "associate": "Associate key", "dissociate": "Disconnect association", "remove-key": "Remove managed key", "remove-host": "Remove destination", "resume": "Resume local creation"}[action]
 }
 func (m model) choiceKind() string {
 	if len(m.choices) > 0 && m.choices[0].kind == "host" {

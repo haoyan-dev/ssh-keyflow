@@ -10,6 +10,7 @@ const (
 	ReportConfirmation   ReportKind = "confirmation"
 	ReportCreation       ReportKind = "creation"
 	ReportImport         ReportKind = "import"
+	ReportRemoval        ReportKind = "removal"
 	ReportDestination    ReportKind = "destination"
 	ReportResolvedTarget ReportKind = "target"
 )
