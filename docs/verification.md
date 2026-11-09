@@ -1090,3 +1090,78 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   監査出力との一致、`git diff --check` を確認し、未解決の違反なし。
   仕様レビュー: リリース契約の候補記録・公開検証・installerの別main追跡・
   制約の明記・不変性・後続文書PRを別途照合し、未解決の差分なし。
+
+## 2026-11-09: Managed key/destination removal and dissociation
+
+- Source commit: `fa9442bbd74a30abc4797abb4abd13cdb9f597fa` on
+  `feat/07-remove-managed-records`, based on freshly fetched `origin/main`
+  `c226ffb5302fed539f36aa7400d8732ddd55e935`.
+  Worktree: `.worktrees/remove-managed-records/`. The existing guide-platform
+  worktree/branch at `a5acdde40f662991b791ac65446f40271bb60d55` stays unchanged.
+- Environment: Windows amd64, Go 1.26.2, Python 3.12.13, PowerShell 7.6.9,
+  installed Git Bash and Windows PowerShell. Tests use temporary homes and
+  fixture processes; no real SSH data, persistent PATH, or remote access changes.
+- `go test ./...` and `go vet ./...` passed against the exact source/test tree
+  committed as the source SHA above. Subsequent `git diff HEAD -- internal cmd
+  go.mod go.sum scripts` was empty. Formatting of all changed Go files and
+  `git diff --check` passed.
+- Regression coverage includes key/destination removal and association-only
+  removal, unrelated associations, public/private/config preservation, exact
+  prior-state backup, confirmation decline/missing/error, preview-output failure,
+  existing locks, backup failures, missing files, ambiguous/missing identities,
+  nonexistent associations, pending legacy deletion quarantine, archived-state
+  validation, history/creation retention, and key/alias reuse with fresh IDs.
+  TUI tests exercise fixed-ID targeting, associated-only pickers, cancellation,
+  stale-state guards, native confirmation handoff, result reload, and 32×12 fit.
+  CLI tests check required flags and nonterminal rejection before storage changes.
+- `python scripts/test_portable.py -v` passed all 5 tests.
+  `python scripts/test_installers.py -v` passed all 50 tests, and
+  `python scripts/test_installer_profiles.py -v` passed all 30 tests.
+  `python scripts/package_release.py --version v0.0.0-check --output
+  .tmp/remove-verification-dist` built all six OS/CPU targets successfully.
+  The generated set contained exactly seven assets, six matching SHA256 checksums,
+  and exactly the executable and notices in each archive. The Windows amd64 binary
+  printed `SSH KeyFlow v0.0.0-check`; help for all three new commands succeeded.
+  This was local verification only, with no tag or publication.
+- Standards review, performed separately: existing common-backend/terminal/lock/
+  atomic-save/report conventions retained; no dependency changes, physical key
+  deletion, remote execution, or unrelated feature edits. Archived IDs remain
+  validated and new associations require active records. No unresolved findings.
+- Specification review, performed separately against
+  `.scratch/remove-managed-records/spec.md`: all three CLI commands and both TUI
+  actions implemented; cascade versus selective removal, confirmations, data
+  preservation, reuse, error handling, help, and domain/API documentation match
+  the acceptance criteria. No unresolved findings.
+- Limits: native binary smoke was Windows amd64 only; other targets were
+  crossbuilt. No manual full-screen TUI/physical console Ctrl+C session,
+  live SSH-server exercise, hosted CI, push, merge, or release was performed.
+  Older binaries reject states containing the optional archive arrays; a separate
+  prechange state copy is required when downgrading to such binaries.
+
+## 2026-11-10: v0.7.0 preparation
+
+- The user authorized a PR to `main` and publication of the next version.
+  Refreshed `origin/main` remains
+  `c226ffb5302fed539f36aa7400d8732ddd55e935`; the feature worktree is clean at
+  `3ecb3b2` before release-document preparation. The existing guide-platform
+  branch/worktree remains separate and unchanged.
+- The latest published stable version is v0.6.0. v0.7.0 is unused locally and
+  remotely and is selected as the next MINOR for the new removal/dissociation
+  feature and its pre-v1 state compatibility impact. Release notes are in
+  `.scratch/remove-managed-records/release-v0.7.0.md`, including installation,
+  file preservation, downgrade migration, and verification limits.
+- Reuse the passing local verification for source commit
+  `fa9442bbd74a30abc4797abb4abd13cdb9f597fa` recorded above: `git diff --exit-code
+  fa9442b HEAD -- internal cmd scripts go.mod go.sum` passes, and the Windows
+  amd64 / Go 1.26.2 / PowerShell 7.6.9 conditions are unchanged. Further changes
+  are documentation only. Hosted PR and release CI remain required.
+- Final standards review: terminal confirmation, locking, atomic save/backup,
+  domain vocabulary, CLI/TUI integration, archive identity validation, and
+  documentation comply with the existing contracts. No unresolved findings.
+- Final specification review, separate from standards: selective dissociation,
+  cascaded removal, file/history preservation, cancellation/error handling,
+  reuse with fresh IDs, and CLI/TUI acceptance criteria are covered. No unresolved
+  findings. No unrelated guide-platform changes are included.
+- The release target will be the latest `origin/main` after this PR is merged.
+  Record its exact candidate SHA and CI evidence before pushing the annotated
+  tag, then integrate candidate/publication records through a documentation PR.

@@ -74,6 +74,8 @@ type Association struct {
 }
 
 type State struct {
+	RemovedKeys   []Key               `json:"removed_keys,omitempty"`
+	RemovedHosts  []Host              `json:"removed_hosts,omitempty"`
 	Associations  []Association       `json:"associations,omitempty"`
 	DeletedKeys   []DeletedKey        `json:"deleted_keys,omitempty"`
 	Deletions     []LocalDeletion     `json:"deletions,omitempty"`
@@ -240,6 +242,11 @@ func (document State) Validate() error {
 	}
 	keys, hosts, aliases, fingerprints, pairs, paths := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
 	allKeys := append([]Key{}, document.Keys...)
+	removedKeys := map[string]bool{}
+	for _, key := range document.RemovedKeys {
+		removedKeys[key.ID] = true
+		allKeys = append(allKeys, key)
+	}
 	retired := map[string]DeletedKey{}
 	activeKeys := map[string]bool{}
 	for _, key := range document.Keys {
@@ -263,10 +270,10 @@ func (document State) Validate() error {
 			return fmt.Errorf("invalid key provenance %q", key.ID)
 		}
 		digest, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(key.Fingerprint, "SHA256:"))
-		if !claim(key.ID) || !clean(key.Name) || !strings.HasPrefix(key.Fingerprint, "SHA256:") || err != nil || len(digest) != 32 || fingerprints[key.Fingerprint] || !filepath.IsAbs(key.PublicPath) || paths[pathIdentity(key.PublicPath)] || !oneOf(key.ConnectionCheck, "unverified", "verified", "failed", "unknown") {
+		if !claim(key.ID) || !clean(key.Name) || !strings.HasPrefix(key.Fingerprint, "SHA256:") || err != nil || len(digest) != 32 || (!removedKeys[key.ID] && (fingerprints[key.Fingerprint] || paths[pathIdentity(key.PublicPath)])) || !filepath.IsAbs(key.PublicPath) || !oneOf(key.ConnectionCheck, "unverified", "verified", "failed", "unknown") {
 			return fmt.Errorf("invalid or duplicate key %q", key.ID)
 		}
-		if (key.PrivatePath == "") != (key.PrivateSHA256 == "") || (key.PrivatePath != "" && (!filepath.IsAbs(key.PrivatePath) || pathIdentity(key.PrivatePath) == pathIdentity(key.PublicPath) || paths[pathIdentity(key.PrivatePath)] || len(key.PrivateSHA256) != 64)) {
+		if (key.PrivatePath == "") != (key.PrivateSHA256 == "") || (key.PrivatePath != "" && (!filepath.IsAbs(key.PrivatePath) || pathIdentity(key.PrivatePath) == pathIdentity(key.PublicPath) || (!removedKeys[key.ID] && paths[pathIdentity(key.PrivatePath)]) || len(key.PrivateSHA256) != 64)) {
 			return fmt.Errorf("invalid private key metadata %q", key.ID)
 		}
 		if key.PrivateSHA256 != "" {
@@ -274,24 +281,35 @@ func (document State) Validate() error {
 				return fmt.Errorf("invalid private key digest %q", key.ID)
 			}
 		}
-		keys[key.ID], fingerprints[key.Fingerprint], paths[pathIdentity(key.PublicPath)] = true, true, true
-		if key.PrivatePath != "" {
-			paths[pathIdentity(key.PrivatePath)] = true
+		keys[key.ID] = true
+		if !removedKeys[key.ID] {
+			fingerprints[key.Fingerprint], paths[pathIdentity(key.PublicPath)] = true, true
+			if key.PrivatePath != "" {
+				paths[pathIdentity(key.PrivatePath)] = true
+			}
 		}
 	}
+	activeHosts := map[string]bool{}
 	for _, host := range document.Hosts {
-		if !claim(host.ID) || host.Validate() != nil || aliases[strings.ToLower(host.Alias)] {
+		activeHosts[host.ID] = true
+	}
+	allHosts := append(append([]Host{}, document.Hosts...), document.RemovedHosts...)
+	for _, host := range allHosts {
+		if !claim(host.ID) || host.Validate() != nil || (activeHosts[host.ID] && aliases[strings.ToLower(host.Alias)]) {
 			return fmt.Errorf("invalid or duplicate host %q", host.ID)
 		}
-		hosts[host.ID], aliases[strings.ToLower(host.Alias)] = true, true
+		hosts[host.ID] = true
+		if activeHosts[host.ID] {
+			aliases[strings.ToLower(host.Alias)] = true
+		}
 	}
-	if document.Version == 1 && len(document.Associations) > 0 {
-		return fmt.Errorf("associations require state version 2")
+	if document.Version == 1 && (len(document.Associations) > 0 || len(document.RemovedKeys) > 0 || len(document.RemovedHosts) > 0) {
+		return fmt.Errorf("associations and removed records require state version 2")
 	}
 	associations := map[string]bool{}
 	for _, association := range document.Associations {
 		pair := association.KeyID + "/" + association.HostID
-		if !activeKeys[association.KeyID] || !hosts[association.HostID] || associations[pair] {
+		if !activeKeys[association.KeyID] || !activeHosts[association.HostID] || associations[pair] {
 			return fmt.Errorf("invalid or duplicate key association")
 		}
 		associations[pair] = true
@@ -303,8 +321,8 @@ func (document State) Validate() error {
 		}
 		pairs[pair] = true
 	}
-	for _, host := range document.Hosts {
-		if host.ConfigKeyID != "" && (!activeKeys[host.ConfigKeyID] || !pairs[host.ConfigKeyID+"/"+host.ID]) {
+	for _, host := range allHosts {
+		if host.ConfigKeyID != "" && (!(activeKeys[host.ConfigKeyID] || removedKeys[host.ConfigKeyID]) || !pairs[host.ConfigKeyID+"/"+host.ID]) {
 			return fmt.Errorf("invalid configuration key for %q", host.ID)
 		}
 	}

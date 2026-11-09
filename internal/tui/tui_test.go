@@ -295,9 +295,9 @@ func TestLegacyRecordsAreReadOnlyAndOnlyLocalCreationCanResume(t *testing.T) {
 	if command != nil || next.(model).running {
 		t.Fatal("historical remote record launched execution")
 	}
-	m = update(m, press(tea.KeyEscape), press(tea.KeyEscape), press('r'), press('u'), press('d'))
+	m = update(m, press(tea.KeyEscape), press(tea.KeyEscape), press('r'))
 	if m.page != "list" || m.running {
-		t.Fatal("removed remote/deletion hotkey still active")
+		t.Fatal("removed remote registration hotkey still active")
 	}
 }
 func TestHelpReturnsToScrolledDocumentAfterResize(t *testing.T) {

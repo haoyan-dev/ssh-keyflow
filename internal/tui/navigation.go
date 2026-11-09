@@ -115,10 +115,16 @@ func (m *model) picker(action, kind string) {
 	m.choiceIndex, m.choiceQuery = 0, ""
 	if kind == "host" {
 		for _, host := range m.view.State.Hosts {
+			if action == "dissociate" && !m.associated(host.ID, m.request.Key) {
+				continue
+			}
 			m.choices = append(m.choices, entry{"host", host.ID, host.Alias, fmt.Sprintf("%s@%s:%d", host.User, host.Hostname, host.Port)})
 		}
 	} else {
 		for _, key := range m.view.State.Keys {
+			if action == "dissociate" && !m.associated(m.request.Host, key.ID) {
+				continue
+			}
 			suffix := ""
 			for _, association := range m.view.State.Associations {
 				if association.HostID == m.request.Host && association.KeyID == key.ID {
@@ -128,7 +134,19 @@ func (m *model) picker(action, kind string) {
 			m.choices = append(m.choices, entry{"key", key.ID, key.Name + " [" + key.ID + "]", key.Fingerprint + suffix})
 		}
 	}
+	if action == "dissociate" && len(m.choices) == 0 {
+		m.status = "No local associations to disconnect"
+		return
+	}
 	m.open("picker", entry{}, "", "")
+}
+func (m model) associated(hostID, keyID string) bool {
+	for _, association := range m.view.State.Associations {
+		if association.HostID == hostID && association.KeyID == keyID {
+			return true
+		}
+	}
+	return false
 }
 func (m *model) beginPair(action string) tea.Cmd {
 	if m.stale {
@@ -158,7 +176,7 @@ func (m *model) finishPair() tea.Cmd {
 	// Returning to the form/list first keeps help/back navigation independent of execution.
 	m.back()
 	switch action {
-	case "add", "associate":
+	case "add", "associate", "dissociate":
 		return m.execute(m.request)
 	case "public":
 		m.showPublic(m.request.Key)

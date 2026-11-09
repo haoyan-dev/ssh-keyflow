@@ -102,7 +102,11 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 			public := readCommand("public", "Print a managed public key for copying", publicRequest, options)
 			public.Flags().StringVar(&publicRequest.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
 			public.MarkFlagRequired("key")
-			parent.AddCommand(create, importKey, public)
+			removeRequest := &app.Request{Operation: "remove-key"}
+			remove := operationCommand("remove", "Remove a managed key and its local associations; preserve key files", removeRequest, options)
+			remove.Flags().StringVar(&removeRequest.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
+			remove.MarkFlagRequired("key")
+			parent.AddCommand(create, importKey, public, remove)
 		case "hosts":
 			request := &app.Request{Operation: "add"}
 			add := operationCommand("add", "Save a destination associated with an existing key; no remote changes", request, options)
@@ -118,15 +122,21 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 			}
 			associateRequest := &app.Request{Operation: "associate"}
 			associate := operationCommand("associate", "Save a key association; remote registration is not verified", associateRequest, options)
+			dissociateRequest := &app.Request{Operation: "dissociate"}
+			dissociate := operationCommand("dissociate", "Disconnect a local key association; preserve keys, destination and SSH access", dissociateRequest, options)
+			removeRequest := &app.Request{Operation: "remove-host"}
+			remove := operationCommand("remove", "Remove a destination and its local associations; preserve SSH access", removeRequest, options)
+			remove.Flags().StringVar(&removeRequest.Host, "host", "", "Destination fixed ID or alias (required)")
+			remove.MarkFlagRequired("host")
 			guideRequest := &app.Request{Operation: "guide"}
 			guide := readCommand("guide", "Print copy-paste setup and removal instructions without changing files", guideRequest, options)
-			for command, request := range map[*cobra.Command]*app.Request{associate: associateRequest, guide: guideRequest} {
+			for command, request := range map[*cobra.Command]*app.Request{associate: associateRequest, dissociate: dissociateRequest, guide: guideRequest} {
 				command.Flags().StringVar(&request.Host, "host", "", "Destination fixed ID or alias (required)")
 				command.Flags().StringVar(&request.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
 				command.MarkFlagRequired("host")
 				command.MarkFlagRequired("key")
 			}
-			parent.AddCommand(add, associate, guide)
+			parent.AddCommand(add, associate, dissociate, guide, remove)
 		}
 		root.AddCommand(parent)
 	}
