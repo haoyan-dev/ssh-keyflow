@@ -1399,3 +1399,90 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
 - Separate specification review against `.scratch/tui-panes/spec.md`: all
   three UI requests and size, keyboard, copy, and state-preservation criteria
   are covered by the implementation evidence above. No unresolved findings.
+
+## 2026-11-10: v0.8.0 integrated candidate
+
+- The user requested "tag and push". Integrated the UI through
+  [PR #18](https://github.com/haoyan-dev/ssh-keyflow/pull/18); release candidate
+  is `b0b353e875a4d3d4396012602cb5dd67e3e7a646` on `main`.
+  Its full tree matches PR head `dbb5310511ade78abcca01352d591385747fb6ed`.
+  The implementation, tests, dependencies, installers, and build inputs also
+  match the clean locally tested `a39fce80e0fe30d8621848716ec81cec2c6345ac`;
+  subsequent changes were documentation only.
+- On Windows amd64, Go 1.26.2, Python 3.12.13, and PowerShell 7.6.9, fresh
+  `go test ./... -count=1`, `go vet ./...`, and Python Portable (5),
+  installer (50), and installer-profile (30) tests passed. Whitespace checks
+  and the final clean working tree check passed before tagging.
+- PR Verify [42835513500](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42835513500)
+  and branch Verify
+  [42835400257](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42835400257)
+  passed on the final PR head: Go and Python suites on Linux, macOS, and Windows,
+  plus actual six-target packaging and Linux amd64 injected-version smoke.
+  Repository branch protection and rulesets required no additional reviews;
+  separate standards and specification reviews above had no unresolved findings.
+- Refreshed branch/tag references, confirmed v0.8.0 was unused locally and
+  remotely, and selected a MINOR increment from stable v0.7.0 for compatible
+  TUI and explicit guide-platform features. Reported the full candidate SHA
+  and version before pushing. Annotated tag object
+  `87109928772889638b90744c46ae668ad51fbc28` peels locally and remotely to
+  the candidate above; pushed only `refs/tags/v0.8.0`.
+- Release notes include changes since v0.7.0, installation/update guidance,
+  no required v0.7.0 migration, the inherited pre-v0.7.0 downgrade limit, and
+  native/manual verification limits. The release build matrix runs in the
+  hosted workflow; no duplicate local six-target build was needed.
+
+## 2026-11-10: v0.8.0 publication audit
+
+- Published [SSH KeyFlow v0.8.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.8.0)
+  at `2026-11-10T14:48:09Z`. Release workflow
+  [42836604663](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42836604663)
+  succeeded: all three OS verification jobs, six-target crossbuild, and publish.
+  Its source SHA is the annotated tag's peeled candidate
+  `b0b353e875a4d3d4396012602cb5dd67e3e7a646`. Stable, nondraft,
+  nonprerelease, and latest-release metadata all identify v0.8.0.
+- Downloaded the actual six archives and SHA256SUMS from GitHub. The asset set
+  has exactly seven files; all GitHub asset sizes/digests and six manifest
+  checksums match. Manifest SHA256:
+  `7d2241fb98b002a9eca4fd0c744a5f04de90dfbea54fb2fc25e12dc2b3c04357`.
+  Manifest names are unique and use the required SHA256/two-space/LF format.
+- Each archive contains exactly its platform executable and the candidate's
+  `THIRD_PARTY_NOTICES.txt`, as regular files. Unix modes are 0755/0644 with
+  zero uid/gid. All six binaries have the expected GOOS/GOARCH, CGO disabled,
+  trimpath, and embedded v0.8.0. All 22 runtime dependency module/version pairs
+  are present in the recorded notice sources.
+- The downloaded Windows amd64 executable returns `SSH KeyFlow v0.8.0`.
+  Read-only key/destination JSON lists and TUI help pass without creating an
+  SSH directory in the isolated home. Guide help includes all four platform
+  options; key/destination removal and dissociation help remain available.
+- Replaced generated release notes with the prepared changes, compatibility,
+  installation, and limits text. Checked exact note content and confirmed
+  asset IDs/digests did not change. The published tag and binary assets remain
+  immutable.
+- Downloaded `main`-hosted installers from the production source URLs and
+  compared their bytes with main commit
+  `b0b353e875a4d3d4396012602cb5dd67e3e7a646`. SHA256: install.sh
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f`;
+  install.ps1
+  `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`.
+  Source delivery is tracked independently of the release tag.
+- The downloaded PowerShell installer passed latest installation, same-version
+  update, and uninstall using production GitHub URLs and a disposable home.
+  Installed version, binary receipt hash, and bundled notices match. Existing
+  SSH data, configuration, and profile bytes were preserved, with no persistent
+  PATH change. Temporary binary-audit and installer homes were removed.
+- Environment: Windows amd64, Go 1.26.2, Python 3.12.13, PowerShell 7.6.9.
+  Native published-binary and live installer smoke covers Windows amd64 only.
+  Other native targets, fullscreen appearance across terminal themes, OSC52
+  delivery, and live SSH servers remain untested locally. Hosted tests and
+  crossbuilds do not establish native behavior of all six published binaries.
+- Downloaded assets, metadata before/after notes, fingerprints, audit JSON,
+  source installers, and workflow logs remain under `.tmp/v0.8.0-*`.
+  These post-release records are integrated through a documentation PR,
+  requiring no new version or tag movement.
+- Documentation standards review: only verification and local issue records
+  change; URLs, SHAs, timestamps, and checks agree with retained audit outputs.
+  Whitespace checks pass. No unresolved findings.
+- Separate release-specification review: candidate identity, passing CI,
+  asset/version/source agreement, stable/latest status, installer source
+  tracking, compatibility notes, limits, and publication immutability satisfy
+  AGENTS.md and the distribution contract. No unresolved findings.
