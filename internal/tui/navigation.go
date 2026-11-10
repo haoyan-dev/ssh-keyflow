@@ -86,9 +86,9 @@ func (m model) updateSelection(key string) (tea.Model, tea.Cmd) {
 	case "end":
 		index = len(items) - 1
 	case "pgup":
-		index -= max(1, (m.content.Height()-1)/2)
+		index -= max(1, m.content.Height()/m.entryHeight())
 	case "pgdown":
-		index += max(1, (m.content.Height()-1)/2)
+		index += max(1, m.content.Height()/m.entryHeight())
 	case "enter":
 		if m.page == "picker" {
 			item := items[max(0, min(index, len(items)-1))]

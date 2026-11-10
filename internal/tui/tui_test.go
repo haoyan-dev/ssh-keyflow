@@ -453,7 +453,9 @@ func TestDiagnosticsAndSavedStateCannotInjectTerminalControls(t *testing.T) {
 	m := fixture(t)
 	m.view.State.Keys[0].Name = "safe\x1b[2J\x1b]52;c;c2VjcmV0\a\x7f"
 	m = update(m, press(tea.KeyEnter))
-	if strings.Contains(m.View().Content, "\x1b") || strings.Contains(m.View().Content, "\x7f") {
+	rendered := m.View().Content
+	// Only presentation SGR is allowed; saved-state OSC/cursor controls are not.
+	if strings.Contains(ansi.Strip(rendered), "\x7f") || strings.Contains(rendered, "\x1b[2J") || strings.Contains(rendered, "\x1b]52") {
 		t.Fatal("state injected terminal controls")
 	}
 	var buffer diagnosticBuffer

@@ -206,6 +206,7 @@ func (m *model) submitForm() tea.Cmd {
 	return m.execute(request)
 }
 func (m *model) renderForm() {
+	m.resize()
 	var lines []string
 	focusStart, focusEnd, inputRow := 0, 0, 0
 	for i, field := range m.fields {
@@ -214,7 +215,7 @@ func (m *model) renderForm() {
 			prefix = "> "
 		}
 		start := len(lines)
-		lines = append(lines, strings.Split(ansi.Hardwrap(prefix+safeText(field.label), max(1, m.width), true), "\n")...)
+		lines = append(lines, strings.Split(ansi.Hardwrap(prefix+safeText(field.label), m.content.Width(), true), "\n")...)
 		if i == m.focus {
 			inputRow = len(lines)
 		}
@@ -223,26 +224,13 @@ func (m *model) renderForm() {
 		if i == m.focus {
 			focusStart, focusEnd = start, len(lines)
 		}
-	}
-	for i, label := range []string{"Continue", "Cancel", "Help"} {
-		prefix := "  "
-		if m.focus == len(m.fields)+i {
-			prefix = "> "
-			focusStart, focusEnd = len(lines), len(lines)+1
-		}
-		lines = append(lines, prefix+"["+label+"]")
-	}
-	if m.formError != "" {
-		// Keep validation beside the focused field on a small terminal.
-		notice := strings.Split(ansi.Hardwrap("Error: "+safeText(m.formError), max(1, m.width), true), "\n")
-		withError := append([]string{}, lines[:focusEnd]...)
-		withError = append(withError, notice...)
-		lines = append(withError, lines[focusEnd:]...)
+		lines = append(lines, "")
 	}
 	m.document = strings.Join(lines, "\n")
 	m.resize()
-	if focusStart < m.content.YOffset() || focusEnd > m.content.YOffset()+m.content.Height() {
-		m.content.SetYOffset(focusStart)
+	if m.focus < len(m.fields) && (focusStart < m.content.YOffset() || focusEnd > m.content.YOffset()+m.content.Height()) {
+		// Keep the editable line visible when a long label exceeds a small pane.
+		m.content.SetYOffset(max(focusStart, focusEnd-m.content.Height()))
 	}
 	m.inputRow = inputRow
 }
@@ -269,9 +257,25 @@ func (m model) formCursor() *tea.Cursor {
 	if cursor == nil {
 		return nil
 	}
-	cursor.Y += 2 + m.inputRow - m.content.YOffset()
-	if cursor.Y < 2 || cursor.Y >= 2+m.content.Height() {
+	cursor.X += 2
+	cursor.Y += m.bodyTop() + m.inputRow - m.content.YOffset()
+	if cursor.Y < m.bodyTop() || cursor.Y >= m.bodyTop()+m.content.Height() {
 		return nil
 	}
 	return cursor
+}
+
+func (m model) formText() string {
+	lines := strings.Split(safeText(m.document), "\n")
+	row := 0
+	for i, field := range m.fields {
+		labelRows := strings.Count(ansi.Hardwrap("  "+safeText(field.label), m.content.Width(), true), "\n") + 1
+		if i == m.focus {
+			for line := row; line < min(row+labelRows+1, len(lines)); line++ {
+				lines[line] = paint(accentStyle, lines[line])
+			}
+		}
+		row += labelRows + 2
+	}
+	return strings.Join(lines, "\n")
 }

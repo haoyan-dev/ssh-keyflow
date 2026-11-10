@@ -1337,3 +1337,65 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
 - Native binary smoke is Windows amd64 only. Fullscreen TUI/clipboard and live
   SSH-server sessions were not manually exercised. Hosted verification and
   six-target packaging will run on the PR; no new tag or release is requested.
+
+## 2026-11-10: TUI color, spacing, and panes
+
+- Source commit: `1aef8445c9ce0c952a26f965839d0b8f6a25513f` on
+  `feat/08-tui-panes`. Base was refreshed `origin/main`
+  `58d15de1bed2a2a23654b5b02accbcdbc7e2deed`; starting working tree was clean.
+  Specification: `.scratch/tui-panes/spec.md`; local ticket: issue 08.
+- Environment: Windows amd64, Go 1.26.2, PowerShell. `go test ./... -count=1`
+  passed during implementation. Subsequent changes were confined to TUI
+  menu text, message truncation, and removal of a temporary preview test.
+  `go test ./internal/tui -count=1` passed against the final source/test inputs
+  committed above; other package inputs were unchanged.
+- `go vet ./...`, Go formatting, and `git diff --check` passed against the
+  final inputs. Built `.build/08-tui-panes.exe`; `--version` returned
+  `SSH KeyFlow dev`, and `tui --help` passed. Lip Gloss was already present
+  and became a direct dependency; module versions and go.sum are unchanged.
+- Inspected fixture-based terminal renders for keys, search, import validation,
+  and a compact form at 80x24 and 32x12. Regression tests additionally cover
+  40x16, 60x20, and 120x40; complete pane boundaries; minimum-size search with
+  stale feedback; paging with 30 records; long ASCII/CJK input; caret bounds;
+  fixed form actions; NO_COLOR; and rejection of untrusted terminal controls.
+  Existing tests continue to cover raw clipboard scripts/public keys, guide
+  navigation, draft/back behavior, reload invalidation, and native handoff.
+- Standards review: reused existing viewport/textinput and installed styling
+  components, kept presentation separate from operation/state logic, retained
+  domain terminology and sanitization, and followed local issue/branch policy.
+  No unresolved findings.
+- Separate specification review: color and non-color focus cues, entry spacing,
+  labeled content/input/search/messages/menu panes, persistent form controls,
+  and the 32x12 minimum satisfy the three requested improvements and their
+  recorded acceptance criteria. No unresolved findings.
+- Limits: visual inspection used deterministic rendered text rather than a
+  live fullscreen session. Clipboard delivery and appearance across terminal
+  themes were not manually tested. Native smoke checks cover Windows amd64.
+  Packaging/installer inputs were unchanged, so their Python suites and the
+  release build matrix were not repeated. No push, merge, or release.
+
+## 2026-11-10: v0.8.0 release preparation
+
+- The user's subsequent "tag and push" request authorizes integration and
+  publication. Refreshed remote branches and tags; latest stable is v0.7.0.
+  Select v0.8.0 for backward-compatible TUI and guide platform features.
+  The version is unused locally and no tag has been created at this stage.
+- Clean tested source: `a39fce80e0fe30d8621848716ec81cec2c6345ac` on
+  `feat/08-tui-panes`, based on current `origin/main`
+  `58d15de1bed2a2a23654b5b02accbcdbc7e2deed`. On Windows amd64 with
+  Go 1.26.2, fresh `go test ./... -count=1` and `go vet ./...` passed.
+  Subsequent release preparation changes only documentation; source, tests,
+  dependencies, and build inputs match that tested commit.
+- Python packaging and installer suites are running locally. Hosted Verify
+  must pass on the final PR state before merge. The hosted crossbuild and
+  Release workflow perform six-target packaging, avoiding a duplicate local
+  build matrix. Record the final integrated candidate SHA and published-asset
+  checks in the post-publication documentation PR.
+- Release notes cover both changes since v0.7.0, installation, compatibility,
+  the inherited pre-v0.7.0 downgrade limit, and native/manual testing limits.
+  Standards review: presentation remains separate from application operations,
+  domain terms and terminal sanitization are retained, and the release follows
+  the repository's PR/tag workflow. No unresolved findings.
+- Separate specification review against `.scratch/tui-panes/spec.md`: all
+  three UI requests and size, keyboard, copy, and state-preservation criteria
+  are covered by the implementation evidence above. No unresolved findings.

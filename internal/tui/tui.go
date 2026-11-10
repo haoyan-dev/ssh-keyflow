@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
@@ -356,35 +355,24 @@ func (m model) chrome() (string, string) {
 	if m.running {
 		footer = "Native terminal operation in progress"
 	}
-	status := m.status
-	if status == "" && m.view.Review != "" && m.page == "list" {
-		status = "Manual review notice: v details"
-	}
-	if m.stale {
-		status = "State stale; F5 refresh required"
-	}
-	if status != "" {
-		footer = ansi.Truncate(safeText(status), max(1, m.width), "…") + "\n" + footer
-	}
 	return title, footer
 }
 
 func (m *model) resize() {
-	header, footer := m.chrome()
-	extra := 0
-	if (m.page == "list" && (m.searching || m.queries[m.tab] != "")) || (m.page == "picker" && (m.searching || m.choiceQuery != "")) {
-		extra = 1
-	}
-	height := max(1, m.height-strings.Count(header, "\n")-strings.Count(footer, "\n")-4-extra)
-	width := max(1, m.width)
+	layout := m.layout()
+	height, width := layout.bodyHeight, max(1, m.width-4)
 	offset := m.content.YOffset()
 	m.content.SetWidth(width)
 	m.content.SetHeight(height)
-	m.search.SetWidth(max(1, width-10))
-	m.content.SetContent(ansi.Hardwrap(safeText(m.document), width, true))
+	// Bubbles reserves one additional cell for the real cursor.
+	m.search.SetWidth(max(1, width-ansi.StringWidth(m.search.Prompt)-1))
+	m.content.SetContent(ansi.Hardwrap(strings.ReplaceAll(safeText(m.document), "\t", "    "), width, true))
+	if m.page == "form" {
+		m.content.SetContent(m.formText())
+	}
 	m.content.SetYOffset(offset)
 	for i := range m.fields {
-		m.fields[i].input.SetWidth(max(1, width-4))
+		m.fields[i].input.SetWidth(max(1, width-3))
 	}
 }
 
@@ -393,7 +381,7 @@ func (m model) View() tea.View {
 		return terminalView(fit("Resize: minimum 32x12\nq quit", m.width, m.height))
 	}
 	m.resize()
-	header, footer := m.chrome()
+	layout := m.layout()
 	body := m.content.View()
 	if m.page == "list" || m.page == "picker" {
 		items, index := m.visibleEntries(), m.selected[m.tab]
@@ -401,23 +389,44 @@ func (m model) View() tea.View {
 			index = m.choiceIndex
 		}
 		body = m.listText(items, index)
-		query := m.queries[m.tab]
-		if m.page == "picker" {
-			query = m.choiceQuery
+	}
+	var lines []string
+	lines = append(lines, m.rule("SSH KeyFlow", "╭", "╮", accentStyle), m.paneRow(m.navigation()))
+	if layout.search {
+		m.search.SetValue(m.query())
+		lines = append(lines, m.rule("Search", "├", "┤", accentStyle), m.paneRow(paint(accentStyle, safeText(m.search.View()))))
+	}
+	lines = append(lines, m.rule(m.paneTitle(), "├", "┤", accentStyle))
+	for _, line := range strings.Split(padLines(body, layout.bodyHeight), "\n") {
+		lines = append(lines, m.paneRow(line))
+	}
+	if layout.messages {
+		style, title := infoStyle, "Messages"
+		if m.stale || (m.view.Review != "" && m.status == "") {
+			style, title = warningStyle, "Messages · Review"
 		}
-		if m.searching || query != "" {
-			m.search.SetValue(query)
-			body = m.search.View() + "\n" + body
+		if m.formError != "" && m.page == "form" {
+			style, title = errorStyle, "Messages · Error"
+		}
+		lines = append(lines, m.rule(title, "├", "┤", style))
+		for _, line := range strings.Split(layout.message, "\n") {
+			lines = append(lines, m.paneRow(paint(style, line)))
 		}
 	}
-	view := terminalView(fit(header+"\n"+body+"\n"+footer, m.width, m.height))
+	lines = append(lines, m.rule("Menu", "├", "┤", accentStyle))
+	for _, line := range strings.Split(layout.menu, "\n") {
+		lines = append(lines, m.paneRow(line))
+	}
+	lines = append(lines, m.rule("", "╰", "╯", borderStyle))
+	view := terminalView(strings.Join(lines, "\n"))
 	if m.page == "form" {
 		view.Cursor = m.formCursor()
 	}
 	if m.searching {
 		view.Cursor = m.search.Cursor()
 		if view.Cursor != nil {
-			view.Cursor.Y += 2
+			view.Cursor.X += 2
+			view.Cursor.Y += 3
 		}
 	}
 	return view
@@ -569,21 +578,31 @@ func (m model) listText(items []entry, index int) string {
 				text = "No destinations yet. a: add\nCreate or import a key first."
 			}
 		}
-		return padLines(fit(text, m.width, height), height)
+		return padLines(fit(text, m.content.Width(), height), height)
 	}
 	index = max(0, min(index, len(items)-1))
-	perPage := max(1, (height-1)/2)
+	rowHeight := m.entryHeight()
+	perPage := max(1, height/rowHeight)
 	start := (index / perPage) * perPage
 	var lines []string
-	lines = append(lines, fmt.Sprintf("%d/%d", index+1, len(items)))
 	for i := start; i < min(len(items), start+perPage); i++ {
 		prefix := "  "
 		if i == index {
 			prefix = "> "
 		}
-		lines = append(lines, prefix+safeText(items[i].title), "  "+safeText(items[i].description))
+		title := ansi.Truncate(prefix+safeLine(items[i].title), m.content.Width(), "…")
+		if i == index {
+			title = paint(selectedStyle, title)
+		}
+		lines = append(lines, title)
+		if rowHeight >= 2 {
+			lines = append(lines, "  "+safeLine(items[i].description))
+		}
+		if rowHeight == 3 {
+			lines = append(lines, "")
+		}
 	}
-	return padLines(fit(strings.Join(lines, "\n"), m.width, height), height)
+	return padLines(fit(strings.Join(lines, "\n"), m.content.Width(), height), height)
 }
 func padLines(text string, height int) string {
 	return text + strings.Repeat("\n", max(0, height-strings.Count(text, "\n")-1))
