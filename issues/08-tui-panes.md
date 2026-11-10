@@ -30,3 +30,16 @@ content, and menus. Preserve terminal size support and keyboard workflows.
   already integrated since v0.7.0. Fresh full Go tests and vet passed on
   `a39fce80e0fe30d8621848716ec81cec2c6345ac`; integration and publication
   will follow the repository's PR and release checks.
+- 2026-11-10: PR #18 merged after all three OS checks and six-target packaging
+  passed. Candidate `b0b353e875a4d3d4396012602cb5dd67e3e7a646` exactly matches
+  the verified PR tree. Annotated v0.8.0 was created and pushed on that commit;
+  all 85 local Python release tests also passed. Publication audit follows.
+- 2026-11-10: Published
+  [v0.8.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.8.0)
+  as latest stable.
+  Release run 42836604663 succeeded. All seven downloaded assets, manifest,
+  archive contents, dependency notices, embedded versions, and Windows amd64
+  smoke checks passed. Production PowerShell install/update/uninstall passed
+  in a disposable home, preserving SSH data and profile bytes. Publication
+  and testing limits are recorded in `docs/verification.md`; the published
+  tag and assets are unchanged.
