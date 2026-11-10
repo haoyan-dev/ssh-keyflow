@@ -25,3 +25,8 @@ content, and menus. Preserve terminal size support and keyboard workflows.
 - Separate standards and specification reviews have no unresolved findings.
   See the TUI panes entry in `docs/verification.md` for commit evidence
   and limits. Changes are local; no push, merge, or release.
+- 2026-11-10: The user requested "tag and push". Preparing v0.8.0 as a
+  backward-compatible feature release, including the guide platform changes
+  already integrated since v0.7.0. Fresh full Go tests and vet passed on
+  `a39fce80e0fe30d8621848716ec81cec2c6345ac`; integration and publication
+  will follow the repository's PR and release checks.

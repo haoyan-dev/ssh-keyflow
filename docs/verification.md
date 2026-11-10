@@ -1373,3 +1373,29 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   themes were not manually tested. Native smoke checks cover Windows amd64.
   Packaging/installer inputs were unchanged, so their Python suites and the
   release build matrix were not repeated. No push, merge, or release.
+
+## 2026-11-10: v0.8.0 release preparation
+
+- The user's subsequent "tag and push" request authorizes integration and
+  publication. Refreshed remote branches and tags; latest stable is v0.7.0.
+  Select v0.8.0 for backward-compatible TUI and guide platform features.
+  The version is unused locally and no tag has been created at this stage.
+- Clean tested source: `a39fce80e0fe30d8621848716ec81cec2c6345ac` on
+  `feat/08-tui-panes`, based on current `origin/main`
+  `58d15de1bed2a2a23654b5b02accbcdbc7e2deed`. On Windows amd64 with
+  Go 1.26.2, fresh `go test ./... -count=1` and `go vet ./...` passed.
+  Subsequent release preparation changes only documentation; source, tests,
+  dependencies, and build inputs match that tested commit.
+- Python packaging and installer suites are running locally. Hosted Verify
+  must pass on the final PR state before merge. The hosted crossbuild and
+  Release workflow perform six-target packaging, avoiding a duplicate local
+  build matrix. Record the final integrated candidate SHA and published-asset
+  checks in the post-publication documentation PR.
+- Release notes cover both changes since v0.7.0, installation, compatibility,
+  the inherited pre-v0.7.0 downgrade limit, and native/manual testing limits.
+  Standards review: presentation remains separate from application operations,
+  domain terms and terminal sanitization are retained, and the release follows
+  the repository's PR/tag workflow. No unresolved findings.
+- Separate specification review against `.scratch/tui-panes/spec.md`: all
+  three UI requests and size, keyboard, copy, and state-preservation criteria
+  are covered by the implementation evidence above. No unresolved findings.
