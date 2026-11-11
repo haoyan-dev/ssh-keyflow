@@ -681,7 +681,7 @@ main統合前の履歴保全のため保持する。
 - 対象ソース：`6a09684180e1731aae9d75a834759283f9228ee1`。
   v0.4.0から非互換CLI・保存形式の変更を含むため、0.xのMINORを更新する。
   README・アプリケーション契約・ADRに適用版とv1事前退避を明記した。
-  リリースノート案は作業用 `.tmp/v0.5.0-release-notes.md` に保持する。
+  リリースノート案は作業用 `.tmp/v0.5.0-release-notes.md` に保持した（2026-11-11時点で作業領域から削除済み）。
 - PRは [#8](https://github.com/haoyan-dev/ssh-keyflow/pull/8)。
   この候補後の追加差分は本記録とチケットの状態だけとし、タグは上記ソースを指す。
 - macOSで初回CIが失敗した `TestNativeHandoffPreservesOriginalStdinAndInterruptedCreation` は、
@@ -761,7 +761,7 @@ main統合前の履歴保全のため保持する。
   一時ホームに置いた既存SSHデータとプロファイルのバイト保持を確認した。
   PATH保存は承認せず、ユーザーの実環境は変更していない。
 - 取得済み配布物・API metadata・監査JSON・インストーラーsmoke結果は
-  `.tmp/v0.5.0-published*` にレビュー用として保持する。
+  `.tmp/v0.5.0-published*` にレビュー用として保持した（2026-11-11時点で作業領域から削除済み）。
   インストーラーsmokeと配布版smokeの一時ホームは終了時に削除した。
 
 Linux / macOS / Windows arm64のネイティブ対話動作、実OSシグナルによる中断、
@@ -850,7 +850,7 @@ POSIXインストーラーは配信ソース一致と既存fixture / hosted CI�
   本体v0.5.1表示、所有記録ハッシュ、同梱notice、既存SSHデータとプロファイルの
   バイト保持を確認した。PATH保存は承認せず、実ユーザー環境は変更していない。
 - 公開物・API metadata・監査JSON・インストーラーsmoke結果は
-  `.tmp/v0.5.1-*` と監査スクリプトに保持する。検証用の一時ホームは終了時に削除した。
+  `.tmp/v0.5.1-*` と監査スクリプトに保持した（2026-11-11時点で作業領域から削除済み）。検証用の一時ホームは終了時に削除した。
   この記録は公開後の文書PRで統合し、公開済みタグは移動しない。
 - Astraは最終の仕様・証拠・日本語ノートを承認し、別途の規約確認と
   `git diff --check` も成功した。承認済みノートを公開本文へ反映してUTF-8で照合し、
@@ -940,7 +940,7 @@ POSIXインストーラーは配信ソース一致とfixture / hosted CIで確�
   v0.5.2表示、所有記録のハッシュ、notice、既存SSHデータとプロファイルの
   バイト保持を確認した。PATH保存は承認せず、一時ホームは終了時に削除した。
 - API metadata・配布物・監査JSON・インストーラーsmoke結果を
-  `.tmp/v0.5.2-*` に保持する。この証拠と整理記録は文書PRで統合し、
+  `.tmp/v0.5.2-*` に保持した（2026-11-11時点で作業領域から削除済み）。この証拠と整理記録は文書PRで統合し、
   公開済みタグとバイナリは変更しない。
 
 Linux / macOS / Windows arm64のネイティブ対話操作、実OSシグナルによる中断、
@@ -1084,7 +1084,7 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   実SSHサーバーへの配置・接続、昇格した管理者配置のローカル実行は未検証。
 - featureブランチはmainへの統合とクリーン状態を確認してローカル・origin双方から削除した。
   配布物、API metadata、監査JSON、インストーラーsmokeとworkflowログは
-  `.tmp/v0.6.0-*` に保持する。
+  `.tmp/v0.6.0-*` に保持した（2026-11-11時点で作業領域から削除済み）。
   この公開後記録は文書PRで統合し、タグ・配布物を変更せず追加リリースも行わない。
 - 公開後文書の規約レビュー: 文書とチケットのみの差分、正確なSHA・workflow・URL、
   監査出力との一致、`git diff --check` を確認し、未解決の違反なし。
@@ -1288,8 +1288,9 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   exercised locally. Hosted tests and crossbuilds do not establish native runtime
   behavior of all six published binaries.
 - Audit JSON, release metadata before/after notes, asset fingerprints, source
-  installers, published assets, and workflow logs are retained under
-  `.tmp/v0.7.0-*` in the original workspace. Temporary auditor and installer homes
+  installers, published assets, and workflow logs were retained under
+  `.tmp/v0.7.0-*` in the original workspace; they were no longer present
+  as of 2026-11-11. Temporary auditor and installer homes
   were removed. Integrate these records through a documentation PR without
   moving the published tag or changing binary assets.
 - Documentation standards review: only verification and local-ticket records
@@ -1476,7 +1477,8 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   delivery, and live SSH servers remain untested locally. Hosted tests and
   crossbuilds do not establish native behavior of all six published binaries.
 - Downloaded assets, metadata before/after notes, fingerprints, audit JSON,
-  source installers, and workflow logs remain under `.tmp/v0.8.0-*`.
+  source installers, and workflow logs were kept under `.tmp/v0.8.0-*`;
+  they were no longer present as of 2026-11-11.
   These post-release records are integrated through a documentation PR,
   requiring no new version or tag movement.
 - Documentation standards review: only verification and local issue records
