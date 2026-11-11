@@ -201,6 +201,8 @@ python scripts/package_release.py --version v0.0.0-check --output dist-check
 
 CIは3 OSでGoテスト、Portable生成物テスト、インストーラーテストを実行し、6対象の実クロスビルドとLinux amd64版の版注入を確認します。`v*` タグのpushでCI成功後に7件を `GITHUB_REPOSITORY` へ公開します。インストーラーは `main` のソースから別途配信し、7件のリリース配布物は変更しません。プレリリースタグはlatest正式版にしません。
 
+リリースは、準備PRの統合、最終候補の検証、タグ作成・公開、公開後の配布物検証と記録PRの統合の順で進めます。準備記録には検証したソースのコミットを使い、最終タグのコミットはタグ・リリース情報と公開後の記録に残します。公開後の記録でmainがタグより先へ進むことは通常の運用で、記録だけの変更による再リリースは不要です。各段階の完了条件と承認範囲は [AGENTS.mdのTags and releases](AGENTS.md#tags-and-releases) を参照してください。
+
 公開ジョブはタグをまたいで直列化し、その中で現在のlatestを取得して数値のバージョン順で比較します。旧系列の修正版は公開できますが、新しいlatestを置き換えません。latestが404の場合は全リリースの一覧取得に成功し、公開済み正式版がないと確認できた場合だけ初回公開として扱います。認証・通信・API応答の異常や、正式版があるのにlatestが取得できない場合は公開を停止します。`scripts/test_release.py` は外部公開なしでこれらの判定と公開コマンドを検証します。
 
 テストは一時ホーム・配置先・配布物を使い、実ユーザーのSSHデータ、永続PATH、プロファイル、接続先を変更しません。クロスビルドは各OS / CPUでの実機実行の証拠とは区別します。確認済み範囲は [docs/verification.md](docs/verification.md)、公開インターフェースは [docs/application-contract.md](docs/application-contract.md) を参照してください。
