@@ -59,8 +59,10 @@ requires verifying that guard before pushing a tag that could violate it.
 The user subsequently authorized implementation, isolated on
 `fix/01-release-latest` in `.worktrees/release-latest`. The fix adds numeric
 comparison, fail-closed API handling, and a shared publication queue. Consult
-that branch's `docs/verification.md` for evidence and limitations. Until that
-branch is integrated, main still has the original workflow behavior.
+`docs/verification.md` for evidence and limitations. The fix was integrated
+through PR #26 at `7641bc0b44dedf3269963271f453077763399bd8` after all hosted
+checks passed. The follow-up ticket is resolved; future release tags must
+include the guarded workflow.
 
 ## Verification evidence
 
@@ -99,4 +101,7 @@ and unfinished-scaffold checks passed across all four skill Markdown files;
 git diff --check passed in both repositories. This is static validation and a
 manual decision review, not an independent execution of the skill in a new
 project. The skill is stored in its source repository; global installation was
-not part of this task.
+not part of this task. The skill was integrated through li-agent-skills PR #1
+at `fba9d079a0f889a3daa75461e77c8a676d8ad592`; reviewed skill commit
+`ff1266643f4fdcb65a17f4e0b333c310d3200af5` passed validation and both independent
+review axes with zero findings.
