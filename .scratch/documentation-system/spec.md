@@ -1,6 +1,6 @@
 # SSH KeyFlow documentation system
 
-Status: ready-for-human
+Status: ready-for-agent
 Base: `1d2f44eb0449b389629e01fe71b970f715badd47`
 Research: [research.md](research.md)
 
@@ -22,9 +22,12 @@ reader-oriented structure of Memos to this native CLI/TUI project.
 - Documentation maintenance rules and a release guide that points to, rather
   than replaces, the existing policy.
 - Offline documentation validation in CI, plus review/verification evidence.
+- Maintained documentation in Simplified Chinese (`zh-CN`), English (`en`),
+  and Japanese (`ja`), with equivalent navigation and synchronized content.
 
 Runtime behavior, state schemas, versioning policy, licensing, hosted websites,
-and translations are outside scope. Keep user-facing documentation Japanese.
+and application UI/CLI localization are outside scope. Documentation translation
+is in scope following the user's additional language requirement.
 Do not promise native validation on targets that were not exercised.
 
 ## Acceptance criteria
@@ -49,15 +52,42 @@ Do not promise native validation on targets that were not exercised.
    identifies the tested source SHA, environment, results, and limitations.
 9. Open a review PR after verification. Preserve a clean committed work branch.
    Report PR/CI status and any pending publication phase accurately.
+10. Provide Simplified Chinese (`zh-CN` / 简体中文), English (`en` / English),
+    and Japanese (`ja` / 日本語) versions of the README, documentation index,
+    tutorials, operating/troubleshooting guides, contributor guidance, and
+    documentation/release maintenance guidance. Explain public reference material
+    in each language while preserving one authoritative contract and glossary.
+11. Provide visible language links on the README and documentation pages. Link
+    to the equivalent page in the selected language; identify missing translations
+    and their fallback language explicitly. Preserve current root paths and
+    published anchors when introducing the locale layout.
+12. Keep prerequisites, examples, safety conditions, compatibility/migration
+    limits, and release guidance equivalent across languages. Keep executable
+    commands, flags, JSON keys, paths, and product identifiers unchanged.
+    Update corresponding translations in the same PR, or explicitly track missing
+    or stale content; do not claim complete language support while gaps remain.
+13. Extend documentation checks to cover all three locale trees, internal
+    links/fragments, equivalent-page language links, and translation coverage.
+    Review terminology and technical accuracy in each language; link validation
+    alone does not establish translation quality.
 
 ## Dependencies
 
 Research → specification → ticket 01 (structure and migration) →
 ticket 02 (checks and review) → ticket 03 (review PR).
 
+Additional language requirement: tickets 01–03 establish the original structure
+and PR. Ticket 04 (translations and navigation) → ticket 05 (locale checks and
+language review) must complete before claiming the expanded scope is implemented.
+
 ## Decisions and open questions
 
 The user clarified that “document system” means OSS project documentation.
-No product design, hosting, language, or license decision remains open.
+The user subsequently required `zh-CN`, English, and Japanese documentation,
+superseding the initial Japanese-only scope. These requirements are recorded;
+translations and locale validation are not yet implemented. Choose the locale
+file layout during ticket 04 while retaining existing links and one source of
+truth for the public contract. Historical research, tickets, ADRs, and verification
+records do not require retrospective translation.
 The request explicitly authorizes creating the review PR. Leave integration
 pending review; do not infer authorization for an application release tag.

@@ -47,3 +47,15 @@ Source: [spec.md](spec.md), criteria 1–9.
   tracks its URL and CI status; merge remains subject to review.
 - No remaining implementation discrepancy. A full live-server tutorial run,
   native validation on other targets, and human review are not claimed.
+
+## Language requirement amendment
+
+The user subsequently required Simplified Chinese (`zh-CN`), English (`en`),
+and Japanese (`ja`). The passes above describe the original reviewed source,
+not completion of the expanded scope.
+
+- Standards pass: the spec and maintenance rules now agree on the three required
+  languages; numbered tickets 04–05 use the existing status/dependency convention.
+- Specification pass: coverage, equivalent-page navigation, translation parity,
+  source-of-truth ownership, and locale validation are explicit requirements.
+  Actual translations and locale checks are pending, not accepted as complete.

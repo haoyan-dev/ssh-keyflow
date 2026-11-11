@@ -17,3 +17,6 @@ Follow the existing release gates if a release is separately authorized.
   are complete; human review and merge are pending.
 - PR CI owns final-head matrix status; report its result on the PR rather than
   copying an in-progress result into a later commit. No release tag was created.
+- The later language requirement expands the scope to `zh-CN`, English, and
+  Japanese. Requirements are recorded; tickets 04–05 remain unimplemented.
+  Earlier implementation-complete statements refer to the original scope only.

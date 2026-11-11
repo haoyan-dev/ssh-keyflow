@@ -20,7 +20,9 @@ Repository base: `1d2f44eb0449b389629e01fe71b970f715badd47`.
   Portable distribution, manual maintenance, old installer migration, and release.
   Split these without dropping the existing operational details.
 - User guidance is primarily Japanese. Keep that language rather than creating an
-  incomplete translation. Use the repository's concise, factual writing style.
+  incomplete translation. This initial scope decision was superseded by the
+  user's later requirement for `zh-CN`, English, and Japanese documentation;
+  see spec criteria 10–13 and tickets 04–05. Keep concise, factual writing.
 - `docs/application-contract.md`, `GLOSSARY.md`, ADRs, and
   `docs/verification.md` already own contract, language, decisions, and evidence.
   Link them; do not create a second normative contract.
