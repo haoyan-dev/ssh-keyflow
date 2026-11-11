@@ -10,6 +10,17 @@ permissions:
   contents: read
 
 jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+      - run: python scripts/test_docs.py -v
+      - run: python scripts/check_docs.py
   test:
     strategy:
       fail-fast: false
