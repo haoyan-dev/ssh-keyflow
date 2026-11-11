@@ -87,3 +87,9 @@ user to paste; it never runs them, starts services or receives passphrases
   keeps keys until the agent stops.
 - 2026-11-11: The user decided that undeterminable keys still get the step,
   with a notice.
+- 2026-11-11: Detection reads the key format header instead of running
+  ssh-keygen; the result is the same and no prompt or child process is possible.
+- 2026-11-11: In the TUI, F5 invalidates the shown guide and the user reopens
+  it; reopening re-runs detection. No live in-place refresh was added.
+- 2026-11-11: Windows keeps keys added to its ssh-agent service across
+  restarts; the Windows step states this instead of "until the agent stops".

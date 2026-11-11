@@ -1486,3 +1486,48 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   asset/version/source agreement, stable/latest status, installer source
   tracking, compatibility notes, limits, and publication immutability satisfy
   AGENTS.md and the distribution contract. No unresolved findings.
+
+## 2026-11-11: ssh-agent autostart step
+
+- Source commit: `d5a8456e108f8f477ca6fd673403a7cde397e709` on
+  `feat/09-ssh-agent-autostart` (feature `43a885a`, review fixes `d5a8456`).
+  Base was refreshed `origin/main` `a08bf976994e3ae91955ee65773a0070388f9251`.
+  Specification: `.scratch/ssh-agent-autostart/spec.md`; local ticket 09;
+  GitHub issue #20; ADR 0005.
+- Environment: Windows amd64, Go 1.26.2, Windows PowerShell 5.1.26100,
+  PowerShell 7.6.10, Git for Windows sh with OpenSSH 10.2p1. `go test ./...
+  -count=1` and `go vet ./...` passed on the commit above. Built
+  `.build/09-agent.exe`; `--version` returned `SSH KeyFlow dev`.
+- Detection reads only the private-key format header. Unit tests cover OpenSSH
+  `none`/cipher, encrypted and plain PEM/PKCS#8, unrecognized, truncated and
+  missing files. Native ssh-keygen keys with and without a passphrase match.
+- Guide tests cover unprotected (3 steps, no agent config), protected and
+  undeterminable keys (4 steps, `AddKeysToAgent yes`, notice on config and
+  agent steps when undeterminable), macOS-only `UseKeychain`, public-only keys,
+  every local platform via IdentityFile override, CLI `hosts guide` output and
+  TUI step navigation/copy. Native `ssh -G` parses the Host block for all three
+  local platforms.
+- Native script checks: the POSIX check reported a disposable ssh-agent on a
+  temporary socket as reachable and an absent socket as missing; the agent was
+  stopped with `ssh-agent -k`. The Windows script ran in both PowerShell
+  editions, non-elevated, against the real service (Manual/Running): it refused
+  the change as non-Administrator and the service state was unchanged.
+- Earlier runs of the POSIX test (before `d5a8456`) left three disposable
+  ssh-agent processes on `kfa*` temp sockets; they were stopped and the
+  directories removed. The Windows ssh-agent service was not touched.
+- Standards review (separate pass): ticket summary/comment out of date (fixed);
+  duplicated test fixtures and notice text built outside the step (fixed);
+  `~` quoted literally in the macOS ssh-add hint (fixed); POSIX test tool
+  lookup and agent cleanup (fixed). Remaining judgement calls accepted:
+  `openSSHPrivate`/`privateWithCipher` live in different test packages, and
+  `agentSetup` follows the existing platform-string switch of `clientSetup`.
+- Specification review (separate pass): this record was missing (added);
+  Windows wording contradicted key persistence (fixed); no warning without ssh
+  on PATH (fixed); notice absent from the config step (fixed); CLI coverage
+  (added); stale detection text in the ticket and issue #20 (fixed); refresh
+  wording recorded in the spec Decisions.
+- Limits: no elevated Windows run, so `Set-Service`/`Start-Service` were not
+  executed. macOS launchd/Keychain and Linux desktop/systemd agents were not
+  run natively; their scripts are check-only and were exercised in Git sh. No
+  real SSH connection loaded a key through AddKeysToAgent. Packaging and
+  installer inputs are unchanged.
