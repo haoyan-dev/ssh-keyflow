@@ -32,7 +32,8 @@ func TestGuidePlatformMatrixPreservesSavedRecords(t *testing.T) {
 					options.WindowsAccount = "standard"
 				}
 				guide, err := app.PrepareGuideWithOptions(home, "server", key.ID, options)
-				if err != nil || len(guide.Steps) != 3 {
+				// The supplied terminal path is not inspected, so the ssh-agent step is included.
+				if err != nil || len(guide.Steps) != 4 {
 					t.Fatal(err, guide)
 				}
 				for _, want := range []string{"Local platform: " + local, "Destination platform: " + remote, "key%%20's with spaces", "not checked"} {
@@ -40,7 +41,8 @@ func TestGuidePlatformMatrixPreservesSavedRecords(t *testing.T) {
 						t.Fatalf("missing %s: %s", want, guide.Text)
 					}
 				}
-				if !strings.Contains(guide.Steps[2].Title, local) || guide.Steps[2].Script != "ssh server\n" {
+				if !strings.Contains(guide.Steps[3].Title, local) || guide.Steps[3].Script != "ssh server\n" ||
+					!strings.Contains(guide.Steps[2].Title, "ssh-agent") || strings.HasPrefix(guide.Steps[2].Script, "& {") != (local == "windows") {
 					t.Fatal("connection did not use selected local platform")
 				}
 				if strings.HasPrefix(guide.Steps[1].Script, "& {") != (local == "windows") ||

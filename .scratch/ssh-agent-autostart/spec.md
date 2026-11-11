@@ -13,14 +13,16 @@ user to paste; it never runs them, starts services or receives passphrases
 
 ## Passphrase detection
 
-- The guide checks the selected managed private key with
-  `ssh-keygen -y -P "" -f <private key>`, with no terminal input attached, so
-  it can never prompt. Only the empty passphrase is tried; no passphrase is
-  requested, stored or logged, and the derived public key is discarded.
-- Success: the key has no passphrase, so the guide is unchanged.
-- Failure reported as an incorrect passphrase: the key is
-  passphrase-protected, so the agent step and config line are added.
-- Undeterminable (ssh-keygen unavailable, unreadable or unsupported key, or
+- The guide reads only the format header of the selected managed private key:
+  the OpenSSH `cipher` field, PEM `Proc-Type: 4,ENCRYPTED`, or
+  `ENCRYPTED PRIVATE KEY`. It never decrypts, prompts, starts ssh-keygen or
+  shows key material, and records nothing. This replaces the earlier
+  `ssh-keygen -y -P ""` plan: the outcome is the same, there is no child
+  process, and a prompt is impossible.
+- `none` / unencrypted PEM: the key has no passphrase, so the guide is unchanged.
+- Any cipher or encrypted PEM: the key is passphrase-protected, so the agent
+  step and config line are added.
+- Undeterminable (unreadable or unrecognized key format, or
   a foreign-terminal IdentityFile override that the app must not inspect per
   ADR 0003): add the agent step and config line anyway, with a one-line
   notice that passphrase protection could not be checked and the step is
@@ -61,21 +63,21 @@ user to paste; it never runs them, starts services or receives passphrases
 
 ## Acceptance criteria
 
-- [ ] Detection never prompts, tries only the empty passphrase and records
+- [x] Detection never prompts, reads only the key format header and records
       nothing; tests cover protected, unprotected and undeterminable keys.
-- [ ] Passphrase-protected and undeterminable keys get `AddKeysToAgent yes`
+- [x] Passphrase-protected and undeterminable keys get `AddKeysToAgent yes`
       and the agent step (undeterminable with the notice); keys without a
       passphrase and public-only keys keep the current guide.
-- [ ] Windows, macOS and Linux steps match the behavior above; macOS alone
+- [x] Windows, macOS and Linux steps match the behavior above; macOS alone
       emits `IgnoreUnknown UseKeychain` / `UseKeychain yes`.
-- [ ] Windows script states the required elevation and warns about a
+- [x] Windows script states the required elevation and warns about a
       non-Windows-OpenSSH client.
-- [ ] Linux step is check-and-instructions only, with no file or service
+- [x] Linux step is check-and-instructions only, with no file or service
       changes.
-- [ ] Scripts are idempotent; existing agents and services are reported
+- [x] Scripts are idempotent; existing agents and services are reported
       unchanged.
-- [ ] No state schema change; F5 refresh re-runs detection.
-- [ ] Tests, an ADR updating ADR 0002/0003, glossary and
+- [x] No state schema change; guide refresh re-runs detection.
+- [x] Tests, an ADR updating ADR 0002/0003, glossary and
       docs/verification.md updated.
 
 ## Decisions
