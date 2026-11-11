@@ -1765,3 +1765,46 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   tutorial was exercised. No hosted documentation site or application release was
   requested by the clarified scope. Publication is a review PR; integration awaits
   review, and no version tag is needed for this documentation change.
+
+
+## 2026-11-11: v0.9.2 release preparation
+
+- Proposed version: **v0.9.2**; previous highest published stable: **v0.9.1**
+  (`3508d7ac77e4ecdba343ac6222f6af6ff3ffafd7`). Refreshed remote branches/tags
+  and release listings before selection; v0.9.2 was unreserved locally/remotely.
+- Version rationale: compatible documentation fixes and documentation-validation
+  improvements since v0.9.1 require PATCH in 0.x development. Runtime, dependencies,
+  state, installers, packaging, publication script/workflow, and bundled notices
+  are unchanged. This is neither a feature increment nor a 1.0.0 readiness decision.
+- Full tested source: `aaa8defaa11fdada24b9c0e37175b8c3681cc679`, clean integrated
+  main before preparation. The release notes are tracked in
+  [.scratch/release-v0.9.2/release-notes.md](../.scratch/release-v0.9.2/release-notes.md).
+  They cover all changes since v0.9.1, unchanged compatibility/migration rules,
+  installation/update instructions, and outstanding translation work.
+- Environment: Windows amd64, Go 1.26.2, Python 3.12.10. Fresh checks in task-owned
+  hc terminal `release-v092-checks` exited 0: `go test ./... -count=1`,
+  `go vet ./...`, `python scripts/check_docs.py` (24 maintained pages),
+  `python scripts/test_docs.py -v` (10), `python scripts/test_portable.py -v` (5),
+  and `python scripts/test_release.py -v` (17).
+- Passing main CI [42985556698](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42985556698)
+  tested this exact source: docs, three-OS Go/Portable/release/installer/profile
+  tests, and six-target crossbuild. Reuse its installer (50) and profile (30)
+  evidence because the installer/test/runtime/dependency inputs are unchanged;
+  the local environment matches the earlier Windows validation. Do not duplicate
+  the six-build matrix locally; the tag workflow performs its own matrix.
+- Standards self-review: correct work branch, local tracker/dependencies, complete
+  tracked notes, authoritative contract/policy paths, and no tag before preparation
+  integration. No unresolved standards finding.
+- Specification self-review: changes since the previous release are accounted for;
+  language requirements are explicitly pending translations, not shipped language
+  support. Notes contain compatibility, migration, installation, and limits.
+  No unresolved preparation finding; publication/audit gates remain pending.
+- After this preparation merges, refresh main and compare its candidate against
+  the tested source. Preparation-only records/notes may reuse unchanged check
+  inputs; rerun documentation links and require passing candidate CI. Record the
+  exact candidate and comparison in the annotated tag, published notes, and audit.
+- Limits: no live SSH server, elevated Windows service setup, OSC52 delivery,
+  native macOS/Linux interactive tutorial, or all-target native execution.
+  Crossbuilds are not native smoke tests. No new state migration is introduced;
+  existing backup and downgrade limits remain. Published-asset and installer
+  checks will follow publication and be integrated in a separate audit PR.
