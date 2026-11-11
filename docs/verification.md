@@ -2,6 +2,45 @@
 
 本書は SSH KeyFlow の仕様に対する完了確認に使う。成功した検証だけを記録し、外部環境が必要な確認は区別する。
 
+## Release latest guard (2026-11-11)
+
+- Scope: `.scratch/release-latest/spec.md`; implementation on
+  `fix/01-release-latest`, based on
+  `662d7b7b4999a3569b71fd5abbae2d121fb5d3e8` plus the reviewed working diff.
+  This is local implementation evidence, not a committed release candidate or
+  a hosted CI result.
+- Environment: Windows amd64, PowerShell, Python 3.12.10, Go 1.26.2, Git Bash.
+  Broad checks ran with filesystem access needed for Go's cache and temporary
+  installer fixtures; release tests mock all publication calls.
+- `python scripts/test_release.py -v`: 17 tests passed, including numeric
+  1.9.1/1.10.0 ordering, equal versions, first stable release, drafts/previews,
+  paginated absence checks, malformed responses, HTTP/transport failures, and
+  every serial ordering of two stable candidates plus a preview.
+- `go test ./...` and `go vet ./...`: passed.
+- `python scripts/test_portable.py -v`: 5 passed, including Windows native
+  version injection and preservation of user data.
+- `python scripts/test_installers.py -v`: 50 passed.
+- `python scripts/test_installer_profiles.py -v`: 30 passed.
+- Workflow YAML parsing and wiring inspection passed: the publication job
+  depends on verification, uses a constant cross-tag concurrency group with
+  cancellation disabled and queue max, and invokes the guarded publisher.
+  The new release tests are included in the three-OS CI job.
+- A read-only live lookup through the helper successfully parsed the
+  repository's current latest response. No live release mutation was made.
+- Standards review: Python uses only the standard library; publication
+  preserves explicit repository selection, verified tag, generated notes, and
+  built-asset arguments. Existing releases are never edited/deleted on retry.
+- Specification review: all local acceptance cases passed. A latest 404 alone
+  cannot trigger first-release publication; a successful listing without a
+  published stable release is also required.
+- Limitations: hosted queue scheduling, live publication, and non-Windows native
+  execution remain untested. Queue order is modeled locally; actual concurrency
+  exclusion depends on GitHub Actions. Manual publishers and older workflow
+  definitions do not share this guard. The unchanged six-target build matrix
+  remains assigned to release CI and was not duplicated locally for this fix.
+- Final diff and whitespace checks passed. No release tag, push, or publication
+  occurred during this implementation.
+
 ## v0.2.0の検証（2026-11-06）
 
 仕様は `.scratch/v0.2.0/spec.md`。以下のv0.1.0記録は過去の証拠として保持し、現行のPortable配布・CLI契約とは区別する。
