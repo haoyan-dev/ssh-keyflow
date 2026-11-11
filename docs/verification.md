@@ -1531,3 +1531,17 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   run natively; their scripts are check-only and were exercised in Git sh. No
   real SSH connection loaded a key through AddKeysToAgent. Packaging and
   installer inputs are unchanged.
+
+## 2026-11-11: ssh-agent autostart integration
+
+- PR #22 merged into `main` as merge commit
+  `f9956c92c26027bfeae642361e9e56b3eab4adcf`, matching the repository's
+  merge-commit method. Head `880680609d755c1a4a9e6b6737235dd1b982b425` passed
+  PR and branch CI (runs 42943892214 and 42943946815): tests on ubuntu, macOS
+  and Windows plus crossbuild. The merged tree is identical to that head.
+- `main` CI run 42951426479 on the merge commit passed the same jobs.
+- Issue #20 closed by the merge. Ticket PR #21 was closed unmerged because
+  #22 contains its commit `7c2add5`. Both task branches were confirmed to be
+  ancestors of `origin/main`, then deleted locally and on `origin`.
+- No version tag or release was requested; the earlier verification record
+  remains the source of local test evidence and limits.

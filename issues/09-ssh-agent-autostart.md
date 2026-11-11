@@ -31,3 +31,9 @@ passphrases or starts services.
   wording, notice, `~` quoting and test-cleanup issues; all fixed in
   `d5a8456e108f8f477ca6fd673403a7cde397e709`. Full tests and vet passed.
   Evidence and limits are in `docs/verification.md`. Ready for PR review.
+- 2026-11-11: The user requested merge. PR #22 merged as
+  `f9956c92c26027bfeae642361e9e56b3eab4adcf` after all three OS tests and
+  crossbuild passed on head `880680609d755c1a4a9e6b6737235dd1b982b425`; the
+  merged tree matches that head. Main Verify run 42951426479 passed. #20
+  closed by the merge; ticket PR #21 closed as superseded. Task branches
+  deleted locally and remotely. No release requested.
