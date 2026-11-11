@@ -1,0 +1,107 @@
+{
+  "tag": "v0.9.2",
+  "candidate": "50ee1ba49b1378c8b68d42c9ec080a795ed19a76",
+  "release_url": "https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.9.2",
+  "release_id": 441421224,
+  "workflow": {
+    "conclusion": "success",
+    "databaseId": 42987960776,
+    "headBranch": "v0.9.2",
+    "headSha": "50ee1ba49b1378c8b68d42c9ec080a795ed19a76",
+    "status": "completed"
+  },
+  "latest": "v0.9.2",
+  "assets": [
+    {
+      "id": 734779622,
+      "name": "SHA256SUMS",
+      "digest": "sha256:c75ad2911a41794a9bb3a9ec3ce647cbbc28db3e7e58d1dfa4db0637ce11803a",
+      "size": 624
+    },
+    {
+      "id": 734779621,
+      "name": "ssh-keyflow_v0.9.2_darwin_amd64.tar.gz",
+      "digest": "sha256:1a44c3ee2cb3d0987cb4288fd0f947dfa218c6f22cbe3670a8beb6e35015c16f",
+      "size": 2704967
+    },
+    {
+      "id": 734779625,
+      "name": "ssh-keyflow_v0.9.2_darwin_arm64.tar.gz",
+      "digest": "sha256:783c94086220e6675828158178638befa4011630febcbe3da09772d69d5a3be9",
+      "size": 2508478
+    },
+    {
+      "id": 734779626,
+      "name": "ssh-keyflow_v0.9.2_linux_amd64.tar.gz",
+      "digest": "sha256:68236e8f27d255274bdcf434864b13ed21756cd811acf74b8c3da92b599d8a97",
+      "size": 2667390
+    },
+    {
+      "id": 734779630,
+      "name": "ssh-keyflow_v0.9.2_linux_arm64.tar.gz",
+      "digest": "sha256:347ba60a6b15a62fa915ab77cf2d9748459edca2ddd4d6e98c81c8e45371ffc8",
+      "size": 2416370
+    },
+    {
+      "id": 734779646,
+      "name": "ssh-keyflow_v0.9.2_windows_amd64.zip",
+      "digest": "sha256:d396b31ff700263a6f0675848d7fd87eb9a34dac8c5f383cfbf3b861032dc3ba",
+      "size": 2780161
+    },
+    {
+      "id": 734779658,
+      "name": "ssh-keyflow_v0.9.2_windows_arm64.zip",
+      "digest": "sha256:34983bbd6b6c224df9053a989835419ece71ab22febbbb191aee2601c2c34a3b",
+      "size": 2487014
+    }
+  ],
+  "binaries": [
+    {
+      "target": "darwin_amd64",
+      "sha256": "866e7ead5eed3b9cf334b63c3d1bba4dfa8d04e3d7d3ad2d8a4d0a4300423c4e",
+      "embedded_version_tag": "v0.9.2",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "darwin_arm64",
+      "sha256": "266041cc4c88f77a4579591defeaa1384951dc95e2126c64e22344674b628625",
+      "embedded_version_tag": "v0.9.2",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "linux_amd64",
+      "sha256": "dd109101638c25044b423805c66ad8e65f846d769343ccefeea5798723e5bc6e",
+      "embedded_version_tag": "v0.9.2",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "linux_arm64",
+      "sha256": "a31987f12949c31a623bc1c21613f4c6407b3e68890cd9c2843715b3b1f40dd7",
+      "embedded_version_tag": "v0.9.2",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "windows_amd64",
+      "sha256": "536e1d038d6299bcf6a5884c07b77c75c9883f13f4c715009d7c9681e3ca79c6",
+      "embedded_version_tag": "v0.9.2",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "windows_arm64",
+      "sha256": "2bed52b7b9adeb8ab319c1741bbbccbfc0e17ce3b06eeb0a5b460c9edd501489",
+      "embedded_version_tag": "v0.9.2",
+      "go_toolchain": "go1.26.0"
+    }
+  ],
+  "installer_main": "50ee1ba49b1378c8b68d42c9ec080a795ed19a76",
+  "installer_sha256": {
+    "install.sh": "b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f",
+    "install.ps1": "88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f"
+  },
+  "version_evidence": "All six binaries contain the tag; workflow injects main.version; runtime version checked on Windows amd64. Linker flags are absent from build metadata.",
+  "native_smoke": "Windows amd64 version, readonly JSON/help, zero home writes",
+  "powershell_version": "7.6.10",
+  "installer_smoke": "PowerShell 7 production latest install, exact-version update, uninstall; isolated paths; profile/SSH config/state/test key byte-identical; persistent user PATH unchanged",
+  "limits": "No native execution on other five targets, live SSH, elevated service setup, OSC52, or POSIX installer production run",
+  "tag_object": "2533ab46d6f79ce346b185948b72472d9cebb10d"
+}

@@ -1,6 +1,6 @@
 # Release v0.9.2
 
-Status: ready-for-agent
+Status: ready-for-human
 Previous release: v0.9.1
 Tested source: `aaa8defaa11fdada24b9c0e37175b8c3681cc679`
 
@@ -42,3 +42,7 @@ was unused when selected; recheck immediately before tagging.
 No open scope questions. Translations and locale validation remain pending
 documentation tickets 04–05; this release must not advertise completed
 Chinese/English/Japanese translations.
+
+## Publication status
+
+v0.9.2 is published and the audit passed. Audit-record integration and final workspace cleanup remain pending; no translation implementation is included.
