@@ -4,6 +4,14 @@
 
 ## Release latest guard (2026-11-11)
 
+- Integration: PR #26 merged at
+  `7641bc0b44dedf3269963271f453077763399bd8`. Reviewed head
+  `b4cefe0d91c37f106685661f739e43a7dc7b2151` passed hosted push run 42969232585
+  and PR run 42969239502, including Linux/macOS/Windows tests and the six-target
+  cross-build. Both independent review axes reported zero findings.
+- The local limitations below remain historical evidence. Hosted test/build
+  execution is now verified; actual publication and queue scheduling are still
+  untested because this task created no release.
 - Scope: `.scratch/release-latest/spec.md`; implementation on
   `fix/01-release-latest`, based on
   `662d7b7b4999a3569b71fd5abbae2d121fb5d3e8` plus the reviewed working diff.
