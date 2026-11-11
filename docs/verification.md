@@ -1719,3 +1719,49 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   agents, OSC52 delivery, and live SSH servers were not exercised. Crossbuilds
   do not establish native behavior on all six targets. The published tag and
   assets remain immutable.
+
+
+## 2026-11-11: project documentation system
+
+- Tested implementation source: `76dc5b2826468c0c744be18f49bc2e852115979c`,
+  based on refreshed `origin/main` `1d2f44eb0449b389629e01fe71b970f715badd47`.
+  Scope: reorganized OSS documentation, tutorial, contribution/maintenance
+  guidance, offline Markdown checks, and a documentation CI job. Runtime,
+  dependencies, installer, packaging, and release-publication inputs are unchanged.
+- Environment: Windows amd64, Go 1.26.2, Python 3.12.10; normal desktop credentials
+  were required for the existing hc pipe and GitHub access. Tests ran in task-owned
+  hc terminal `docs-validation` (t1t), which exited 0. No core restart occurred.
+- Passing checks: `go test ./... -count=1`, `go vet ./...`,
+  `python scripts/test_portable.py -v` (5),
+  `python scripts/test_release.py -v` (17),
+  `python scripts/test_installers.py -v` (50), and
+  `python scripts/test_installer_profiles.py -v` (30).
+  These ran before/during the implementation commit with identical applicable
+  source inputs. After the final checker changes,
+  `python scripts/test_docs.py -v` (10) and `python scripts/check_docs.py`
+  passed on the committed implementation tree (24 maintained pages).
+- Built the native executable without version injection: `--version` returned
+  `SSH KeyFlow dev`. Checked `--help` for 31 documented CLI command lines, then
+  read empty key/destination JSON lists in an isolated home and confirmed no home
+  files were written. This validates command/flag availability, not execution of
+  every mutation shown in the tutorial.
+- GitHub's read-only GFM rendering API rendered all 11 main user/contributor pages;
+  parsed HTML confirmed single top-level headings, links, code blocks, and tables
+  where present. This is structural rendering evidence, not screenshot-based QA.
+- README is 73 lines and retains all seven original second-level headings as
+  navigation points. Compared the old long-form prose to the relocated guides and
+  release page; operational guidance is retained with adjusted relative links.
+- Standards and specification self-reviews were performed separately in
+  [.scratch/documentation-system/review.md](../.scratch/documentation-system/review.md).
+  Resolved findings: misleading sequential CLI examples and fenced HTML anchors
+  incorrectly qualifying as link targets. No remaining implementation finding;
+  external PR review remains pending.
+- This record and ticket updates add evidence only. Reuse implementation evidence
+  when their check inputs remain identical, rerun the documentation check, and let
+  PR CI verify the final head, including the existing six-target crossbuild.
+- Limits: external URLs are outside the offline checker; this is a scoped Markdown
+  validator, not a complete Markdown parser. No live SSH server, elevated service
+  setup, OSC52 delivery, native macOS/Linux tutorial, or end-to-end interactive
+  tutorial was exercised. No hosted documentation site or application release was
+  requested by the clarified scope. Publication is a review PR; integration awaits
+  review, and no version tag is needed for this documentation change.
