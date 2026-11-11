@@ -37,3 +37,9 @@ passphrases or starts services.
   merged tree matches that head. Main Verify run 42951426479 passed. #20
   closed by the merge; ticket PR #21 closed as superseded. Task branches
   deleted locally and remotely. No release requested.
+- 2026-11-11: The user requested "tag a release". Published
+  [v0.9.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.9.0) as
+  latest stable from `662d7b7b4999a3569b71fd5abbae2d121fb5d3e8`. Release run
+  42955302241 succeeded; downloaded assets, checksums, archive contents,
+  embedded versions, Windows amd64 smoke and the production PowerShell
+  installer passed. Evidence and limits are in `docs/verification.md`.

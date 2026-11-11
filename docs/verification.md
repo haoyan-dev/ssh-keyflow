@@ -1584,3 +1584,49 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   ancestors of `origin/main`, then deleted locally and on `origin`.
 - No version tag or release was requested; the earlier verification record
   remains the source of local test evidence and limits.
+
+## 2026-11-11: v0.9.0 release and publication audit
+
+- The user requested "tag a release". Latest stable was v0.8.0; v0.9.0 was
+  unused locally and remotely. Selected a MINOR increment for the
+  backward-compatible ssh-agent guide step (ticket 09, #20). Candidate is
+  `origin/main` `662d7b7b4999a3569b71fd5abbae2d121fb5d3e8` (merge of #23).
+  Since v0.8.0 no dependency, packaging, or installer input changed.
+- On that clean commit (Windows amd64, Go 1.26.2, Python 3.12.10), fresh
+  `go test ./... -count=1`, `go vet ./...`, and Python Portable (5),
+  installer (50), and installer-profile (30) tests passed. Main CI run
+  42951426479 passed on the feature merge; the candidate adds documentation only.
+- Annotated tag object `c3c4d2bc643fddc13c23762f715db32b9f39e6a1` peels
+  locally and remotely to the candidate; only `refs/tags/v0.9.0` was pushed.
+  Release run
+  [42955302241](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42955302241)
+  passed verify (three OS tests, crossbuild) and publish on the candidate.
+- [v0.9.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.9.0) is
+  stable, not draft or prerelease, and `releases/latest` returns v0.9.0.
+  Generated notes were replaced with the prepared changes, compatibility,
+  installation, and limits text; exact note content was checked and asset IDs
+  and digests were unchanged by the edit.
+- Downloaded all seven assets. `SHA256SUMS` verifies the six archives. Each
+  archive contains only `ssh-keyflow` (`.exe` on Windows) and
+  `THIRD_PARTY_NOTICES.txt`; tar entries are 0755/0644 with uid/gid 0. All six
+  binaries report the expected GOOS/GOARCH, CGO disabled, trimpath, embed
+  `v0.9.0`, and contain the `AddKeysToAgent yes` guide text. Bundled notices are
+  identical across archives and match the tagged `THIRD_PARTY_NOTICES.txt`.
+- Downloaded Windows amd64 binary: `--version` returns `SSH KeyFlow v0.9.0`;
+  read-only key/destination JSON lists, guide help with all four platform
+  options, and TUI help pass without creating files in an isolated home.
+- Production `install.ps1` and `install.sh` from `main` match `662d7b7`
+  (install.ps1 SHA256
+  `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`).
+  The downloaded PowerShell installer passed latest installation, same-version
+  update, and uninstall in PowerShell 7.6.10 with a disposable install directory
+  and profile. Installed executable and notices match the release asset and
+  the receipt hash. A seeded SSH config and the profile were byte-identical
+  afterwards, the PATH prompt was declined non-interactively, and the user
+  PATH was unchanged. Temporary homes and extracted binaries were removed;
+  downloaded assets remain under `.tmp/v0.9.0-assets`.
+- Limits: native published-binary and installer smoke covers Windows amd64
+  only. The elevated Windows ssh-agent service change, native macOS/Linux
+  agents, OSC52 delivery, and live SSH servers were not exercised. Crossbuilds
+  do not establish native behavior on all six targets. The published tag and
+  assets remain immutable.
