@@ -183,6 +183,7 @@ Goは `go.mod` の指定、梱包テストはPython 3.12の標準ライブラリ
 go test ./...
 go vet ./...
 python scripts/test_portable.py -v
+python scripts/test_release.py -v
 python scripts/test_installers.py -v
 python scripts/test_installer_profiles.py -v
 python scripts/package_release.py --version v0.0.0-check --output dist-check
@@ -199,5 +200,7 @@ python scripts/package_release.py --version v0.0.0-check --output dist-check
 アーカイブ内部は `ssh-keyflow`（Windowsは `ssh-keyflow.exe`）と `THIRD_PARTY_NOTICES.txt`。Unix実行権限は0755です。トップレベルの配布物は6アーカイブと `SHA256SUMS` の7件だけです。manifestは6アーカイブについて、64桁SHA256・半角スペース2個・ベース名・LFで記録します。
 
 CIは3 OSでGoテスト、Portable生成物テスト、インストーラーテストを実行し、6対象の実クロスビルドとLinux amd64版の版注入を確認します。`v*` タグのpushでCI成功後に7件を `GITHUB_REPOSITORY` へ公開します。インストーラーは `main` のソースから別途配信し、7件のリリース配布物は変更しません。プレリリースタグはlatest正式版にしません。
+
+公開ジョブはタグをまたいで直列化し、その中で現在のlatestを取得して数値のバージョン順で比較します。旧系列の修正版は公開できますが、新しいlatestを置き換えません。latestが404の場合は全リリースの一覧取得に成功し、公開済み正式版がないと確認できた場合だけ初回公開として扱います。認証・通信・API応答の異常や、正式版があるのにlatestが取得できない場合は公開を停止します。`scripts/test_release.py` は外部公開なしでこれらの判定と公開コマンドを検証します。
 
 テストは一時ホーム・配置先・配布物を使い、実ユーザーのSSHデータ、永続PATH、プロファイル、接続先を変更しません。クロスビルドは各OS / CPUでの実機実行の証拠とは区別します。確認済み範囲は [docs/verification.md](docs/verification.md)、公開インターフェースは [docs/application-contract.md](docs/application-contract.md) を参照してください。
