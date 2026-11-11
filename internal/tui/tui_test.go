@@ -522,7 +522,8 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 	m.view.State.Keys[0].PrivateSHA256 = fmt.Sprintf("%x", digest)
 	saveFixture(t, m)
 	m = update(m, press(tea.KeyTab), press('g'), press(tea.KeyEnter), tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
-	if len(m.guideSteps) != 3 || !strings.Contains(m.document, "Step 1/3: DESTINATION") {
+	// The fixture private key format cannot be checked, so the ssh-agent step is shown.
+	if len(m.guideSteps) != 4 || !strings.Contains(m.document, "Step 1/4: DESTINATION") || !strings.Contains(m.guideSteps[2].Title, "ssh-agent") {
 		t.Fatal("guide did not start at destination setup", m.document)
 	}
 	for _, want := range []string{"authorized_keys", "ssh-ed25519"} {
@@ -530,7 +531,7 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 			t.Fatalf("guide lost copyable %s", want)
 		}
 	}
-	for index := 0; index < 3; index++ {
+	for index := 0; index < 4; index++ {
 		if index > 0 {
 			m = update(m, press('n'))
 		}
@@ -538,14 +539,14 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 		if command == nil || fmt.Sprint(command()) != m.guideSteps[index].Script || m.copyText != m.guideSteps[index].Script {
 			t.Fatal("copy included instructions or the wrong step")
 		}
-		if !strings.Contains(m.document, fmt.Sprintf("Step %d/3", index+1)) {
+		if !strings.Contains(m.document, fmt.Sprintf("Step %d/4", index+1)) {
 			t.Fatal("step label missing")
 		}
 	}
 	if m.copyText != "ssh laptop\n" {
 		t.Fatal("connection step included another script", m.copyText)
 	}
-	m = update(m, press('b'), press('?'), press(tea.KeyEscape))
+	m = update(m, press('b'), press('b'), press('?'), press(tea.KeyEscape))
 	if m.guideIndex != 1 || !strings.Contains(m.copyText, "Host laptop") {
 		t.Fatal("help/back lost selected step")
 	}

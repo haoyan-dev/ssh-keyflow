@@ -349,7 +349,7 @@ func TestGuidanceForEveryOSIsReadOnlyAndDoesNotImplySuccess(t *testing.T) {
 					t.Fatalf("missing %q: %s", want, guide)
 				}
 			}
-			for _, unwanted := range []string{"BEGIN REGISTRATION SCRIPT", "apt install", "Start-Service", "New-NetFirewallRule"} {
+			for _, unwanted := range []string{"BEGIN REGISTRATION SCRIPT", "apt install", "Start-Service sshd", "Start-Service -Name sshd", "Set-Service -Name sshd", "New-NetFirewallRule"} {
 				if strings.Contains(guide, unwanted) {
 					t.Fatalf("automation retained: %s", guide)
 				}

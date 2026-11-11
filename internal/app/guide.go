@@ -145,12 +145,34 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 			// SSH expands percent tokens in IdentityFile even inside quotes.
 			configPath := strings.NewReplacer("%", "%%", "\\", "\\\\", "\"", "\\\"").Replace(path)
 			configUser := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(host.User)
-			config := fmt.Sprintf("Host %s\n    HostName %s\n    User \"%s\"\n    Port %d\n    IdentityFile \"%s\"\n    IdentitiesOnly yes\n", host.Alias, host.Hostname, configUser, host.Port, configPath)
+			// A path supplied for another terminal is never inspected (ADR 0003).
+			keyProtection, reason := undetermined, "the private key path was supplied for this terminal and is not inspected"
+			if options.IdentityFile == "" {
+				keyProtection, reason = passphraseProtection(key.PrivatePath)
+			}
+			agentConfig := ""
+			if keyProtection != unprotected {
+				agentConfig = "    AddKeysToAgent yes\n"
+				if localOS == "macos" {
+					agentConfig += "    IgnoreUnknown UseKeychain\n    UseKeychain yes\n"
+				}
+			}
+			config := fmt.Sprintf("Host %s\n    HostName %s\n    User \"%s\"\n    Port %d\n    IdentityFile \"%s\"\n%s    IdentitiesOnly yes\n", host.Alias, host.Hostname, configUser, host.Port, configPath, agentConfig)
 			local := clientSetup(host, config, localOS)
 			if options.IdentityFile != "" {
 				local.Instructions += "\nIdentityFile is the path you supplied for this terminal. Ensure it refers to the matching private key; SSH KeyFlow has not checked that path or copied a key."
 			}
-			guide.Steps = append(guide.Steps, local, GuideStep{
+			if keyProtection == undetermined {
+				// The config step can be copied alone, so it carries the notice too.
+				local.Instructions += "\n" + undeterminedNotice(reason)
+			} else {
+				reason = ""
+			}
+			guide.Steps = append(guide.Steps, local)
+			if keyProtection != unprotected {
+				guide.Steps = append(guide.Steps, agentSetup(localOS, path, reason))
+			}
+			guide.Steps = append(guide.Steps, GuideStep{
 				Title:        fmt.Sprintf("LOCAL terminal — %s — connect (POSIX shell / PowerShell)", localOS),
 				Instructions: "Run in the selected local terminal after completing the destination step and local config step. This opens an SSH connection; SSH KeyFlow does not run it or verify success.",
 				Script:       fmt.Sprintf("ssh %s\n", host.Alias),

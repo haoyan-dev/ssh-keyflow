@@ -105,7 +105,7 @@ listの通常出力は表形式。JSONは改行で終わる1オブジェクト�
 
 `app.Snapshot(Options)` は `View{State, Review}` を返し、保存領域の初期化・依存コマンドのプローブ・旧記録の変更を行わない。`app.PublicKey(home, keyRef)` と `app.Guide(home, hostRef, keyRef)` は対象鍵の同一性を検証してテキストを返す。`app.PrepareGuide` は同じ検証を通した `SetupGuide{Text, Steps}` を返し、各 `GuideStep` の `Title` / `Instructions` / `Script` をTUIで使う。ガイド表示は保存済みの関連付けを前提とせず、新しい関連付けも保存しない。
 
-`app.PrepareGuideWithOptions(home, hostRef, keyRef, GuideOptions)` は同じ検証に加え、ガイド専用の `LocalOS` / `RemoteOS` / `WindowsAccount` / `IdentityFile` を受け取る。`app.Request.GuideOptions` も同じ選択を共通バックエンドに渡す。OSは `linux` / `macos` / `windows`、省略時は実行元OS・保存済み接続先OSとアカウントを使う。異なる接続先OSへ変更すると元のWindowsアカウント種別は引き継がない。Windowsではstandard / administratorを必須とし、非Windows宛てのアカウント指定は拒否する。TUIでは接続先と鍵の選択後、これらの既定値をフォームに表示し変更できる。選択は保存しない。
+`app.PrepareGuideWithOptions(home, hostRef, keyRef, GuideOptions)` は同じ検証に加え、ガイド専用の `LocalOS` / `RemoteOS` / `WindowsAccount` / `IdentityFile` を受け取る。`app.Request.GuideOptions` も同じ選択を共通バックエンドに渡す。OSは `linux` / `macos` / `windows`、省略時は実行元OS・保存済み接続先OSとアカウントを使う。異なる接続先OSへ変更すると元のWindowsアカウント種別は引き継がない。Windowsではstandard / administratorを必須とし、非Windows宛てのアカウント指定は拒否する。TUIでは接続先と鍵の選択後、これらの既定値をフォームに表示し変更できる。選択は保存しない。管理済み秘密鍵は形式ヘッダーだけを読み、パスフレーズ付きまたは判定不能なら `AddKeysToAgent yes` とローカルOS向けssh-agentステップ（config追記と接続の間）を加える。`IdentityFile` 指定時は検査せず判定不能として扱う（ADR 0005）。
 
 ガイドは公開鍵のアルゴリズムとblob、指紋、配置先、手動解除案内、ローカルファイルパスを含む。選択した接続先OS・アカウント種別に応じて、端末へ貼り付ける公開鍵配置スクリプトを最初のステップにする。Linux/macOSはPOSIXシェル、WindowsはPowerShell。既存の鍵の内容を保持し、同じ公開鍵がすでに含まれる場合は追記しない。改行のない既存の最終行とも分離して追記する。シンボリックリンク・reparse pointは拒否する。POSIXはログインユーザー名、Windows標準アカウントはユーザー名、Windows管理者アカウントは昇格済み端末を確認する。標準OpenSSH構成の配置先は次のとおり。
 
