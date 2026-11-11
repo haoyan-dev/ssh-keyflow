@@ -1584,8 +1584,10 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   and profile. Installed executable and notices match the release asset and
   the receipt hash. A seeded SSH config and the profile were byte-identical
   afterwards, the PATH prompt was declined non-interactively, and the user
-  PATH was unchanged. Temporary homes and extracted binaries were removed;
-  downloaded assets remain under `.tmp/v0.9.0-assets`.
+  PATH was unchanged. Temporary homes and extracted binaries were removed.
+  The downloaded assets in `.tmp/v0.9.0-assets` were deleted after the audit
+  at the user's request. The immutable assets and their SHA256 digests remain
+  available from the release page and `SHA256SUMS`.
 - Limits: native published-binary and installer smoke covers Windows amd64
   only. The elevated Windows ssh-agent service change, native macOS/Linux
   agents, OSC52 delivery, and live SSH servers were not exercised. Crossbuilds
