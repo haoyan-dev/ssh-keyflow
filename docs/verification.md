@@ -2,6 +2,83 @@
 
 本書は SSH KeyFlow の仕様に対する完了確認に使う。成功した検証だけを記録し、外部環境が必要な確認は区別する。
 
+## 2026-11-11: v0.9.1 release and publication audit
+
+- The user authorized publication of v0.9.1. Candidate:
+  `3508d7ac77e4ecdba343ac6222f6af6ff3ffafd7`, the refreshed `origin/main`.
+  The candidate working tree was clean. Local and remote tag reservations
+  were checked before creating the annotated tag.
+- Selected PATCH after v0.9.0 for the release-publication fix in PR #26.
+  Other changes are versioning policy and verification documentation.
+  No CLI, JSON, state, installation, or runtime contract changes require
+  migration from v0.9.0; existing downgrade limitations remain applicable.
+- Main Verify run 42971345135 passed all three OS test jobs and crossbuild
+  on the exact candidate. The release workflow repeated its required
+  verification and build matrix from the tag rather than duplicating that
+  matrix locally.
+- Local environment: Windows amd64, Go 1.26.2, Python 3.12.10,
+  Windows PowerShell 5.1, Git Bash and PowerShell 7 available.
+  `go test ./...`, `go vet ./...`, Portable tests (5), and release tests (17)
+  passed against the candidate. Installer tests (50) and profile tests (30)
+  also passed. All checks began on the clean candidate; only this documentation
+  record changed while installer checks ran, with test inputs unchanged.
+- Publication behavior reviewed separately from contract compatibility:
+  the shared queue serializes tags; numeric stable comparison advances
+  latest only to a newer version; lookup failures stop publication and
+  prereleases cannot advance latest. v0.9.1 is newer than current v0.9.0.
+  Existing independent standards/specification reviews for PR #26 reported
+  zero findings. This release adds no application source changes.
+- Annotated tag object `9ebf3f51a7c10f90ce5c308866ee31aca26fb0f3`
+  matches locally and remotely and targets the candidate. Only
+  `refs/tags/v0.9.1` was pushed. Release workflow:
+  [42975321482](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/42975321482).
+  All three OS test jobs, crossbuild and publication passed on the candidate.
+- [v0.9.1](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.9.1)
+  is published, stable, not draft or prerelease, and returned by
+  `releases/latest`. The prepared notes cover changes, compatibility,
+  installation and verification limits. Their published content matches
+  the prepared text; asset IDs and SHA256 digests were unchanged by the edit.
+- Downloaded exactly seven assets: six OS/CPU archives and `SHA256SUMS`.
+  Manifest entries are unique, LF-only and match each archive's SHA256.
+  Every asset's size and digest also match GitHub metadata. Each archive
+  contains exactly the regular executable and `THIRD_PARTY_NOTICES.txt`.
+  Notices match the tagged Git blob; Unix entries have modes 0755/0644
+  and uid/gid zero. All six binaries embed v0.9.1, and Go metadata confirms
+  their expected GOOS/GOARCH, CGO disabled and trimpath (built with Go 1.26.0).
+- The downloaded Windows amd64 executable returns `SSH KeyFlow v0.9.1`.
+  Read-only key/destination JSON lists return empty arrays, guide help and
+  TUI help succeed, and the isolated home is not created. Temporary extracted
+  binaries were removed. An initial audit assertion incorrectly expected
+  linker flags in build metadata; it was corrected to inspect the embedded
+  version directly, and the complete audit then passed.
+- Source-hosted installer inputs were fetched through GitHub's contents API at
+  main commit `3508d7ac77e4ecdba343ac6222f6af6ff3ffafd7` and matched the Git
+  blobs byte for byte. SHA256: `install.sh`
+  `b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f`;
+  `install.ps1`
+  `88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f`.
+  Source-hosted installer evidence is tracked separately from binary releases.
+- The retrieved PowerShell installer passed production latest installation,
+  same-version update and uninstall with PowerShell 7 in a disposable
+  directory. The installed version is v0.9.1; executable/notices receipt
+  hashes match, and notices match the tagged source. Noninteractive execution
+  declined PATH persistence; the receipt records no profile ownership.
+  Seeded SSH config and profile bytes were preserved after every operation.
+  The temporary installation was removed.
+- Standards review of this release record: only `docs/verification.md`
+  changes; candidate, environments, reusable evidence and limitations are
+  explicit, with immutable published assets preserved. `git diff --check`
+  passed. Separate specification review: version/target selection, annotated
+  tag, required CI, notes, all seven assets, native smoke, latest status and
+  installer source attribution are accounted for, with no open findings.
+- Limits: published-binary and installer execution covers Windows amd64 only.
+  Other targets received build and archive inspection, not native execution.
+  Elevated Windows ssh-agent changes, native macOS/Linux agent behavior,
+  OSC52 delivery and live SSH connections were not exercised. This single
+  publication verifies hosted queue syntax and normal latest advancement,
+  not simultaneous release races or live older-series/prerelease publication;
+  those decision cases remain covered by mocked regression tests.
+
 ## Release latest guard (2026-11-11)
 
 - Integration: PR #26 merged at
