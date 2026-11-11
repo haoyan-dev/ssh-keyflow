@@ -162,13 +162,15 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 			if options.IdentityFile != "" {
 				local.Instructions += "\nIdentityFile is the path you supplied for this terminal. Ensure it refers to the matching private key; SSH KeyFlow has not checked that path or copied a key."
 			}
+			if keyProtection == undetermined {
+				// The config step can be copied alone, so it carries the notice too.
+				local.Instructions += "\n" + undeterminedNotice(reason)
+			} else {
+				reason = ""
+			}
 			guide.Steps = append(guide.Steps, local)
 			if keyProtection != unprotected {
-				agent := agentSetup(localOS, path)
-				if keyProtection == undetermined {
-					agent.Instructions = "Passphrase protection could not be checked: " + reason + ". AddKeysToAgent and this step are needed only if the key has a passphrase.\n" + agent.Instructions
-				}
-				guide.Steps = append(guide.Steps, agent)
+				guide.Steps = append(guide.Steps, agentSetup(localOS, path, reason))
 			}
 			guide.Steps = append(guide.Steps, GuideStep{
 				Title:        fmt.Sprintf("LOCAL terminal — %s — connect (POSIX shell / PowerShell)", localOS),

@@ -69,17 +69,23 @@ func TestPassphraseProtectionMatchesNativeSSHKeygen(t *testing.T) {
 }
 
 func TestAgentStepsArePerPlatformAndReadOnlyOnLinux(t *testing.T) {
-	windows := agentSetup("windows", "C:/Users/alice/key")
-	for _, want := range []string{"Get-Service -Name ssh-agent", "Set-Service -Name ssh-agent -StartupType Automatic", "Start-Service -Name ssh-agent", "System32\\OpenSSH\\ssh.exe", "Administrator"} {
+	windows := agentSetup("windows", "C:/Users/alice/key", "")
+	for _, want := range []string{"Get-Service -Name ssh-agent", "Set-Service -Name ssh-agent -StartupType Automatic", "Start-Service -Name ssh-agent", "System32\\OpenSSH\\ssh.exe", "Administrator", "No ssh on PATH"} {
 		if !strings.Contains(windows.Script, want) {
 			t.Fatalf("Windows agent step missing %q", want)
 		}
 	}
-	macos := agentSetup("macos", "/Users/alice/key")
+	if home := agentSetup("macos", "~/.ssh/it's key", "").Instructions; !strings.Contains(home, `ssh-add --apple-use-keychain ~/'.ssh/it'\''s key'`) {
+		t.Fatal("home-relative macOS path must keep ~ expandable and quote the rest", home)
+	}
+	if notice := agentSetup("linux", "/home/alice/key", "the reason").Instructions; !strings.HasPrefix(notice, "Passphrase protection could not be checked: the reason.") {
+		t.Fatal("undetermined reason must lead the step", notice)
+	}
+	macos := agentSetup("macos", "/Users/alice/key", "")
 	if !strings.Contains(macos.Instructions, "ssh-add --apple-use-keychain '/Users/alice/key'") || !strings.Contains(macos.Instructions, "Keychain") {
 		t.Fatal("macOS step did not offer the Keychain load", macos.Instructions)
 	}
-	linux := agentSetup("linux", "/home/alice/key")
+	linux := agentSetup("linux", "/home/alice/key", "")
 	for _, forbidden := range []string{"systemctl", ">>", "mkdir", "environment.d/"} {
 		if strings.Contains(linux.Script, forbidden) {
 			t.Fatalf("Linux step changes files or services: %q", forbidden)
@@ -99,11 +105,17 @@ func TestAgentStepsArePerPlatformAndReadOnlyOnLinux(t *testing.T) {
 
 func TestPOSIXAgentCheckReportsReachableAndMissingAgents(t *testing.T) {
 	shell := posixShell(t)
-	if _, err := exec.LookPath("ssh-agent"); err != nil {
-		t.Skip("native ssh-agent unavailable")
+	// Resolve the tools the script will use, through the shell's own PATH.
+	tools, err := exec.Command(shell, "-c", "command -v ssh-agent && command -v ssh-add").Output()
+	if err != nil {
+		t.Skip("ssh-agent or ssh-add unavailable in the POSIX shell")
+	}
+	if strings.Contains(strings.ToLower(string(tools)), "system32") {
+		// Windows OpenSSH ignores SSH_AUTH_SOCK and would reach the user's agent.
+		t.Skip("POSIX shell resolves Windows OpenSSH, which ignores SSH_AUTH_SOCK")
 	}
 	for _, platform := range []string{"linux", "macos"} {
-		script := agentSetup(platform, "/home/alice/key").Script
+		script := agentSetup(platform, "/home/alice/key", "").Script
 		missing := exec.Command(shell, "-c", script)
 		missing.Env = append(os.Environ(), "SSH_AUTH_SOCK="+filepath.ToSlash(filepath.Join(t.TempDir(), "absent.sock")))
 		if output, err := missing.CombinedOutput(); err == nil || !strings.Contains(string(output), "No reachable ssh-agent") {
@@ -118,15 +130,23 @@ func TestPOSIXAgentCheckReportsReachableAndMissingAgents(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	socket := filepath.ToSlash(filepath.Join(dir, "s"))
-	agent := exec.Command(shell, "-c", `exec ssh-agent -D -a "$1"`, "sh", socket)
-	if err := agent.Start(); err != nil {
-		t.Fatal(err)
+	// ssh-agent forks itself and prints its PID; ssh-agent -k stops exactly that agent.
+	started, err := exec.Command(shell, "-c", `ssh-agent -s -a "$1" | sed -n 's/^SSH_AGENT_PID=\([0-9]*\).*/\1/p'`, "sh", socket).Output()
+	pid := strings.TrimSpace(string(started))
+	if err != nil || pid == "" {
+		t.Fatalf("disposable agent did not start: %v %s", err, started)
 	}
-	defer func() { _ = agent.Process.Kill(); _ = agent.Wait() }()
+	t.Cleanup(func() {
+		stop := exec.Command(shell, "-c", "ssh-agent -k >/dev/null")
+		stop.Env = append(os.Environ(), "SSH_AGENT_PID="+pid, "SSH_AUTH_SOCK="+socket)
+		if output, err := stop.CombinedOutput(); err != nil {
+			t.Errorf("disposable agent %s not stopped: %v %s", pid, err, output)
+		}
+	})
 	for _, platform := range []string{"linux", "macos"} {
 		// Retry while the agent creates its socket.
 		for attempt := 1; ; attempt++ {
-			check := exec.Command(shell, "-c", agentSetup(platform, "/home/alice/key").Script)
+			check := exec.Command(shell, "-c", agentSetup(platform, "/home/alice/key", "").Script)
 			check.Env = append(os.Environ(), "SSH_AUTH_SOCK="+socket)
 			output, err := check.CombinedOutput()
 			if err == nil && strings.Contains(string(output), "ssh-agent is reachable") {
@@ -159,7 +179,7 @@ func TestWindowsAgentScriptRunsWithoutChangingTheService(t *testing.T) {
 		if !configured && !strings.HasSuffix(state, "/False") && state != "absent" {
 			t.Skip("elevated test process would change the machine's ssh-agent service")
 		}
-		output, err := runSnippet(t, shell, agentSetup("windows", "C:/Users/alice/key").Script)
+		output, err := runSnippet(t, shell, agentSetup("windows", "C:/Users/alice/key", "").Script)
 		switch {
 		case state == "absent":
 			if err == nil || !strings.Contains(string(output), "not installed") {

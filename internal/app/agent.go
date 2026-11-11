@@ -59,14 +59,38 @@ func posixQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
-// agentSetup prepares a copy-paste step; SSH KeyFlow never runs it or starts an agent.
-func agentSetup(platform, identityPath string) GuideStep {
-	const loaded = "AddKeysToAgent in the config step loads the key into the agent at the first connection that asks for its passphrase. It stays loaded until the agent stops."
+// posixPath quotes a path for a POSIX shell while keeping a leading ~/ expandable.
+func posixPath(path string) string {
+	if rest, ok := strings.CutPrefix(path, "~/"); ok {
+		return "~/" + posixQuote(rest)
+	}
+	return posixQuote(path)
+}
+
+// undeterminedNotice explains why agent setup is shown for a key whose
+// passphrase protection could not be checked.
+func undeterminedNotice(reason string) string {
+	return "Passphrase protection could not be checked: " + reason + ". AddKeysToAgent and the ssh-agent step are needed only if the key has a passphrase."
+}
+
+// agentSetup prepares a copy-paste step; SSH KeyFlow never runs it or starts an
+// agent. A non-empty undeterminedReason prefixes the step with the notice.
+func agentSetup(platform, identityPath, undeterminedReason string) GuideStep {
+	step := agentStep(platform, identityPath)
+	if undeterminedReason != "" {
+		step.Instructions = undeterminedNotice(undeterminedReason) + "\n" + step.Instructions
+	}
+	return step
+}
+
+func agentStep(platform, identityPath string) GuideStep {
+	const addKeysNote = "AddKeysToAgent in the config step loads the key into the agent at the first connection that asks for its passphrase."
+	const untilStopped = " It stays loaded until the agent stops."
 	switch platform {
 	case "windows":
 		return GuideStep{
 			Title:        "LOCAL computer — windows — ssh-agent (PowerShell)",
-			Instructions: "Open PowerShell as Administrator in the selected local terminal. The script sets the OpenSSH Authentication Agent service (ssh-agent) to start automatically and starts it; it changes nothing when that is already done. Windows OpenSSH keeps added keys in the service across restarts.\n" + loaded + "\nOnly Windows OpenSSH (System32\\OpenSSH\\ssh.exe) uses this service; another ssh on PATH, such as Git for Windows, does not.",
+			Instructions: "Open PowerShell as Administrator in the selected local terminal. The script sets the OpenSSH Authentication Agent service (ssh-agent) to start automatically and starts it; it changes nothing when that is already done.\n" + addKeysNote + " Windows OpenSSH stores added keys for your account in the service, so they remain available after restarts until removed with ssh-add -d or ssh-add -D.\nOnly Windows OpenSSH (System32\\OpenSSH\\ssh.exe) uses this service; another ssh on PATH, such as Git for Windows, does not.",
 			Script: `& {
     $ErrorActionPreference = 'Stop'
     $service = Get-Service -Name ssh-agent -ErrorAction SilentlyContinue
@@ -75,7 +99,9 @@ func agentSetup(platform, identityPath string) GuideStep {
     }
     $expected = Join-Path $env:SystemRoot 'System32\OpenSSH\ssh.exe'
     $ssh = Get-Command -Name ssh -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($ssh -and $ssh.Source -ine $expected) {
+    if (-not $ssh) {
+        Write-Warning "No ssh on PATH. Connections need $expected to use the Windows ssh-agent service."
+    } elseif ($ssh.Source -ine $expected) {
         Write-Warning "ssh on PATH is $($ssh.Source), not $expected; it does not use the Windows ssh-agent service."
     }
     if ($service.StartType -eq 'Automatic' -and $service.Status -eq 'Running') {
@@ -95,13 +121,13 @@ func agentSetup(platform, identityPath string) GuideStep {
 	case "macos":
 		return GuideStep{
 			Title:        "LOCAL computer — macos — ssh-agent (POSIX shell)",
-			Instructions: "Run in the selected local terminal. macOS launchd starts ssh-agent for each login session; this script only checks that it is reachable and changes nothing.\n" + loaded + " UseKeychain stores the passphrase in the login Keychain.\nTo load the key now instead, run: ssh-add --apple-use-keychain " + posixQuote(identityPath),
+			Instructions: "Run in the selected local terminal. macOS launchd starts ssh-agent for each login session; this script only checks that it is reachable and changes nothing.\n" + addKeysNote + untilStopped + " UseKeychain stores the passphrase in the login Keychain, so later sessions load it without asking.\nTo load the key now instead, run: ssh-add --apple-use-keychain " + posixPath(identityPath),
 			Script:       posixAgentCheck("Sign out and back in, then check that SSH_AUTH_SOCK is not overridden in your shell profile."),
 		}
 	}
 	return GuideStep{
 		Title: "LOCAL computer — linux — ssh-agent (POSIX shell, manual guide)",
-		Instructions: "Run in the selected local terminal. The script only checks whether SSH_AUTH_SOCK points to a reachable ssh-agent; it installs nothing and edits no files.\n" + loaded + "\nIf no agent is reachable, choose one option yourself:\n" +
+		Instructions: "Run in the selected local terminal. The script only checks whether SSH_AUTH_SOCK points to a reachable ssh-agent; it installs nothing and edits no files.\n" + addKeysNote + untilStopped + "\nIf no agent is reachable, choose one option yourself:\n" +
 			"- Desktop keyring: GNOME Keyring / gcr-ssh-agent or KDE Wallet often provide an agent and set SSH_AUTH_SOCK after login. Enable it in your desktop settings.\n" +
 			"- systemd user service: if your distribution ships an ssh-agent user unit, run systemctl --user enable --now on it (or write one that runs ssh-agent -D -a \"$XDG_RUNTIME_DIR/ssh-agent.socket\"), and set SSH_AUTH_SOCK to that socket in ~/.config/environment.d/.\n" +
 			"- shell profile: start one agent per login from ~/.profile, for example eval \"$(ssh-agent -s)\", and stop it at logout. A new agent per shell does not share loaded keys.\n" +

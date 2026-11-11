@@ -71,14 +71,18 @@ func TestGuideAddsAgentStepWhenProtectionCannotBeChecked(t *testing.T) {
 	guide := agentGuide(t, "private fixture", app.GuideOptions{})
 	assertAgentGuide(t, guide, app.LocalPlatform(), true)
 	for _, local := range []string{"linux", "macos", "windows"} {
-		path := "/home/alice/id_ed25519"
-		if local == "windows" {
-			path = `C:\Users\alice\id_ed25519`
-		}
 		// The managed key has no passphrase, but the supplied terminal path is not inspected.
-		guide := agentGuide(t, privateWithCipher("none"), app.GuideOptions{LocalOS: local, IdentityFile: path})
+		guide := agentGuide(t, privateWithCipher("none"), app.GuideOptions{LocalOS: local, IdentityFile: terminalPath(local)})
 		assertAgentGuide(t, guide, local, true)
 	}
+}
+
+// terminalPath is a private-key path as seen by a terminal on another platform.
+func terminalPath(local string) string {
+	if local == "windows" {
+		return `C:\Users\alice\id_ed25519`
+	}
+	return "/home/alice/id_ed25519"
 }
 
 func assertAgentGuide(t *testing.T, guide app.SetupGuide, local string, undetermined bool) {
@@ -104,7 +108,7 @@ func assertAgentGuide(t *testing.T, guide app.SetupGuide, local string, undeterm
 		t.Fatal("connection step moved")
 	}
 	notice := "could not be checked"
-	if strings.Contains(agent.Instructions, notice) != undetermined || strings.Contains(guide.Text, notice) != undetermined {
+	if strings.Contains(agent.Instructions, notice) != undetermined || strings.Contains(config.Instructions, notice) != undetermined || strings.Contains(guide.Text, notice) != undetermined {
 		t.Fatal("undetermined notice mismatch", agent.Instructions)
 	}
 	if strings.Contains(guide.Text, "openssh-key-v1") || strings.Contains(guide.Text, "PRIVATE KEY") {
@@ -130,16 +134,15 @@ func TestNativeOpenSSHParsesAgentConfigOnEveryPlatform(t *testing.T) {
 		t.Skip("native OpenSSH unavailable")
 	}
 	for _, local := range []string{"linux", "macos", "windows"} {
-		path := "/home/alice/id_ed25519"
-		if local == "windows" {
-			path = `C:\Users\alice\id_ed25519`
-		}
-		guide := agentGuide(t, privateWithCipher("aes256-ctr"), app.GuideOptions{LocalOS: local, IdentityFile: path})
+		guide := agentGuide(t, privateWithCipher("aes256-ctr"), app.GuideOptions{LocalOS: local, IdentityFile: terminalPath(local)})
 		text := guide.Steps[1].Script
 		start := strings.Index(text, "Host server\n")
-		end := strings.Index(text[start:], "    IdentitiesOnly yes\n") + len("    IdentitiesOnly yes\n")
+		end := strings.Index(text, "    IdentitiesOnly yes\n")
+		if start < 0 || end < start {
+			t.Fatalf("%s: Host block not found: %s", local, text)
+		}
 		config := filepath.Join(t.TempDir(), "config")
-		write(t, config, text[start:start+end])
+		write(t, config, text[start:end+len("    IdentitiesOnly yes\n")])
 		output, err := exec.Command(ssh, "-G", "-F", config, "server").CombinedOutput()
 		if err != nil || !strings.Contains(string(output), "addkeystoagent true") {
 			t.Fatalf("%s: native parser rejected agent config: %v %s", local, err, output)

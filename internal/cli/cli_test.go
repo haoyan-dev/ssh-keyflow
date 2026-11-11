@@ -215,7 +215,7 @@ func TestGuidePlatformFlagsAndUsageErrors(test *testing.T) {
 	before := tree(test, home)
 	code, output, diagnostics := run(test, home, "hosts", "guide", "--host", "server", "--key", "known",
 		"--local-os", "linux", "--identity-file", "/home/alice/.ssh/key", "--remote-os", "windows", "--windows-account", "administrator")
-	for _, want := range []string{"Local platform: linux", "Destination platform: windows (administrator)", "administrators_authorized_keys", `IdentityFile "/home/alice/.ssh/key"`, "set -eu"} {
+	for _, want := range []string{"Local platform: linux", "Destination platform: windows (administrator)", "administrators_authorized_keys", `IdentityFile "/home/alice/.ssh/key"`, "set -eu", "    AddKeysToAgent yes", "Step 3/4: LOCAL computer — linux — ssh-agent", "could not be checked", "Step 4/4"} {
 		if code != 0 || diagnostics != "" || !strings.Contains(output, want) {
 			test.Fatalf("override lost %s: exit=%d stderr=%s stdout=%s", want, code, diagnostics, output)
 		}
