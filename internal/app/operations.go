@@ -16,7 +16,18 @@ type Request struct {
 	Operation, Name, PublicPath, PrivatePath, Key, Host, Resume string
 	Destination                                                 Destination
 	GuideOptions                                                GuideOptions
+	// HostKeys is pasted host key output for pin-host; empty reads it from Input.
+	HostKeys string
+	// Replace allows pin-host to replace different, already pinned keys.
+	Replace bool
 }
+
+// ReadsPaste reports whether running the request reads pasted host keys from
+// Input before its confirmation.
+func (request Request) ReadsPaste() bool {
+	return request.Operation == "pin-host" && request.HostKeys == ""
+}
+
 type Destination = state.Host
 
 type View struct {
@@ -90,6 +101,10 @@ func (request Request) Validate() error {
 		if request.Host == "" {
 			return fmt.Errorf("remove-host requires a destination")
 		}
+	case "pin-host", "unpin-host":
+		if request.Host == "" {
+			return fmt.Errorf("%s requires a destination", request.Operation)
+		}
 	case "resume":
 		if request.Resume == "" {
 			return fmt.Errorf("resume requires an unfinished local creation ID")
@@ -106,6 +121,11 @@ func execute(ctx context.Context, options Options) error {
 		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
 	}
 	switch request.Operation {
+	case "pin-host":
+		// The paste is read before the lock; the typed confirmation runs under it, as for removal.
+		return pinHost(options)
+	case "unpin-host":
+		return unpinHost(options)
 	case "list":
 		view, err := Snapshot(options)
 		if err != nil {

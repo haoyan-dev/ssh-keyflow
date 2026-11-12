@@ -50,7 +50,20 @@ func agentGuide(t *testing.T, private string, options app.GuideOptions) app.Setu
 	if !bytes.Equal(before, read(t, filepath.Join(state.Directory(home), "state.json"))) {
 		t.Fatal("guide changed state")
 	}
+	guide.Steps = withoutPinSteps(guide.Steps)
 	return guide
+}
+
+// withoutPinSteps drops the unpinned print and pin steps (covered in
+// pins_test.go) so the other guide tests keep their step positions.
+func withoutPinSteps(steps []app.GuideStep) []app.GuideStep {
+	var kept []app.GuideStep
+	for _, step := range steps {
+		if !strings.HasSuffix(step.Title, "print host keys") && !strings.HasSuffix(step.Title, "pin host keys") {
+			kept = append(kept, step)
+		}
+	}
+	return kept
 }
 
 func TestGuideWithoutPassphraseKeepsCurrentSteps(t *testing.T) {
@@ -123,7 +136,9 @@ func TestGuidePublicOnlyKeyHasNoAgentStep(t *testing.T) {
 		t.Fatal(err)
 	}
 	guide, err := app.PrepareGuide(home, "server", key.ID)
-	if err != nil || len(guide.Steps) != 1 || strings.Contains(guide.Text, "ssh-agent") {
+	steps := withoutPinSteps(guide.Steps)
+	// Destination, config and connect: the agent belongs to the key holder.
+	if err != nil || len(steps) != 3 || strings.Contains(guide.Text, "ssh-agent -") || strings.Contains(guide.Text, "AddKeysToAgent") || strings.Contains(guide.Text, "Start-Service") {
 		t.Fatal(err, guide.Text)
 	}
 }

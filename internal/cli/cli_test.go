@@ -47,7 +47,15 @@ func TestListJSONIsReadOnlyAndContainsOnlyRequestedRecords(test *testing.T) {
 		if category == "hosts" {
 			other = "associations"
 		}
-		if len(result) != 2 || string(result[other]) != "[]" {
+		fields := 2
+		if category == "hosts" {
+			// No pin file yet: nothing is pinned, and it is still known.
+			fields = 3
+			if string(result["host_key_pins"]) != "{}" {
+				test.Fatalf("missing pin status: %s", output)
+			}
+		}
+		if len(result) != fields || string(result[other]) != "[]" {
 			test.Fatalf("unexpected list schema: %s", output)
 		}
 		assertEmptyHome(test, home)
@@ -213,9 +221,14 @@ func TestGuidePlatformFlagsAndUsageErrors(test *testing.T) {
 		test.Fatal(err)
 	}
 	before := tree(test, home)
+	// A linux override on a linux computer also gets the two host key pinning steps.
+	steps := 4
+	if app.LocalPlatform() == "linux" {
+		steps = 6
+	}
 	code, output, diagnostics := run(test, home, "hosts", "guide", "--host", "server", "--key", "known",
 		"--local-os", "linux", "--identity-file", "/home/alice/.ssh/key", "--remote-os", "windows", "--windows-account", "administrator")
-	for _, want := range []string{"Local platform: linux", "Destination platform: windows (administrator)", "administrators_authorized_keys", `IdentityFile "/home/alice/.ssh/key"`, "set -eu", "    AddKeysToAgent yes", "Step 3/4: LOCAL computer — linux — ssh-agent", "could not be checked", "Step 4/4"} {
+	for _, want := range []string{"Local platform: linux", "Destination platform: windows (administrator)", "administrators_authorized_keys", `IdentityFile "/home/alice/.ssh/key"`, "set -eu", "    AddKeysToAgent yes", fmt.Sprintf("Step %d/%d: LOCAL computer — linux — ssh-agent", steps-1, steps), "could not be checked", fmt.Sprintf("Step %d/%d", steps, steps)} {
 		if code != 0 || diagnostics != "" || !strings.Contains(output, want) {
 			test.Fatalf("override lost %s: exit=%d stderr=%s stdout=%s", want, code, diagnostics, output)
 		}

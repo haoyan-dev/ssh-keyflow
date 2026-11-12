@@ -25,6 +25,17 @@ func associationTargets(document state.State, hostRef, keyRef string) (state.Hos
 	return state.Host{}, state.Key{}, fmt.Errorf("%w: key is not associated with destination", ErrInvalidInput)
 }
 
+func removalPinNotice(home, hostID string) string {
+	pins, err := HostKeyPins(home)
+	if err != nil {
+		return fmt.Sprintf("Host key pins: unknown (%v). Removal does not change the pin file.", err)
+	}
+	if count := len(pins[hostID]); count > 0 {
+		return fmt.Sprintf("%d pinned host key(s) stay in %s. To remove them, cancel and run ssh-keyflow hosts unpin --host %s first.", count, state.PinPath(home), hostID)
+	}
+	return ""
+}
+
 func removeManaged(options Options, store *state.LockedStore, document state.State) error {
 	request := options.Request
 	keyPosition, hostPosition := -1, -1
@@ -49,6 +60,12 @@ func removeManaged(options Options, store *state.LockedStore, document state.Sta
 		options.target.HostID = host.ID
 		if _, err := fmt.Fprintf(options.Output, "Remove destination %s [%s]: %s@%s:%d\nAll local associations for this destination will be removed.\n", host.Alias, host.ID, host.User, host.Hostname, host.Port); err != nil {
 			return err
+		}
+		// Removal keeps pinned host keys; unpinning needs a managed destination.
+		if notice := removalPinNotice(options.Home, host.ID); notice != "" {
+			if _, err := fmt.Fprintln(options.Output, notice); err != nil {
+				return err
+			}
 		}
 	case "dissociate":
 		host, key, err := associationTargets(document, request.Host, request.Key)

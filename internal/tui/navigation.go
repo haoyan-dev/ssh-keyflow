@@ -233,7 +233,7 @@ func (m model) details(item entry) string {
 			if len(keys) == 0 {
 				keys = []string{"None"}
 			}
-			return fmt.Sprintf("Destination: %s\n%s@%s:%d\nOS: %s\nWindows account: %s\n\nAssociated keys:\n%s\n\nAssociation is a local note. Remote placement and connection are unverified.\n\ng terminal scripts: destination setup, local config and connection\np public key · l associate key · v historical details\nScripts change files only when you paste and run them.", host.Alias, host.User, host.Hostname, host.Port, host.OS, host.WindowsAccount, strings.Join(keys, "\n"))
+			return fmt.Sprintf("Destination: %s\n%s@%s:%d\nOS: %s\nWindows account: %s\nHost keys: %s\n\nAssociated keys:\n%s\n\nAssociation is a local note. Remote placement and connection are unverified.\n\ng terminal scripts: destination setup, host keys, local config and connection\np public key · l associate key · v historical details\nt pin host keys · T unpin host keys\nScripts change files only when you paste and run them.", host.Alias, host.User, host.Hostname, host.Port, host.OS, host.WindowsAccount, m.hostKeyStatus(host.ID), strings.Join(keys, "\n"))
 		}
 	}
 	if item.kind == "creation" {
@@ -294,4 +294,13 @@ func (m model) hostName(id string) string {
 		return host.Alias + " [" + id + "]"
 	}
 	return id
+}
+
+// hostKeyStatus reads the pin file each time details open; it never repairs it.
+func (m model) hostKeyStatus(hostID string) string {
+	pins, err := app.HostKeyPins(m.options.Home)
+	if err != nil {
+		return app.PinStatus(0, false) + " (review the pin file)"
+	}
+	return app.PinStatus(len(pins[hostID]), true)
 }

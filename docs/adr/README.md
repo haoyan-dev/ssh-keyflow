@@ -11,3 +11,4 @@ ADRは判断時点の理由と影響を保存します。後続ADRが過去の�
 | [0003](0003-explicit-guide-platforms.md) | ガイドのローカル・接続先OSの明示 |
 | [0004](0004-remove-managed-records.md) | 履歴を保持した管理メタデータ削除 |
 | [0005](0005-ssh-agent-autostart-step.md) | パスフレーズ付き鍵のssh-agent設定支援 |
+| [0006](0006-host-key-pinning.md) | 接続先ホスト公開鍵のアプリ所有known_hostsへの固定 |

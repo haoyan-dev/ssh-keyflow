@@ -369,14 +369,15 @@ func TestGuidanceForEveryOSIsReadOnlyAndDoesNotImplySuccess(t *testing.T) {
 	}
 }
 
-func TestPublicOnlyGuidanceHasNoUsablePrivateIdentity(t *testing.T) {
+func TestPublicOnlyGuidanceSelectsTheAgentKeyByPublicFile(t *testing.T) {
 	home := tempHome(t)
 	key := imported(t, home, "public-only", publicKey, false)
 	if _, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: destination("server", "linux", "")}); err != nil {
 		t.Fatal(err)
 	}
 	text, err := app.Guide(home, "server", key.ID)
-	if err != nil || !strings.Contains(text, "Public-only") || strings.Contains(text, "IdentityFile \"") || strings.Contains(text, "\nssh ") {
+	want := `IdentityFile "` + filepath.ToSlash(key.PublicPath) + "\"\n    IdentitiesOnly yes\n"
+	if err != nil || !strings.Contains(text, "Public-only") || !strings.Contains(text, want) || !strings.Contains(text, "\nssh server\n") || strings.Contains(text, "AddKeysToAgent") {
 		t.Fatal(text, err)
 	}
 }

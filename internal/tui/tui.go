@@ -261,6 +261,19 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			case "g":
 				command := m.beginPair("guide")
 				return m, command
+			case "t", "T":
+				target := m.visibleTarget()
+				if target.kind != "host" {
+					m.status = "Select a destination to pin or unpin its host keys"
+					return m, nil
+				}
+				// The native handoff shows old and new fingerprints and needs a typed yes.
+				request := app.Request{Operation: "pin-host", Host: target.id, Replace: true}
+				if key == "T" {
+					request = app.Request{Operation: "unpin-host", Host: target.id}
+				}
+				command := m.execute(request)
+				return m, command
 			case "p":
 				target := m.visibleTarget()
 				if target.kind == "key" {
@@ -330,10 +343,10 @@ func (m model) chrome() (string, string) {
 		if m.tab == 0 {
 			footer = "c create · i import · d remove · u unlink\n" + footer
 		} else {
-			footer = "a add · l link · u unlink · d remove\n" + footer
+			footer = "a add · l link · u unlink · d remove · t/T pin/unpin keys\n" + footer
 		}
 	case "details":
-		footer = "p public · g guide · d remove · u unlink\nv details · ↑/↓ scroll · Esc back"
+		footer = "p public · g guide · d remove · u unlink\nt/T pin/unpin host keys · v details · Esc back"
 		if m.target.kind == "creation" {
 			footer = "s resume local creation\n↑/↓ scroll · Esc back"
 		}
@@ -535,6 +548,12 @@ u disconnects an existing association from either category
 Removal and disconnect require confirmation; key files and SSH access stay unchanged.
 g display terminal scripts for destination setup, local config and connection
 p display a selected public key
+t pin host keys: on the destination itself, print its host public keys
+(the guide shows the command), then paste the output in the native terminal.
+Review the fingerprints and type yes. Replacing different pinned keys shows
+both sets; confirm the change on the destination first. T unpins.
+Pinned keys are kept in ~/.ssh/ssh-keyflow/known_hosts; generate the guide
+again after pinning to get the HostKeyAlias and UserKnownHostsFile lines.
 Before the guide, choose the local and destination OS: linux / macos / windows.
 Defaults: running app OS locally; saved destination OS/account remotely.
 If local OS differs, supply the matching private-key path in that terminal.
@@ -559,7 +578,7 @@ Legacy remote operations cannot be resumed. Only local key creation can resume.
 Paths are shown for manual local cleanup; this utility does not delete key files.`
 
 func actionTitle(action string) string {
-	return map[string]string{"create": "Create Ed25519 key", "import": "Import existing key", "add": "Add destination", "associate": "Associate key", "dissociate": "Disconnect association", "remove-key": "Remove managed key", "remove-host": "Remove destination", "resume": "Resume local creation", "guide": "Guide platforms (this guide only)"}[action]
+	return map[string]string{"create": "Create Ed25519 key", "import": "Import existing key", "add": "Add destination", "associate": "Associate key", "dissociate": "Disconnect association", "remove-key": "Remove managed key", "remove-host": "Remove destination", "resume": "Resume local creation", "guide": "Guide platforms (this guide only)", "pin-host": "Pin host keys", "unpin-host": "Unpin host keys"}[action]
 }
 func (m model) choiceKind() string {
 	if len(m.choices) > 0 && m.choices[0].kind == "host" {

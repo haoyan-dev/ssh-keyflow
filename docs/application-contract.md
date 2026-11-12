@@ -74,12 +74,14 @@ SSH KeyFlowはローカルの鍵管理とコピペによる接続設定支援に
 | `keys import` | 必須 `--name`、`--public`。任意の `--private` で鍵ペアを検証。省略時は公開鍵のみ |
 | `keys public` | 必須 `--key`。公開鍵のアルゴリズムとblobを表示し、ファイルのコメントは含めない |
 | `keys remove` | 必須 `--key`。管理から鍵と全関連付けを削除し、鍵ファイルを保持 |
-| `hosts list` | 任意の `--json`。接続先と新しい関連付けを表示 |
+| `hosts list` | 任意の `--json`。接続先と新しい関連付け、ホスト鍵の固定状態を表示 |
 | `hosts add` | 必須 `--alias`、`--hostname`、`--user`、`--os`、既存鍵の `--key`。`--port` は22が既定。Windowsでは `--windows-account standard\|administrator` が必要 |
 | `hosts associate` | 必須 `--host`、`--key`。ローカルの関連付けを保存 |
 | `hosts dissociate` | 必須 `--host`、`--key`。指定した既存の関連付けだけを解除 |
 | `hosts remove` | 必須 `--host`。管理から接続先と全関連付けを削除 |
 | `hosts guide` | 必須 `--host`、`--key`。任意の `--local-os`、`--remote-os`、`--windows-account`、`--identity-file`。読み取り専用の配置・解除・接続設定ガイド |
+| `hosts pin` | 必須 `--host`。任意の `--file`、`--yes`、`--replace`。接続先で表示したホスト公開鍵を固定（ADR 0006） |
+| `hosts unpin` | 必須 `--host`。固定したホスト公開鍵を解除 |
 | `resume` | 必須 `--id`。未完了のローカルCreation IDのみ |
 | `tui` | 追加引数なし。入力・出力とも実端末が必要 |
 
@@ -91,17 +93,17 @@ ADR 0004により管理メタデータの削除・関連付け解除を追加す
 
 削除した鍵・接続先はv2の任意配列 `removed_keys` / `removed_hosts` に保持する。旧登録・作成結果・オンボーディング・設定履歴の参照はアーカイブ先のIDでも検証し、履歴自体を書き換えない。現行の関連付けは管理対象の鍵・接続先だけを参照できる。アーカイブの指紋・パス・別名は再利用でき、再取り込みと接続先再追加は新しいIDを作る。list・公開鍵・ガイド・選択候補は削除済みレコードを対象としない。鍵ファイル・SSH設定・リモート登録は変更せず、アクセス失効を意味しない。旧バイナリはアーカイブ配列を含む状態を拒否するため、ダウングレードには事前に保管した状態を使う。TUIは一覧・詳細の `d` で削除、`u` で選択対象の既存関連付けだけを候補にして解除し、既存の実端末確認へ引き渡す。
 
-変更操作はストレージ初期化・プロセス実行より前に実端末入力を要求し、共通の `app.Run` へ明示的なRequestと確認関数を渡す。前後の空白を除いた完全一致 `yes` のみ承認する。`ReadConfirmation` は1行を1バイトずつ読み、後続のネイティブパスフレーズ入力を先読みしない。秘密値や無条件承認のフラグは設けない。
+変更操作はストレージ初期化・プロセス実行より前に実端末入力を要求し、共通の `app.Run` へ明示的なRequestと確認関数を渡す。前後の空白を除いた完全一致 `yes` のみ承認する。`ReadConfirmation` は1行を1バイトずつ読み、後続のネイティブパスフレーズ入力を先読みしない。秘密値や無条件承認のフラグは設けない。唯一の例外は `hosts pin --yes` で、異なる鍵が固定されていない場合だけ確認を省き、置き換えは承認しない。
 
 終了コードは成功0、実行失敗・取消1、引数・使用法エラー2。曖昧・不在の対象も引数エラーで、stderrに該当コマンドのusageを出す。実行時診断にはusageを付けない。`--help` と `--version` はHome解決・依存コマンド確認・保存を行わない。版表示は `SSH KeyFlow <version>`。
 
 引数なしで入出力のいずれかが非端末ならヘルプを出して0で終了する。両方が実端末ならTUIを開く。明示的な `tui` の端末要件違反は2を返す。list・公開鍵・ガイドはリダイレクトでき、書き込み可能性やSSHコマンドのプローブを行わない。
 
-listの通常出力は表形式。JSONは改行で終わる1オブジェクトで、`keys list` は `keys` / `creations`、`hosts list` は `hosts` / `associations` を返す。配列はnullでなく空配列とし、フィールド名は保存スキーマに一致する。要確認情報はstderrだけに出し、検証できた状態レコードは読み取り可能とする。不正な状態は1を返してJSONを出さず元ファイルを保持する。公開鍵・ガイドはコピー用のテキストをstdoutへ出す。出力失敗は実行失敗とする。
+listの通常出力は表形式。JSONは改行で終わる1オブジェクトで、`keys list` は `keys` / `creations`、`hosts list` は `hosts` / `associations` / `host_key_pins` を返す。`host_key_pins` は管理対象の接続先ID → `[{type, fingerprint}]` で削除済み接続先の固定は含めず、固定ファイルを読めない場合は省略し理由をstderrに出す。通常出力の `HOST KEYS` 列は `pinned (N)` / `not pinned` / `unknown` を示す。配列はnullでなく空配列とし、フィールド名は保存スキーマに一致する。要確認情報はstderrだけに出し、検証できた状態レコードは読み取り可能とする。不正な状態は1を返してJSONを出さず元ファイルを保持する。公開鍵・ガイドはコピー用のテキストをstdoutへ出す。出力失敗は実行失敗とする。
 
 ## 共通バックエンドと手動ガイド
 
-`app.Request` のOperationは `list` / `create` / `import` / `add` / `associate` / `dissociate` / `remove-key` / `remove-host` / `guide` / `public` / `resume`。`app.Run` は明示的なRequestを要求し、旧番号メニューを起動しない。変更対象はロック下でも再解決・再検証する。
+`app.Request` のOperationは `list` / `create` / `import` / `add` / `associate` / `dissociate` / `remove-key` / `remove-host` / `guide` / `public` / `resume` / `pin-host` / `unpin-host`。`app.Run` は明示的なRequestを要求し、旧番号メニューを起動しない。変更対象はロック下でも再解決・再検証する。
 
 `app.Snapshot(Options)` は `View{State, Review}` を返し、保存領域の初期化・依存コマンドのプローブ・旧記録の変更を行わない。`app.PublicKey(home, keyRef)` と `app.Guide(home, hostRef, keyRef)` は対象鍵の同一性を検証してテキストを返す。`app.PrepareGuide` は同じ検証を通した `SetupGuide{Text, Steps}` を返し、各 `GuideStep` の `Title` / `Instructions` / `Script` をTUIで使う。ガイド表示は保存済みの関連付けを前提とせず、新しい関連付けも保存しない。
 
@@ -117,15 +119,25 @@ listの通常出力は表形式。JSONは改行で終わる1オブジェクト�
 
 カスタム構成では実際の `AuthorizedKeysFile` / `Match` を利用者が確認する。SSHサーバーとネットワークは事前に利用可能であることを前提とする。解除時は別の有効なアクセス手段を残し、同じファイルから一致する公開鍵の行だけを手動で取り除く。解除の成否は検証しない。
 
-秘密鍵パスがあれば、クライアント用の `HostName` / `User` / `Port` / `IdentityFile` / `IdentitiesOnly yes` を含むHostスニペットを `~/.ssh/config` に追記するスクリプトを第2ステップにする。選択したローカルOSに従い、WindowsはPowerShell、Linux/macOSはPOSIXシェルを使う。実行元と異なるローカルOSでは、対応する秘密鍵の端末内パスをIdentityFileで必須とする。指定OSの絶対パスまたは ~/pathを受け付け、制御文字・相対パス・異なるOSのパスは拒否する。指定パスのファイルは読み取らず、鍵の転送・パス変換・一致の保証はしない。管理済み元ファイルの同一性検証は維持し、公開鍵のみの鍵をIdentityFile指定で鍵ペアへ変更しない。既存内容を保持し、グループ化されたHost行を含め、同じ明示的な別名があれば停止する。Include・ワイルドカード・Matchの解決や優先順位の保証は行わない。PowerShellの既存ファイルはUTF-8を要求し、UTF-16・不正なUTF-8は追記前に拒否する。標準アカウント用のWindows公開鍵配置では `.ssh` ディレクトリと鍵ファイルのDACLを本人・SYSTEM・Administratorsに限定し、管理者用では共有ファイルだけのDACLをSYSTEM・Administratorsに限定する。所有者と監査情報を保持し、Windows PowerShell 5.1 / PowerShell 7それぞれの.NET ACL APIを使う。
+秘密鍵パス、または公開鍵のみの鍵では保存済みの公開鍵パスを使い、クライアント用の `HostName` / `User` / `Port` / `IdentityFile` / `IdentitiesOnly yes` を含むHostスニペットを `~/.ssh/config` に追記するスクリプトを第2ステップにする。選択したローカルOSに従い、WindowsはPowerShell、Linux/macOSはPOSIXシェルを使う。実行元と異なるローカルOSでは、対応する秘密鍵の端末内パスをIdentityFileで必須とする。指定OSの絶対パスまたは ~/pathを受け付け、制御文字・相対パス・異なるOSのパスは拒否する。指定パスのファイルは読み取らず、鍵の転送・パス変換・一致の保証はしない。管理済み元ファイルの同一性検証は維持し、公開鍵のみの鍵をIdentityFile指定で鍵ペアへ変更しない。既存内容を保持し、グループ化されたHost行を含め、同じ明示的な別名があれば停止する。Include・ワイルドカード・Matchの解決や優先順位の保証は行わない。PowerShellの既存ファイルはUTF-8を要求し、UTF-16・不正なUTF-8は追記前に拒否する。標準アカウント用のWindows公開鍵配置では `.ssh` ディレクトリと鍵ファイルのDACLを本人・SYSTEM・Administratorsに限定し、管理者用では共有ファイルだけのDACLをSYSTEM・Administratorsに限定する。所有者と監査情報を保持し、Windows PowerShell 5.1 / PowerShell 7それぞれの.NET ACL APIを使う。
 
-第3ステップは、前の2ステップを実行した後にローカル端末で使う `ssh 別名` 接続コマンドとする。接続コマンドはPOSIXシェル / PowerShell共通とし、秘密鍵パスをコマンド引数へ重複展開しない。OpenSSH自身の展開も考慮し、`%`はIdentityFile内でエスケープする。`${...}`を含むパスではリテラル参照を保証できないため、公開鍵の配置案内を維持し、理由を示してconfig追記・接続ステップを省略する。公開鍵のみなら利用可能なIdentityFileや接続コマンドを生成できない旨を示す。どのスクリプト・コマンドもアプリは実行しない。
+第3ステップは、前の2ステップを実行した後にローカル端末で使う `ssh 別名` 接続コマンドとする。接続コマンドはPOSIXシェル / PowerShell共通とし、秘密鍵パスをコマンド引数へ重複展開しない。OpenSSH自身の展開も考慮し、`%`はIdentityFile内でエスケープする。`${...}`を含むパスではリテラル参照を保証できないため、公開鍵の配置案内を維持し、理由を示してconfig追記・接続ステップを省略する。公開鍵のみの鍵では、OpenSSHがエージェント（1Password、FIDO鍵等）から対応する鍵だけを使うよう公開鍵ファイルを `IdentityFile` にし、対応する秘密鍵をエージェントに読み込む必要がある旨を示す。`AddKeysToAgent` とssh-agentステップは加えない。実行元と異なるローカルOSでは `--identity-file` の指定を求め、未指定なら配置ステップだけを示す。どのスクリプト・コマンドもアプリは実行しない。
 
 アプリ自身は通常の `~/.ssh/config`、過去の専用config、Include、バックアップを編集・再生成・削除しない。コピーしたconfig追記スクリプトを利用者が実行した場合だけ通常のconfigを追記する。再帰的探索、ワイルドカード・Include優先順位の解析は提供しない。利用者が貼り付け先と既存Hostの重複・優先順位を確認する。既存Includeが過去の専用configを有効にしている場合もそのまま残る。
 
+## ホスト鍵の固定
+
+ADR 0006により、接続先のホスト公開鍵をアプリ所有の `<Home>/.ssh/ssh-keyflow/known_hosts` に固定する。利用者は接続先自身の端末で `cat /etc/ssh/ssh_host_*_key.pub`（POSIX）または管理者として開いたPowerShellで `Get-Content "$env:ProgramData\ssh\ssh_host_*_key.pub"`（Windows）を実行し、出力を貼り付ける。アプリはネットワーク接続を開かず、`~/.ssh/known_hosts`・SSH config・`sshd_config` を編集しない。
+
+`hosts pin` は実端末では表示コマンドを示して空行までの貼り付けを読み、非端末では標準入力、または `--file` を読む。入力は64 KiB・16鍵まで。`<type> <base64> [comment]` 形式で、`ssh-ed25519` / `ecdsa-sha2-nistp256` / `ecdsa-sha2-nistp384` / `ecdsa-sha2-nistp521` / `ssh-rsa` の正規base64かつblob内のアルゴリズムが一致する行だけを受け付ける。コメントは捨て、その他の行は無視した行として表示し、有効な鍵を妨げない。各鍵の種類とSHA256指紋を表示し、完全一致 `yes` で保存する。同じ鍵の組の再固定は書き込まない。非端末入力には `--yes` が必要で、`--yes` は異なる鍵が固定されていない場合だけ確認を省く。異なる鍵が固定済みなら新旧の指紋と警告を示し、`--replace` と実端末での `yes` を要求する。`hosts unpin` は実端末での確認後に、その接続先の行だけを除く。いずれも管理対象の接続先だけを対象とし、接続先削除は固定を残すため、削除確認で先に `hosts unpin` するよう案内する。
+
+固定ファイルは1鍵1行の `ssh-keyflow-<host-id> <type> <base64>` でLF終端とする。書き込みは状態と同じロック・原子的置換・シンボリックリンク拒否・権限検査を使い、他の接続先の行の順序と内容を保つ。読み込みは厳格で、不正な行・CRLF・タブ・重複・コメント・マーカーを含むファイルでは固定・解除を止め、自動修復しない。状態スキーマは変更しない。
+
+ガイドは生成時に固定状態を読む。ローカルOSが実行元と同じ場合だけ、未固定なら配置ステップの後に接続先の「ホスト鍵の表示」とローカルの「ホスト鍵の固定」（`ssh-keyflow hosts pin --host <id>`）を加え、固定済みならHostスニペットの `IdentitiesOnly yes` の後に `HostKeyAlias ssh-keyflow-<host-id>`、スラッシュ区切りの絶対パスを引用した `UserKnownHostsFile`、`StrictHostKeyChecking yes` を加える。パスはIdentityFileと同じエスケープを使い、制御文字・`${` を含む場合は行を生成しない。固定ファイルを読めない場合は `Host keys: unknown` と示し、固定に関する行もステップも加えない。未固定の接続先のスニペットは変えない。既存のHostには利用者が3行を手動で加える。
+
 ## TUI
 
-`tui.Run(ctx, app.Options)` をCLIのTUI入口とし、Keys / Destinationsの2画面を中心にする。鍵作成・取り込み、既存鍵を使った接続先追加、関連付けと解除、管理対象からの削除、公開鍵とガイドの表示・コピーを提供する。新しい鍵は独立して作成する。旧Registrations / Tasks、リモート認証・設定編集のフォーム、鍵ファイルの削除操作は提供しない。Tabで画面切替、c/iで鍵作成・取り込み、aで接続先追加、lで関連付け、uで既存関連付け解除、dで管理対象からの削除、p/gで公開鍵・ガイド表示、sで選択したローカル作成を再開する。表示中のテキストはyでOSC52コピーを要求し、端末非対応時はCLIの公開鍵・ガイド出力を利用するよう案内する。公開鍵は1行のまま扱い、TUIの折り返しを改行としてコピーしない。vの技術詳細で旧記録を読み取り専用表示する。最小端末は32列×12行。キー操作の詳細は画面内ヘルプを正とする。
+`tui.Run(ctx, app.Options)` をCLIのTUI入口とし、Keys / Destinationsの2画面を中心にする。鍵作成・取り込み、既存鍵を使った接続先追加、関連付けと解除、管理対象からの削除、公開鍵とガイドの表示・コピーを提供する。新しい鍵は独立して作成する。旧Registrations / Tasks、リモート認証・設定編集のフォーム、鍵ファイルの削除操作は提供しない。Tabで画面切替、c/iで鍵作成・取り込み、aで接続先追加、lで関連付け、uで既存関連付け解除、dで管理対象からの削除、p/gで公開鍵・ガイド表示、sで選択したローカル作成を再開する。`t` / `T` で選択した接続先のホスト鍵を固定 / 解除し、ネイティブ端末へ引き渡して貼り付けと `yes` 入力を行う（固定はReplaceを指定し、異なる鍵があれば新旧の指紋を示す）。接続先詳細は `Host keys: pinned (N)` / `not pinned` / `unknown` を表示する。表示中のテキストはyでOSC52コピーを要求し、端末非対応時はCLIの公開鍵・ガイド出力を利用するよう案内する。公開鍵は1行のまま扱い、TUIの折り返しを改行としてコピーしない。vの技術詳細で旧記録を読み取り専用表示する。最小端末は32列×12行。キー操作の詳細は画面内ヘルプを正とする。
 
 ガイドは第1ステップから表示し、← / →または `b` / `n` で切り替える。`y` は選択中の `Script` だけをコピーし、説明文・他の端末向けスクリプトを混ぜない。各ステップにローカル / 接続先、OS、端末、必要なアカウントと権限を明示する。Helpから戻った場合も選択ステップを保つ。F5再読込時は履歴内も含めてスクリプトを無効化し、ステップ切替でも古いコピーを復活させない。
 
@@ -133,7 +145,7 @@ CLIと同じ検証・保存処理を使い、読み取りやガイド表示で�
 
 ## 保存スキーマと互換性
 
-保存領域は `<Home>/.ssh/ssh-keyflow`。`state.json`、生成鍵用 `keys/`、更新式の `state.json.bak`、一時的な `state.lock` を使う。状態がない場合はv2の空状態を返すだけで、読み取り時にファイルを作成しない。
+保存領域は `<Home>/.ssh/ssh-keyflow`。`state.json`、生成鍵用 `keys/`、更新式の `state.json.bak`、一時的な `state.lock`、最初の固定時に作るホスト鍵の固定ファイル `known_hosts` を使う。状態がない場合はv2の空状態を返すだけで、読み取り時にファイルを作成しない。
 
 v1とv2を読む。v1は読み込みだけでは内容・バージョン・バックアップを変更せず、最初の成功した状態保存でv2になる。v2の `associations` は `{host_id, key_id}` の組で、有効な鍵と接続先を参照し、組の重複を認めない。旧 `registrations` / `history` を関連付けへ変換せず、その登録・接続状態も変更しない。
 

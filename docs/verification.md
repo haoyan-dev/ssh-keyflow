@@ -1870,3 +1870,78 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   interactive tutorial. Crossbuild and embedded-tag evidence are not all-target
   runtime verification. This audit changes records only; advancing main with it
   does not require another version or moving the immutable release tag.
+
+## 2026-11-12: host key pinning
+
+- Source commit: `d7efe69b225a6122356298c4306bf9418f630ee3` on
+  `feat/host-key-pinning` (feature `62a7df7`, review fixes `06ad3ef`, Linux
+  test fix `9f38bb1`, second review fixes `c5e489a`, helper refactor
+  `d7efe69`). Base
+  `main` `cdbc0ae7a9eda8b0bbb508e0cdced4d3f20c42ad`. Specification:
+  `.scratch/host-key-pinning/spec.md`; issues 01–05; ADR 0006 (accepted).
+- Environment: Windows amd64, Go 1.26.2, Git for Windows sh with OpenSSH
+  10.2p1, PowerShell 7.6.10, Python 3.12.10. `go test ./... -count=1`,
+  `go vet ./...` (also `GOOS=linux` and `GOOS=darwin`), gofmt on changed files,
+  `scripts/check_docs.py` and `scripts/test_docs.py` passed on the commit above.
+  GitHub Actions on `9f38bb1` passed `test` on ubuntu, macos and windows,
+  `crossbuild` and `docs`; the first push failed one CLI test on ubuntu, which
+  expected four guide steps although a linux override on a linux computer
+  adds the two pin steps. The fixed CLI tests also passed on WSL Ubuntu 22.04.
+- OpenSSH behaviour, checked before implementation with throwaway keys and an
+  unprivileged sshd on `127.0.0.1` only
+  ([spike](../.scratch/host-key-pinning/openssh-spike.md)): Linux OpenSSH
+  9.6p1 and 9.2p1 clients and servers, Win32-OpenSSH 9.5p2 and Git for Windows
+  10.2p1 clients through a loopback forward. The pinned form connects with no
+  prompt on a non-22 port, a wrong pin is refused, `HostKeyAlias` ignores the
+  port, quoted absolute Windows paths work with forward or escaped
+  backslashes, and `IdentityFile <x>.pub` with `IdentitiesOnly yes` selects
+  only the matching agent key. Standard Windows users can't read
+  `%ProgramData%\ssh\ssh_host_*_key.pub`, so the guide's Windows print step
+  requires Run as Administrator. No user SSH files were changed; all spike
+  processes, files and the agent key were removed.
+- Unit tests cover strict pin file decoding (CRLF, tabs, comments, markers,
+  duplicates, symlinks; never rewritten), atomic writes keeping other
+  destinations, parser accept/reject and limits, a newline-free paste stopping
+  at 64 KiB, every pasted byte counted toward the limit (an exact 64 KiB paste
+  accepted, endless blank lines refused), a BOM after leading whitespace,
+  replacement at a split destination's first entry, no pin steps when the pin
+  file path can't be written literally, identical re-pin without writing, refusal without `--replace`,
+  `--yes` never replacing, `hosts unpin` requiring a real terminal, list text
+  and JSON (`host_key_pins` only for managed destinations, omitted when the
+  file is unreadable), the removal notice, guide steps until pinned and the
+  pinned lines afterwards (unpinned snippet equals the pinned one minus the
+  three lines), public-only snippets, native `ssh -G` parsing of the pinned
+  snippet, and the TUI `t`/`T` handoff reading paste and confirmation from
+  native input.
+- Built binary smoke test in a temporary home: `--version`, `hosts pin` /
+  `hosts unpin` help, empty `hosts list` (text and JSON) created no storage
+  directory; an unknown destination exited 2 with usage.
+- Standards review (separate pass): missing verification record (added);
+  unchecked "Ignored line" write (fixed); duplicated path quoting and unused
+  JSON tags (fixed). Accepted judgement calls: `pinHost`/`unpinHost` keep
+  parallel lock flows like removal; operation and OS names stay strings as in
+  the existing code; the public-only snippet change stays in this PR because
+  the spec and ADR 0006 include it. Ticket `Status: ready-for-human` follows
+  the repo's use for implemented work awaiting human integration.
+- Specification review (separate pass): unbounded newline-free paste (fixed);
+  `T` missing from the list footer (fixed); removed destinations listed in
+  `host_key_pins` (fixed, contract updated); misleading lock comment (fixed);
+  whitespace field separation and pin steps omitted with the SSH config step
+  recorded in the spec. The `host-keys` report kind is internal, like other
+  report kinds.
+- Second review on `9f38bb1` (standards and specification passes): pin steps
+  offered for a non-literal pin file path, a paste limit one byte stricter
+  than `--file` and not counting blank lines, a BOM after whitespace kept, a
+  `SavePins` comment overstating byte-for-byte preservation, a missing
+  split-position test, and this record's stale commit were fixed in
+  `c5e489a`. The judgement calls were then fixed in `d7efe69`: shared
+  `literalConfigPath` and `PinStatus` helpers, one way to group pins
+  (`HostKeyPins`), `SavePins` validating before it builds the file,
+  `hostKeyPinning` without the extra boolean, and `Request.ReadsPaste` in
+  place of the TUI executor's operation-name check. The removal notice for an
+  unreadable pin file is now in the spec.
+- Limits: macOS clients and servers and the 1Password agent were not tested.
+  No real interactive paste through `hosts pin` in a native terminal was run
+  in this session; the terminal flow is covered by tests with scripted input.
+  The TUI was exercised through model tests, not a live terminal. Not
+  released: v0.10.0 awaits integration and release authorization.
