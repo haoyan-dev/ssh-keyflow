@@ -32,7 +32,6 @@ a Host snippet and connection command too.
   `IdentitiesOnly yes` and a connection command, so ssh uses the matching key
   from your SSH agent (for example ssh-agent with a FIDO key). No
   `AddKeysToAgent` or agent autostart step is added for them.
-- The documentation no longer names a third-party key manager.
 
 ## Compatibility and migration
 
@@ -66,7 +65,7 @@ six archives and one checksum manifest; installers remain source-hosted.
 
 ## Verification and limits
 
-Prepared against `aea242f57153e7819437e29d1bf15e5b1302fea0`.
+Prepared against `0ff418f5873b08f956b71484838db95841333ed8`.
 The final tagged source and evidence comparison are added when publishing.
 Passing evidence and execution conditions are in `docs/verification.md`.
 

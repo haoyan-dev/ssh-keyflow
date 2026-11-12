@@ -1958,9 +1958,10 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   features and resets PATCH. No existing command, flag, exit code, JSON field
   or state schema changes incompatibly; pins live in a separate file that
   v0.9.2 ignores. This is not a 1.0.0 readiness decision.
-- Full tested source: `aea242f57153e7819437e29d1bf15e5b1302fea0`, a clean tree
+- Full tested source: `0ff418f5873b08f956b71484838db95841333ed8`, a clean tree
   on `docs/v0.10.0-preparation`: integrated main `dc7c84d` (PR #33) plus the
-  1Password wording removal requested for this release. The release notes are
+  1Password wording removal requested for this release (`aea242f`) and the
+  review wording fix (`0ff418f`). The release notes are
   tracked in
   [.scratch/release-v0.10.0/release-notes.md](../.scratch/release-v0.10.0/release-notes.md).
   They cover all changes since v0.9.2, compatibility and migration, guide
@@ -1972,15 +1973,26 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   `python scripts/test_release.py -v` (17).
 - Since v0.9.2, `go.mod`, `go.sum`, the installers, `scripts/`,
   `.github/` and `THIRD_PARTY_NOTICES.txt` are unchanged. Installer (50) and
-  profile (30) evidence is reused from CI on the branch, which runs them on
-  three OSes; the tag workflow performs its own six-target build matrix, so it
-  is not duplicated locally.
-- CI run `43213790107` on `aea242f` passed: test on ubuntu-latest,
-  windows-latest and macos-latest, crossbuild and docs.
+  profile (30) evidence is reused from CI on the branch, which runs
+  `test_installers.py` and `test_installer_profiles.py` on three OSes
+  (`.github/workflows/ci.yml:44-45`); the tag workflow performs its own
+  six-target build matrix, so it is not duplicated locally.
+- CI passed on `aea242f` (run `43213790107`) and on `0ff418f` (run
+  `43216226895`, pull request run `43216236615`): test on ubuntu-latest, windows-latest and macos-latest,
+  crossbuild and docs.
 - The 1Password removal changes wording only: README, contract, TUI guide,
   tutorial, ADR 0006, the host key pinning spec, and one guide instruction and
   comment in `internal/app/guide.go`. No test asserted the removed wording.
   Dated verification and spike records stay as written.
+- Standards self-review (AGENTS.md, issue tracker conventions, earlier
+  records): no hard violations. Fixed wording that called a FIDO key an SSH
+  agent (spec, ADR 0006, the `guide.go` comment). Repeated rationale and
+  limits across spec, notes and record follow the v0.9.2 precedent.
+- Specification self-review (release spec criterion 1 and the removal
+  request): release note claims match `git diff v0.9.2..HEAD -- internal`;
+  the unchanged-input claim and test counts were confirmed. Fixed: dropped a
+  notes bullet about 1Password, which v0.9.2 never mentioned, and removed the
+  last undated mention from host key pinning issue 05.
 - Host key pinning issues 01–05 were integrated by PR #33 as `dc7c84d`.
 - After this preparation merges, refresh main and compare its candidate against
   the tested source. Preparation-only records and notes may reuse unchanged

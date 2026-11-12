@@ -2,7 +2,7 @@
 
 Status: ready-for-human
 Previous release: v0.9.2
-Tested source: `aea242f57153e7819437e29d1bf15e5b1302fea0`
+Tested source: `0ff418f5873b08f956b71484838db95841333ed8`
 
 ## Objective and scope
 
