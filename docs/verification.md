@@ -1873,9 +1873,10 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
 
 ## 2026-11-12: host key pinning
 
-- Source commit: `c5e489a112456bf0564a21d6e05faf759598d711` on
+- Source commit: `d7efe69b225a6122356298c4306bf9418f630ee3` on
   `feat/host-key-pinning` (feature `62a7df7`, review fixes `06ad3ef`, Linux
-  test fix `9f38bb1`, second review fixes `c5e489a`). Base
+  test fix `9f38bb1`, second review fixes `c5e489a`, helper refactor
+  `d7efe69`). Base
   `main` `cdbc0ae7a9eda8b0bbb508e0cdced4d3f20c42ad`. Specification:
   `.scratch/host-key-pinning/spec.md`; issues 01–05; ADR 0006 (accepted).
 - Environment: Windows amd64, Go 1.26.2, Git for Windows sh with OpenSSH
@@ -1933,10 +1934,12 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   than `--file` and not counting blank lines, a BOM after whitespace kept, a
   `SavePins` comment overstating byte-for-byte preservation, a missing
   split-position test, and this record's stale commit were fixed in
-  `c5e489a`. Accepted judgement calls: the path checks, pin status wording
-  and pin grouping are repeated in a few places; `hostKeyPinning` returns an
-  extra boolean; the TUI executor checks the `pin-host` operation to choose
-  its input reader; removal also reports an unreadable pin file.
+  `c5e489a`. The judgement calls were then fixed in `d7efe69`: shared
+  `literalConfigPath` and `PinStatus` helpers, one way to group pins
+  (`HostKeyPins`), `SavePins` validating before it builds the file,
+  `hostKeyPinning` without the extra boolean, and `Request.ReadsPaste` in
+  place of the TUI executor's operation-name check. The removal notice for an
+  unreadable pin file is now in the spec.
 - Limits: macOS clients and servers and the 1Password agent were not tested.
   No real interactive paste through `hosts pin` in a native terminal was run
   in this session; the terminal flow is covered by tests with scripted input.
