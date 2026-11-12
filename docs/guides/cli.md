@@ -44,6 +44,19 @@ ssh-keyflow hosts guide --host my-server --key laptop
 ssh-keyflow hosts guide --host my-server --key laptop --local-os linux --identity-file /home/alice/.ssh/id_ed25519 --remote-os windows --windows-account standard
 ```
 
+### ホスト鍵の固定
+
+```sh
+ssh-keyflow hosts pin --host my-server
+ssh-keyflow hosts pin --host my-server --file host-keys.txt --yes
+ssh-keyflow hosts pin --host my-server --replace
+ssh-keyflow hosts unpin --host my-server
+```
+
+`hosts pin` は接続先で実行するコマンドを表示します。接続先自身の端末で出力したホスト公開鍵を貼り付け、空行でEnterを押します（Windowsは管理者として開いたPowerShellで表示します）。各鍵の種類とSHA256指紋を確認し、`yes` を入力すると `~/.ssh/ssh-keyflow/known_hosts` に保存します。`--file` は出力を保存したファイルを読み、パイプやファイルからの入力には `--yes` が必要です。`--yes` は異なる鍵が固定済みの場合は置き換えません。接続先のホスト鍵が変わったことを接続先自身で確認した場合だけ、実端末で `--replace` を指定してください。`hosts unpin` は実端末での確認後に固定を解除します。SSH configに追加した固定用の3行は自分で削除してください。
+
+固定後に `hosts guide` を再度実行すると、Hostスニペットに `HostKeyAlias`・`UserKnownHostsFile`・`StrictHostKeyChecking yes` が加わります。既にSSH configにあるHostには、この3行を自分で追加してください。`hosts list` は固定状態を `HOST KEYS` 列に表示します。接続先を管理から削除しても固定は残るため、不要なら削除前に `hosts unpin` を実行します。
+
 ### 中断した鍵作成の再開
 
 ```sh
@@ -68,10 +81,10 @@ ssh-keyflow keys remove --key existing
 
 ## ガイド用のOSと秘密鍵パス
 
-`hosts guide` の `--local-os` と `--remote-os` は `linux` / `macos` / `windows` を指定できます。`--windows-account` は接続先Windows用です。省略時は実行元OS・保存済み接続先OSとアカウントを使います。`--identity-file` はローカル端末から見た秘密鍵パスで、実行元と異なるローカルOSを選んだ鍵ペアでは必須です。指定OSの絶対パスまたは `~/path` を使ってください。Windows版からWSLへ貼り付ける場合は `--local-os linux` を選び、WSLから見える対応する鍵のパスを指定します。アプリはそのパスの鍵を検証・転送せず、ドライブ対応も推測しません。これらの指定はガイドだけに適用し、保存済み接続先や管理済み鍵のパスを変更しません。
+`hosts guide` の `--local-os` と `--remote-os` は `linux` / `macos` / `windows` を指定できます。`--windows-account` は接続先Windows用です。省略時は実行元OS・保存済み接続先OSとアカウントを使います。`--identity-file` はローカル端末から見た秘密鍵パスで、実行元と異なるローカルOSを選んだ鍵ペアでは必須です。指定OSの絶対パスまたは `~/path` を使ってください。公開鍵のみの鍵では保存済みの公開鍵パスを `IdentityFile` にするため、実行元と異なるローカルOSでは `--identity-file` にその端末から見た公開鍵パスを指定します。ホスト鍵の固定に関するステップと行は、ローカルOSが実行元と同じ場合だけ表示します。Windows版からWSLへ貼り付ける場合は `--local-os linux` を選び、WSLから見える対応する鍵のパスを指定します。アプリはそのパスの鍵を検証・転送せず、ドライブ対応も推測しません。これらの指定はガイドだけに適用し、保存済み接続先や管理済み鍵のパスを変更しません。
 
 ## JSONと終了コード
 
-JSONは標準出力、診断は標準エラーへ分けます。`keys list --json` は `keys` と `creations`、`hosts list --json` は `hosts` と `associations` を返します。終了コードは成功0、実行失敗・取消1、引数・使用法エラー2です。非端末の引数なし起動はヘルプを表示して0で終了します。
+JSONは標準出力、診断は標準エラーへ分けます。`keys list --json` は `keys` と `creations`、`hosts list --json` は `hosts`・`associations`・`host_key_pins`（接続先IDごとの種類と指紋）を返します。固定ファイルを読めない場合は `host_key_pins` を省き、理由を標準エラーに出します。終了コードは成功0、実行失敗・取消1、引数・使用法エラー2です。非端末の引数なし起動はヘルプを表示して0で終了します。
 
 手順に沿って試す場合は[はじめての接続設定](../tutorials/first-connection.md)、正確な入力・出力仕様は[アプリケーション契約](../application-contract.md#cli)を参照してください。

@@ -17,3 +17,8 @@ func readNativeConfirmation(ctx context.Context, input io.Reader) (bool, error) 
 	}
 	return yes, err
 }
+
+// Console Ctrl+C already aborts the original ReadFile, as for confirmation.
+func cancellableInput(_ context.Context, input io.Reader) (io.Reader, func(), error) {
+	return input, func() {}, nil
+}

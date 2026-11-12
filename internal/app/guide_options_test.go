@@ -32,6 +32,7 @@ func TestGuidePlatformMatrixPreservesSavedRecords(t *testing.T) {
 					options.WindowsAccount = "standard"
 				}
 				guide, err := app.PrepareGuideWithOptions(home, "server", key.ID, options)
+				guide.Steps = withoutPinSteps(guide.Steps)
 				// The supplied terminal path is not inspected, so the ssh-agent step is included.
 				if err != nil || len(guide.Steps) != 4 {
 					t.Fatal(err, guide)
@@ -66,6 +67,7 @@ func TestGuidePlatformMatrixPreservesSavedRecords(t *testing.T) {
 		t.Fatal("guide options changed saved records")
 	}
 	guide, err := app.PrepareGuide(home, "server", key.ID)
+	guide.Steps = withoutPinSteps(guide.Steps)
 	if err != nil || !strings.Contains(guide.Text, "Local platform: "+app.LocalPlatform()) ||
 		!strings.Contains(guide.Steps[0].Script, "administrators_authorized_keys") ||
 		!strings.Contains(guide.Steps[1].Script, filepath.ToSlash(key.PrivatePath)) {
@@ -105,7 +107,7 @@ func TestInvalidGuideOptionsNeverProduceScripts(t *testing.T) {
 	}
 	for _, local := range []string{"linux", "macos", "windows"} {
 		guide, err := app.PrepareGuideWithOptions(home, "server", key.ID, app.GuideOptions{LocalOS: local, IdentityFile: "~/key"})
-		if err != nil || !strings.Contains(guide.Steps[1].Script, `IdentityFile "~/key"`) {
+		if err != nil || !strings.Contains(withoutPinSteps(guide.Steps)[1].Script, `IdentityFile "~/key"`) {
 			t.Fatal("home-relative path rejected", local, err)
 		}
 	}
@@ -121,8 +123,18 @@ func TestPublicOnlyOverrideDoesNotInventPrivateIdentity(t *testing.T) {
 	if _, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: destination("server", "linux", "")}); err != nil {
 		t.Fatal(err)
 	}
-	guide, err := app.PrepareGuideWithOptions(home, "server", key.ID, app.GuideOptions{LocalOS: "macos", RemoteOS: "windows", WindowsAccount: "administrator", IdentityFile: "~/key"})
-	if err != nil || len(guide.Steps) != 1 || strings.Contains(guide.Text, "IdentityFile \"") || !strings.Contains(guide.Text, "Public-only") {
+	guide, err := app.PrepareGuideWithOptions(home, "server", key.ID, app.GuideOptions{LocalOS: "macos", RemoteOS: "windows", WindowsAccount: "administrator", IdentityFile: "~/key.pub"})
+	steps := withoutPinSteps(guide.Steps)
+	if err != nil || len(steps) != 3 || !strings.Contains(steps[1].Script, `IdentityFile "~/key.pub"`) || strings.Contains(guide.Text, "AddKeysToAgent") || strings.Contains(guide.Text, "UseKeychain") || !strings.Contains(steps[1].Instructions, "must be loaded in the agent") {
 		t.Fatal("public-only key became a key pair", err, guide)
+	}
+	foreign := "windows"
+	if app.LocalPlatform() == foreign {
+		foreign = "linux"
+	}
+	// The saved public key path belongs to this computer, not another terminal.
+	guide, err = app.PrepareGuideWithOptions(home, "server", key.ID, app.GuideOptions{LocalOS: foreign})
+	if err != nil || len(guide.Steps) != 1 || strings.Contains(guide.Text, "IdentityFile \"") || !strings.Contains(guide.Steps[0].Instructions, "Supply identity-file") {
+		t.Fatal("public-only key used this computer's path for another terminal", err, guide)
 	}
 }

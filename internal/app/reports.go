@@ -13,6 +13,7 @@ const (
 	ReportRemoval        ReportKind = "removal"
 	ReportDestination    ReportKind = "destination"
 	ReportResolvedTarget ReportKind = "target"
+	ReportHostKeys       ReportKind = "host-keys"
 )
 
 // ReportOutcome describes one fact; it is not the overall result of Run.

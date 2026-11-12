@@ -38,6 +38,15 @@ func (operation *execution) Run() error {
 		options.Output = io.Discard
 	}
 	options.Output = io.MultiWriter(options.Output, &operation.output)
+	if operation.request.Operation == "pin-host" {
+		// The host key paste is read from the native terminal before confirmation.
+		input, release, err := cancellableInput(operation.ctx, options.Input)
+		if err != nil {
+			return err
+		}
+		defer release()
+		options.Input = input
+	}
 	options.Confirm = func(string) (bool, error) { return readNativeConfirmation(operation.ctx, options.Input) }
 	options.Report = func(report app.Report) {
 		operation.reports = append(operation.reports, report)

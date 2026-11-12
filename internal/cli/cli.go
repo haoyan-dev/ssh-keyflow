@@ -77,10 +77,17 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 				if view.Review != "" {
 					fmt.Fprintln(options.Error, view.Review)
 				}
-				if asJSON {
-					return asExecutionError(json.NewEncoder(options.Output).Encode(records(category, view)))
+				var pins map[string][]app.PinSummary
+				if category == "hosts" {
+					// An unreadable pin file is reported, never guessed at or repaired.
+					if pins, err = app.PinSummaries(home); err != nil {
+						fmt.Fprintf(options.Error, "Host key pins: unknown: %v\n", err)
+					}
 				}
-				return asExecutionError(printRecords(options.Output, category, view))
+				if asJSON {
+					return asExecutionError(json.NewEncoder(options.Output).Encode(records(category, view, pins)))
+				}
+				return asExecutionError(printRecords(options.Output, category, view, pins))
 			},
 		}
 		list.Flags().BoolVar(&asJSON, "json", false, "Write machine-readable JSON; diagnostics go to stderr")
@@ -140,7 +147,7 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 				command.MarkFlagRequired("host")
 				command.MarkFlagRequired("key")
 			}
-			parent.AddCommand(add, associate, dissociate, guide, remove)
+			parent.AddCommand(add, associate, dissociate, guide, remove, pinCommand(options), unpinCommand(options))
 		}
 		root.AddCommand(parent)
 	}
@@ -188,9 +195,14 @@ func userHome(options Options) (string, error) {
 	return os.UserHomeDir()
 }
 
-func records(category string, view app.View) map[string]any {
+func records(category string, view app.View, pins map[string][]app.PinSummary) map[string]any {
 	if category == "hosts" {
-		return map[string]any{"hosts": array(view.State.Hosts), "associations": array(view.State.Associations)}
+		result := map[string]any{"hosts": array(view.State.Hosts), "associations": array(view.State.Associations)}
+		// Absent when the pin file cannot be read: pinned status is then unknown.
+		if pins != nil {
+			result["host_key_pins"] = pins
+		}
+		return result
 	}
 	return map[string]any{"keys": array(view.State.Keys), "creations": array(view.State.Creations)}
 }
@@ -202,13 +214,20 @@ func array[T any](items []T) []T {
 	return items
 }
 
-func printRecords(output io.Writer, category string, view app.View) error {
+func printRecords(output io.Writer, category string, view app.View, pins map[string][]app.PinSummary) error {
 	table := tabwriter.NewWriter(output, 0, 4, 2, ' ', 0)
 	switch category {
 	case "hosts":
-		fmt.Fprintln(table, "ID\tALIAS\tDESTINATION\tOS")
+		fmt.Fprintln(table, "ID\tALIAS\tDESTINATION\tOS\tHOST KEYS")
 		for _, host := range view.State.Hosts {
-			fmt.Fprintf(table, "%s\t%s\t%s@%s:%d\t%s\n", host.ID, host.Alias, host.User, host.Hostname, host.Port, host.OS)
+			status := "unknown"
+			if pins != nil {
+				status = "not pinned"
+				if count := len(pins[host.ID]); count > 0 {
+					status = fmt.Sprintf("pinned (%d)", count)
+				}
+			}
+			fmt.Fprintf(table, "%s\t%s\t%s@%s:%d\t%s\t%s\n", host.ID, host.Alias, host.User, host.Hostname, host.Port, host.OS, status)
 		}
 		for _, association := range view.State.Associations {
 			fmt.Fprintf(table, "association\thost=%s\tkey=%s\n", association.HostID, association.KeyID)
@@ -299,4 +318,78 @@ func operationCommand(name, description string, request *app.Request, options Op
 			}))
 		},
 	}
+}
+
+// maxHostKeyInput reads one byte past the parser limit so oversize input is refused.
+const maxHostKeyInput = 64<<10 + 1
+
+func pinCommand(options Options) *cobra.Command {
+	request := &app.Request{Operation: "pin-host"}
+	var file string
+	var yes bool
+	command := &cobra.Command{
+		Use: "pin", Short: "Pin a destination's host public keys pasted from the destination itself; no network",
+		Args: cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			if err := request.Validate(); err != nil {
+				return err
+			}
+			interactive := terminal(options.Input)
+			if !interactive && !yes {
+				return executionError{fmt.Errorf("non-terminal input requires --yes; review the fingerprints with ssh-keygen -lf first")}
+			}
+			if !interactive && request.Replace {
+				return executionError{fmt.Errorf("replacing pinned host keys requires typed confirmation in a real terminal")}
+			}
+			home, err := userHome(options)
+			if err != nil {
+				return executionError{err}
+			}
+			var source io.Reader
+			if file != "" {
+				opened, err := os.Open(file)
+				if err != nil {
+					return executionError{err}
+				}
+				defer opened.Close()
+				source = opened
+			} else if !interactive {
+				source = options.Input
+			}
+			if source != nil {
+				data, err := io.ReadAll(io.LimitReader(source, maxHostKeyInput))
+				if err != nil {
+					return executionError{err}
+				}
+				if len(data) == 0 {
+					return executionError{fmt.Errorf("no host key input")}
+				}
+				request.HostKeys = string(data)
+			}
+			return asExecutionError(app.Run(command.Context(), app.Options{
+				Home: home, Input: options.Input, Output: options.Output, Runner: options.Runner, Request: request,
+				Confirm: func(string) (bool, error) {
+					// --yes never approves a replacement.
+					if yes && !request.Replace {
+						return true, nil
+					}
+					return app.ReadConfirmation(options.Input)
+				},
+			}))
+		},
+	}
+	command.Flags().StringVar(&request.Host, "host", "", "Destination fixed ID or alias (required)")
+	command.Flags().StringVar(&file, "file", "", "Read the destination's host key output from this file instead of a paste")
+	command.Flags().BoolVar(&yes, "yes", false, "Pin without typed confirmation when no different keys are pinned (required for non-terminal input)")
+	command.Flags().BoolVar(&request.Replace, "replace", false, "Replace different pinned keys after confirming the change on the destination")
+	command.MarkFlagRequired("host")
+	return command
+}
+
+func unpinCommand(options Options) *cobra.Command {
+	request := &app.Request{Operation: "unpin-host"}
+	command := operationCommand("unpin", "Remove a destination's pinned host keys; SSH access is unchanged", request, options)
+	command.Flags().StringVar(&request.Host, "host", "", "Destination fixed ID or alias (required)")
+	command.MarkFlagRequired("host")
+	return command
 }

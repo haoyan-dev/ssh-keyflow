@@ -122,62 +122,81 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 	placement.Instructions += "\nCheck effective AuthorizedKeysFile/Match settings if customized. An SSH server and network access must already be available. Existing keys are preserved; an already present key is not appended again.\nManual removal: keep another working access method, then remove only the matching public-key line from the destination file. SSH KeyFlow does not verify removal."
 	guide.Steps = append(guide.Steps, placement)
 	notice := ""
-	if key.PrivatePath == "" {
-		notice = "Public-only key: use the matching private key on your client. No usable IdentityFile or connection command can be generated here.\n"
-	} else {
-		path := filepath.ToSlash(key.PrivatePath)
-		if options.IdentityFile != "" {
-			path = options.IdentityFile
-			if localOS == "windows" {
-				path = strings.ReplaceAll(path, "\\", "/")
-			}
-		} else if localOS != LocalPlatform() {
+	publicOnly := key.PrivatePath == ""
+	path := filepath.ToSlash(key.PrivatePath)
+	if publicOnly {
+		// OpenSSH selects the agent key matching this public key file.
+		path = filepath.ToSlash(key.PublicPath)
+	}
+	if options.IdentityFile != "" {
+		path = options.IdentityFile
+		if localOS == "windows" {
+			path = strings.ReplaceAll(path, "\\", "/")
+		}
+	} else if localOS != LocalPlatform() {
+		if !publicOnly {
 			return SetupGuide{}, fmt.Errorf("%w: a different local OS requires identity-file, the matching private-key path in that terminal", ErrInvalidInput)
 		}
-		for _, character := range path {
-			if unicode.IsControl(character) {
-				return SetupGuide{}, fmt.Errorf("private path contains control characters; cannot prepare a snippet")
+		path = ""
+		notice = "Public-only key: the saved public key path is for this computer. Supply identity-file, the matching key path in the selected local terminal, to get an SSH config step and connection command.\n"
+	}
+	for _, character := range path {
+		if unicode.IsControl(character) {
+			return SetupGuide{}, fmt.Errorf("identity path contains control characters; cannot prepare a snippet")
+		}
+	}
+	switch {
+	case path == "":
+	case strings.Contains(path, "${"):
+		notice = "OpenSSH expands ${...} environment variables in identity paths. This identity path cannot be represented literally here; no IdentityFile snippet or connection command was generated. Select a key path without ${...} yourself.\n"
+	default:
+		// SSH expands percent tokens in IdentityFile even inside quotes.
+		configPath := strings.NewReplacer("%", "%%", "\\", "\\\\", "\"", "\\\"").Replace(path)
+		configUser := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(host.User)
+		// A path supplied for another terminal is never inspected (ADR 0003).
+		keyProtection, reason := undetermined, "the private key path was supplied for this terminal and is not inspected"
+		if publicOnly {
+			// The agent belongs to the key holder, such as 1Password or a FIDO token.
+			keyProtection, reason = unprotected, ""
+		} else if options.IdentityFile == "" {
+			keyProtection, reason = passphraseProtection(key.PrivatePath)
+		}
+		agentConfig := ""
+		if keyProtection != unprotected {
+			agentConfig = "    AddKeysToAgent yes\n"
+			if localOS == "macos" {
+				agentConfig += "    IgnoreUnknown UseKeychain\n    UseKeychain yes\n"
 			}
 		}
-		if strings.Contains(path, "${") {
-			notice = "OpenSSH expands ${...} environment variables in identity paths. This private path cannot be represented literally here; no IdentityFile snippet or connection command was generated. Select a private-key path without ${...} yourself.\n"
+		pinning, pinned := hostKeyPinning(home, host, localOS)
+		config := fmt.Sprintf("Host %s\n    HostName %s\n    User \"%s\"\n    Port %d\n    IdentityFile \"%s\"\n%s    IdentitiesOnly yes\n%s", host.Alias, host.Hostname, configUser, host.Port, configPath, agentConfig, pinning.lines)
+		local := clientSetup(host, config, localOS)
+		if publicOnly {
+			local.Instructions += "\nPublic-only key: IdentityFile names the public key so ssh uses the matching private key from your SSH agent (for example 1Password, or ssh-agent with a FIDO key). That key must be loaded in the agent. On Windows, an \"UNPROTECTED PRIVATE KEY FILE\" or \"bad permissions\" warning means it was not."
+		} else if options.IdentityFile != "" {
+			local.Instructions += "\nIdentityFile is the path you supplied for this terminal. Ensure it refers to the matching private key; SSH KeyFlow has not checked that path or copied a key."
+		}
+		if pinning.instructions != "" {
+			local.Instructions += "\n" + pinning.instructions
+		}
+		if keyProtection == undetermined {
+			// The config step can be copied alone, so it carries the notice too.
+			local.Instructions += "\n" + undeterminedNotice(reason)
 		} else {
-			// SSH expands percent tokens in IdentityFile even inside quotes.
-			configPath := strings.NewReplacer("%", "%%", "\\", "\\\\", "\"", "\\\"").Replace(path)
-			configUser := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(host.User)
-			// A path supplied for another terminal is never inspected (ADR 0003).
-			keyProtection, reason := undetermined, "the private key path was supplied for this terminal and is not inspected"
-			if options.IdentityFile == "" {
-				keyProtection, reason = passphraseProtection(key.PrivatePath)
-			}
-			agentConfig := ""
-			if keyProtection != unprotected {
-				agentConfig = "    AddKeysToAgent yes\n"
-				if localOS == "macos" {
-					agentConfig += "    IgnoreUnknown UseKeychain\n    UseKeychain yes\n"
-				}
-			}
-			config := fmt.Sprintf("Host %s\n    HostName %s\n    User \"%s\"\n    Port %d\n    IdentityFile \"%s\"\n%s    IdentitiesOnly yes\n", host.Alias, host.Hostname, configUser, host.Port, configPath, agentConfig)
-			local := clientSetup(host, config, localOS)
-			if options.IdentityFile != "" {
-				local.Instructions += "\nIdentityFile is the path you supplied for this terminal. Ensure it refers to the matching private key; SSH KeyFlow has not checked that path or copied a key."
-			}
-			if keyProtection == undetermined {
-				// The config step can be copied alone, so it carries the notice too.
-				local.Instructions += "\n" + undeterminedNotice(reason)
-			} else {
-				reason = ""
-			}
-			guide.Steps = append(guide.Steps, local)
-			if keyProtection != unprotected {
-				guide.Steps = append(guide.Steps, agentSetup(localOS, path, reason))
-			}
-			guide.Steps = append(guide.Steps, GuideStep{
-				Title:        fmt.Sprintf("LOCAL terminal — %s — connect (POSIX shell / PowerShell)", localOS),
-				Instructions: "Run in the selected local terminal after completing the destination step and local config step. This opens an SSH connection; SSH KeyFlow does not run it or verify success.",
-				Script:       fmt.Sprintf("ssh %s\n", host.Alias),
-			})
+			reason = ""
 		}
+		if !pinned && pinning.steps {
+			guide.Steps = append(guide.Steps, hostKeyPrintStep(host), pinStep(host, localOS))
+		}
+		guide.Steps = append(guide.Steps, local)
+		if keyProtection != unprotected {
+			guide.Steps = append(guide.Steps, agentSetup(localOS, path, reason))
+		}
+		guide.Steps = append(guide.Steps, GuideStep{
+			Title:        fmt.Sprintf("LOCAL terminal — %s — connect (POSIX shell / PowerShell)", localOS),
+			Instructions: "Run in the selected local terminal after completing the destination step and local config step. This opens an SSH connection; SSH KeyFlow does not run it or verify success.",
+			Script:       fmt.Sprintf("ssh %s\n", host.Alias),
+		})
 	}
 	for i := range guide.Steps {
 		guide.Steps[i].Instructions += fmt.Sprintf("\nKey: %s [%s]\nFingerprint: %s", key.Name, key.ID, key.Fingerprint)

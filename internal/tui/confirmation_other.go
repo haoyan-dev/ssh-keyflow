@@ -36,3 +36,23 @@ func readNativeConfirmation(ctx context.Context, input io.Reader) (bool, error) 
 	}
 	return yes, err
 }
+
+// cancellableInput lets Ctrl+C stop a typed paste. It is used only for
+// operations that start no native process, so no process shares this stdin.
+func cancellableInput(ctx context.Context, input io.Reader) (io.Reader, func(), error) {
+	if _, ok := input.(*os.File); !ok {
+		return input, func() {}, nil
+	}
+	reader, err := cancelreader.NewReader(input)
+	if err != nil {
+		return nil, nil, err
+	}
+	stopped := make(chan struct{})
+	stop := context.AfterFunc(ctx, func() { reader.Cancel(); close(stopped) })
+	return reader, func() {
+		if !stop() {
+			<-stopped
+		}
+		reader.Close()
+	}, nil
+}

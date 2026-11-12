@@ -47,7 +47,15 @@ func TestListJSONIsReadOnlyAndContainsOnlyRequestedRecords(test *testing.T) {
 		if category == "hosts" {
 			other = "associations"
 		}
-		if len(result) != 2 || string(result[other]) != "[]" {
+		fields := 2
+		if category == "hosts" {
+			// No pin file yet: nothing is pinned, and it is still known.
+			fields = 3
+			if string(result["host_key_pins"]) != "{}" {
+				test.Fatalf("missing pin status: %s", output)
+			}
+		}
+		if len(result) != fields || string(result[other]) != "[]" {
 			test.Fatalf("unexpected list schema: %s", output)
 		}
 		assertEmptyHome(test, home)

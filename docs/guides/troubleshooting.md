@@ -40,6 +40,12 @@ ssh-keyflow resume --id creation-example
 
 パスフレーズを繰り返し要求される場合は、ガイドのssh-agentステップを確認します。agentが終了すると読み込んだ鍵は保持されません。macOSのキーチェーン、Linuxのagent管理、WindowsサービスはOSごとの手順に従います。
 
+## Host key verification failed と表示される
+
+ホスト鍵を固定した接続先では、固定した鍵以外を拒否します。接続先を再インストールしたりホスト鍵を更新したりした場合は、接続先自身の端末で新しいホスト公開鍵を確認してから、実端末で `ssh-keyflow hosts pin --host <ID> --replace` を実行してください。理由が分からない変更は攻撃の可能性があるため、置き換えないでください。固定を解除した場合は、SSH configに加えた `HostKeyAlias`・`UserKnownHostsFile`・`StrictHostKeyChecking` の3行も削除します。`hosts list` で `unknown` と表示される場合は `~/.ssh/ssh-keyflow/known_hosts` を確認します。アプリは不正な固定ファイルを書き換えません。
+
+公開鍵のみの鍵で接続できない場合は、対応する秘密鍵がエージェントに読み込まれているか確認します。Windowsで `UNPROTECTED PRIVATE KEY FILE` の警告が出る場合も、エージェントに鍵がないことを示します。
+
 ## インストーラーが更新・削除を拒否する
 
 所有記録のない既存ファイルや、配置後に変更されたファイルは上書きしません。バイナリを手動で差し替えた場合も所有ハッシュが一致しなくなります。[旧インストーラーと手動保守](installation.md#v010のインストーラー利用者)を確認し、他のファイルやプロファイル全体を削除しないでください。

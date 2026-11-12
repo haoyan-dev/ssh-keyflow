@@ -190,8 +190,12 @@ func TestGuidePickerUsesFixedIDsAndCopyIsReadOnly(t *testing.T) {
 	if m.page != "document" || m.request.Key != "key-one" {
 		t.Fatal("guide did not bind key")
 	}
+	all := m.document
+	for _, step := range m.guideSteps {
+		all += step.Instructions
+	}
 	for _, want := range []string{"authorized_keys", "Manual removal", "Public-only", "not checked", "no success"} {
-		if !strings.Contains(m.document, want) {
+		if !strings.Contains(all, want) {
 			t.Fatalf("missing %s: %s", want, m.document)
 		}
 	}
@@ -523,7 +527,8 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 	saveFixture(t, m)
 	m = update(m, press(tea.KeyTab), press('g'), press(tea.KeyEnter), tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	// The fixture private key format cannot be checked, so the ssh-agent step is shown.
-	if len(m.guideSteps) != 4 || !strings.Contains(m.document, "Step 1/4: DESTINATION") || !strings.Contains(m.guideSteps[2].Title, "ssh-agent") {
+	// The destination is not pinned, so the print and pin steps come before the config.
+	if len(m.guideSteps) != 6 || !strings.Contains(m.document, "Step 1/6: DESTINATION") || !strings.HasSuffix(m.guideSteps[1].Title, "print host keys") || !strings.HasSuffix(m.guideSteps[2].Title, "pin host keys") || !strings.Contains(m.guideSteps[4].Title, "ssh-agent") {
 		t.Fatal("guide did not start at destination setup", m.document)
 	}
 	for _, want := range []string{"authorized_keys", "ssh-ed25519"} {
@@ -531,7 +536,7 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 			t.Fatalf("guide lost copyable %s", want)
 		}
 	}
-	for index := 0; index < 4; index++ {
+	for index := 0; index < 6; index++ {
 		if index > 0 {
 			m = update(m, press('n'))
 		}
@@ -539,7 +544,7 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 		if command == nil || fmt.Sprint(command()) != m.guideSteps[index].Script || m.copyText != m.guideSteps[index].Script {
 			t.Fatal("copy included instructions or the wrong step")
 		}
-		if !strings.Contains(m.document, fmt.Sprintf("Step %d/4", index+1)) {
+		if !strings.Contains(m.document, fmt.Sprintf("Step %d/6", index+1)) {
 			t.Fatal("step label missing")
 		}
 	}
@@ -547,7 +552,7 @@ func TestGuideWithPairIncludesCopyableSnippetAndConnectionCommand(t *testing.T) 
 		t.Fatal("connection step included another script", m.copyText)
 	}
 	m = update(m, press('b'), press('b'), press('?'), press(tea.KeyEscape))
-	if m.guideIndex != 1 || !strings.Contains(m.copyText, "Host laptop") {
+	if m.guideIndex != 3 || !strings.Contains(m.copyText, "Host laptop") {
 		t.Fatal("help/back lost selected step")
 	}
 	m = update(m, press(tea.KeyF5), press('n'))
