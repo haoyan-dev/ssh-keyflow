@@ -20,3 +20,5 @@ for pasted host key output, as in spec.md "Storage" and "Parsing pasted output".
 
 - 2026-11-12: Implemented in `internal/state/pins.go` and `internal/app/pins.go`
   with tests in `internal/state/pins_test.go` and `internal/app/pins_test.go`.
+
+- 2026-11-12: Integrated by PR #33 as `dc7c84d`; required CI and both reviews passed. Release tracked in `.scratch/release-v0.10.0/`.

@@ -40,7 +40,7 @@ ssh-keyflow keys create --name laptop
 ssh-keyflow keys import --name laptop --public /absolute/path/id_ed25519.pub --private /absolute/path/id_ed25519
 ```
 
-取り込みは元の鍵ファイルを移動・書き換えません。`--private` を省略すると公開鍵のみとなります。この場合、ガイドは公開鍵ファイルを `IdentityFile` にし、対応する秘密鍵を1Password等のエージェントから使います。
+取り込みは元の鍵ファイルを移動・書き換えません。`--private` を省略すると公開鍵のみとなります。この場合、ガイドは公開鍵ファイルを `IdentityFile` にし、対応する秘密鍵をSSHエージェント（FIDO鍵等）から使います。
 
 ```sh
 ssh-keyflow keys list

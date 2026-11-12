@@ -18,3 +18,5 @@ pinned status in destination details, as in spec.md "TUI".
 
 - 2026-11-12: `k` / `K` collided with list navigation, so the binding is
   `t` / `T`. Implemented in `internal/tui`; tests in `internal/tui/pins_test.go`.
+
+- 2026-11-12: Integrated by PR #33 as `dc7c84d`; required CI and both reviews passed. Release tracked in `.scratch/release-v0.10.0/`.

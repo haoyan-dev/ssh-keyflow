@@ -1,4 +1,4 @@
-Status: implemented and verified locally; awaiting human integration review
+Status: integrated by PR #33 (`dc7c84d`); release tracked in `.scratch/release-v0.10.0/`
 
 # Host key pinning
 
@@ -18,11 +18,10 @@ OpenSSH behaviour checks: `openssh-spike.md`. Work items: `issues/`.
 
 ## Positioning
 
-Password managers with SSH agents, such as 1Password, manage the client-side
-key but don't install keys on servers or handle host keys. SSH KeyFlow covers
-the remote side: placing the key, pinning the host keys, and the Host config
-that ties them together. Public-only keys whose private half lives in an agent
-or on a FIDO token are supported throughout.
+SSH KeyFlow covers the client key, placing it on the remote, pinning the host
+keys, and the Host config that ties them together. No third-party key manager
+is required or documented. Public-only keys whose private half an SSH agent
+provides (for example ssh-agent with a FIDO key) are supported throughout.
 
 ## Guide flow
 
@@ -153,8 +152,8 @@ Pinned destinations get these lines after `IdentitiesOnly yes`:
 
 Before this change the guide generated no Host snippet or connection command
 for public-only keys. They now get `IdentityFile "<key.public_path>"` with
-`IdentitiesOnly yes`, so OpenSSH asks the agent (1Password, ssh-agent with a
-FIDO key) for that exact key. The connection command is generated too.
+`IdentitiesOnly yes`, so OpenSSH asks the SSH agent (for example ssh-agent
+with a FIDO key) for that exact key. The connection command is generated too.
 
 - `AddKeysToAgent` and the ssh-agent autostart step (ADR 0005) aren't added,
   because the agent belongs to the user's key holder.
@@ -202,8 +201,7 @@ stored fingerprint before use.
 ## Verification
 
 1. OpenSSH behaviour: `openssh-spike.md` (Linux 9.6p1 and 9.2p1, Win32-OpenSSH
-   9.5p2, Git for Windows 10.2p1). macOS and the 1Password agent are
-   unverified.
+   9.5p2, Git for Windows 10.2p1). macOS is unverified.
 2. Unit tests cover parser cases, atomic writes keeping other destinations,
    identical re-pin without writing, refusal without `--replace`, `--yes`
    never replacing, malformed files stopping pin and unpin, unpinned snippets

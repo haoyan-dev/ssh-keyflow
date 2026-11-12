@@ -22,3 +22,5 @@ pinned ones, and the public-only key snippet, as in spec.md "Guide flow" and
 
 - 2026-11-12: Implemented in `internal/app/guide.go` and `internal/app/pins.go`;
   existing guide tests updated for the new steps.
+
+- 2026-11-12: Integrated by PR #33 as `dc7c84d`; required CI and both reviews passed. Release tracked in `.scratch/release-v0.10.0/`.
