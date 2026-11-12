@@ -147,3 +147,24 @@ func TestSavePinsRefusesUnsafeIDsAndSymlinks(t *testing.T) {
 		t.Fatal("followed symlinked pin file")
 	}
 }
+
+func TestSavePinsReplacesAtFirstEntryWhenSplitInTheMiddle(t *testing.T) {
+	home := pinHome(t)
+	a, b, c := hostKeyFixture("ssh-ed25519", 1), hostKeyFixture("ssh-ed25519", 2), hostKeyFixture("ssh-rsa", 3)
+	line := func(id string, key HostKey) string {
+		return "ssh-keyflow-" + id + " " + key.Type + " " + key.Blob + "\n"
+	}
+	if err := os.WriteFile(PinPath(home), []byte(line("h0", a)+line("h1", a)+line("h2", b)+line("h1", c)+line("h3", a)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := savePins(t, home, "h1", b, c); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(PinPath(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := line("h0", a) + line("h1", b) + line("h1", c) + line("h2", b) + line("h3", a); string(data) != want {
+		t.Fatalf("got %q want %q", data, want)
+	}
+}

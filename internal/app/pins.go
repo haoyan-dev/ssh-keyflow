@@ -35,7 +35,7 @@ func ParseHostKeys(text string) (HostKeyPaste, error) {
 	}
 	var paste HostKeyPaste
 	for _, line := range strings.Split(text, "\n") {
-		line = strings.TrimSpace(strings.TrimPrefix(line, "\ufeff"))
+		line = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "\ufeff"))
 		if line == "" {
 			continue
 		}
@@ -128,14 +128,15 @@ func HostKeyCommand(platform string) string {
 
 // readPaste reads byte by byte, so a later confirmation reads the next line.
 // It stops at end of input or at an empty line after content, and refuses
-// input past the paste limit even without a newline.
+// more than the paste limit of raw input, blank lines and missing newlines included.
 func readPaste(input io.Reader) (string, error) {
 	var text, line strings.Builder
 	buffer := make([]byte, 1)
+	total := 0
 	for {
 		count, err := input.Read(buffer)
 		if count > 0 {
-			if text.Len()+line.Len() >= maxHostKeyPaste {
+			if total++; total > maxHostKeyPaste {
 				return "", fmt.Errorf("%w: pasted host keys exceed %d KiB", ErrInvalidInput, maxHostKeyPaste>>10)
 			}
 			if buffer[0] != '\n' {
@@ -313,12 +314,13 @@ func hostKeyPinning(home string, host state.Host, localOS string) (guidePinning,
 		return guidePinning{instructions: fmt.Sprintf("Host keys: unknown (%v). No host-key pinning lines were generated.", err)}, false
 	}
 	keys := pins[host.ID]
-	if len(keys) == 0 {
-		return guidePinning{steps: true, instructions: "Host keys: not pinned. To connect without a first-connection host key prompt, complete the print and pin steps, then generate this guide again before copying this step."}, false
-	}
+	// Check the path first: pin steps are useless if the lines can't follow.
 	lines, notice := pinnedConfig(home, host.ID)
 	if notice != "" {
-		return guidePinning{instructions: notice}, true
+		return guidePinning{instructions: notice}, len(keys) > 0
+	}
+	if len(keys) == 0 {
+		return guidePinning{steps: true, instructions: "Host keys: not pinned. To connect without a first-connection host key prompt, complete the print and pin steps, then generate this guide again before copying this step."}, false
 	}
 	return guidePinning{lines: lines, instructions: fmt.Sprintf("Host keys: pinned (%d). ssh accepts only those keys for this Host and never asks to trust a new one. If this Host is already in your SSH config, add the HostKeyAlias, UserKnownHostsFile and StrictHostKeyChecking lines to it yourself. If the destination's host keys change, confirm them on the destination and run ssh-keyflow hosts pin --host %s --replace.", len(keys), host.ID)}, true
 }

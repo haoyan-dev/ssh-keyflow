@@ -108,8 +108,9 @@ func HostPins(entries []PinEntry, hostID string) []HostKey {
 	return keys
 }
 
-// SavePins replaces one destination's keys (none removes them) and keeps every
-// other line byte-for-byte. It writes atomically under the held state lock.
+// SavePins replaces one destination's keys (none removes them) in the position
+// of its first entry, and keeps other destinations' entries and order. Strict
+// decoding makes the rewritten lines identical to the stored ones. It writes atomically under the held state lock.
 func (store *LockedStore) SavePins(hostID string, keys []HostKey) error {
 	if !store.active {
 		return fmt.Errorf("operation lock is no longer held")

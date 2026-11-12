@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -352,5 +353,62 @@ func TestNativeOpenSSHParsesPinnedSnippet(t *testing.T) {
 	text := strings.ToLower(string(output))
 	if err != nil || !strings.Contains(text, "hostkeyalias ssh-keyflow-"+host.ID) || !strings.Contains(text, "stricthostkeychecking true") || !strings.Contains(text, "userknownhostsfile") {
 		t.Fatalf("native parser rejected pinned config: %v %s", err, output)
+	}
+}
+
+// repeated returns one byte forever.
+type repeated struct {
+	value byte
+	read  int
+}
+
+func (r *repeated) Read(buffer []byte) (int, error) {
+	r.read += len(buffer)
+	for index := range buffer {
+		buffer[index] = r.value
+	}
+	return len(buffer), nil
+}
+
+func pinFromInput(t *testing.T, home, hostID string, input io.Reader) error {
+	t.Helper()
+	request := app.Request{Operation: "pin-host", Host: hostID}
+	return app.Run(t.Context(), app.Options{Home: home, Input: input, Output: &bytes.Buffer{}, Request: &request, Confirm: func(string) (bool, error) { return true, nil }})
+}
+
+func TestPinHostPasteLimitCountsAllInput(t *testing.T) {
+	home, _, host := pinnedDestination(t, "linux", "")
+	blank := &repeated{value: '\n'}
+	if err := pinFromInput(t, home, host.ID, blank); !errors.Is(err, app.ErrInvalidInput) || blank.read > 64<<10+1 {
+		t.Fatal("endless blank lines", err, blank.read)
+	}
+	exact := hostKeyA + "\n" + strings.Repeat(" ", 64<<10-len(hostKeyA)-1)
+	if err := pinFromInput(t, home, host.ID, strings.NewReader(exact)); err != nil {
+		t.Fatal("refused exactly 64 KiB", err)
+	}
+	if err := pinFromInput(t, home, host.ID, strings.NewReader(exact+" ")); !errors.Is(err, app.ErrInvalidInput) {
+		t.Fatal("accepted 64 KiB + 1", err)
+	}
+}
+
+func TestParseHostKeysDropsBOMAfterLeadingWhitespace(t *testing.T) {
+	paste, err := app.ParseHostKeys(" \ufeff" + hostKeyA)
+	if err != nil || len(paste.Keys) != 1 || len(paste.Ignored) != 0 {
+		t.Fatal(paste, err)
+	}
+}
+
+func TestGuideOmitsPinStepsWhenPinFilePathIsNotLiteral(t *testing.T) {
+	home := filepath.Join(tempHome(t), "a${b}")
+	if err := os.MkdirAll(home, 0700); err != nil {
+		t.Fatal(err)
+	}
+	key := imported(t, home, "key", publicKey, true)
+	if _, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: destination("server", "linux", "")}); err != nil {
+		t.Fatal(err)
+	}
+	guide, err := app.PrepareGuideWithOptions(home, "server", key.ID, app.GuideOptions{LocalOS: app.LocalPlatform(), IdentityFile: "~/key"})
+	if err != nil || len(withoutPinSteps(guide.Steps)) != len(guide.Steps) || !strings.Contains(guide.Text, "cannot be written literally") {
+		t.Fatal("pin steps offered for an unusable pin file path", err, guide.Text)
 	}
 }
