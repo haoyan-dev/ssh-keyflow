@@ -38,7 +38,7 @@ func (operation *execution) Run() error {
 		options.Output = io.Discard
 	}
 	options.Output = io.MultiWriter(options.Output, &operation.output)
-	if operation.request.Operation == "pin-host" {
+	if operation.request.ReadsPaste() {
 		// The host key paste is read from the native terminal before confirmation.
 		input, release, err := cancellableInput(operation.ctx, options.Input)
 		if err != nil {

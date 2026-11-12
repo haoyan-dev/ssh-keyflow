@@ -300,10 +300,7 @@ func (m model) hostName(id string) string {
 func (m model) hostKeyStatus(hostID string) string {
 	pins, err := app.HostKeyPins(m.options.Home)
 	if err != nil {
-		return "unknown (review the pin file)"
+		return app.PinStatus(0, false) + " (review the pin file)"
 	}
-	if count := len(pins[hostID]); count > 0 {
-		return fmt.Sprintf("pinned (%d)", count)
-	}
-	return "not pinned"
+	return app.PinStatus(len(pins[hostID]), true)
 }

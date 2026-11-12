@@ -109,8 +109,10 @@ limited to 64 KiB. Exit codes follow the existing contract.
 - Removing a destination keeps its entries, matching the contract that removal
   changes nothing outside managed state and doesn't revoke access. If pins
   exist, the removal confirmation says to cancel and run `hosts unpin` first,
-  because a removed destination can't be unpinned. Archived destination IDs
-  are never reused, so orphaned entries are harmless.
+  because a removed destination can't be unpinned. If the pin file can't be
+  read, it says `Host key pins: unknown (<reason>)` and that removal doesn't
+  change the file. Archived destination IDs are never reused, so orphaned
+  entries are harmless.
 
 ## Parsing pasted output
 

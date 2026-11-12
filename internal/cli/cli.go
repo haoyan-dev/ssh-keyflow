@@ -220,13 +220,7 @@ func printRecords(output io.Writer, category string, view app.View, pins map[str
 	case "hosts":
 		fmt.Fprintln(table, "ID\tALIAS\tDESTINATION\tOS\tHOST KEYS")
 		for _, host := range view.State.Hosts {
-			status := "unknown"
-			if pins != nil {
-				status = "not pinned"
-				if count := len(pins[host.ID]); count > 0 {
-					status = fmt.Sprintf("pinned (%d)", count)
-				}
-			}
+			status := app.PinStatus(len(pins[host.ID]), pins != nil)
 			fmt.Fprintf(table, "%s\t%s\t%s@%s:%d\t%s\t%s\n", host.ID, host.Alias, host.User, host.Hostname, host.Port, host.OS, status)
 		}
 		for _, association := range view.State.Associations {

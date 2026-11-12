@@ -84,7 +84,7 @@ func TestSavePinsKeepsOtherDestinationsAndRemovesOnlyOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	entries, err := LoadPins(home)
-	if err != nil || len(entries) != 1 || entries[0].HostID != "h2" || HostPins(entries, "h1") != nil {
+	if err != nil || len(entries) != 1 || entries[0].HostID != "h2" {
 		t.Fatal(entries, err)
 	}
 }

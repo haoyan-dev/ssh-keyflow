@@ -1,11 +1,11 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
 
 	"ssh-keyflow/internal/state"
 )
@@ -140,14 +140,13 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 		path = ""
 		notice = "Public-only key: the saved public key path is for this computer. Supply identity-file, the matching key path in the selected local terminal, to get an SSH config step and connection command.\n"
 	}
-	for _, character := range path {
-		if unicode.IsControl(character) {
-			return SetupGuide{}, fmt.Errorf("identity path contains control characters; cannot prepare a snippet")
-		}
+	literal := literalConfigPath(path)
+	if errors.Is(literal, errPathControl) {
+		return SetupGuide{}, fmt.Errorf("identity path contains control characters; cannot prepare a snippet")
 	}
 	switch {
 	case path == "":
-	case strings.Contains(path, "${"):
+	case errors.Is(literal, errPathExpands):
 		notice = "OpenSSH expands ${...} environment variables in identity paths. This identity path cannot be represented literally here; no IdentityFile snippet or connection command was generated. Select a key path without ${...} yourself.\n"
 	default:
 		// SSH expands percent tokens in IdentityFile even inside quotes.
@@ -168,7 +167,7 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 				agentConfig += "    IgnoreUnknown UseKeychain\n    UseKeychain yes\n"
 			}
 		}
-		pinning, pinned := hostKeyPinning(home, host, localOS)
+		pinning := hostKeyPinning(home, host, localOS)
 		config := fmt.Sprintf("Host %s\n    HostName %s\n    User \"%s\"\n    Port %d\n    IdentityFile \"%s\"\n%s    IdentitiesOnly yes\n%s", host.Alias, host.Hostname, configUser, host.Port, configPath, agentConfig, pinning.lines)
 		local := clientSetup(host, config, localOS)
 		if publicOnly {
@@ -185,7 +184,7 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 		} else {
 			reason = ""
 		}
-		if !pinned && pinning.steps {
+		if pinning.needsPinSteps {
 			guide.Steps = append(guide.Steps, hostKeyPrintStep(host), pinStep(host, localOS))
 		}
 		guide.Steps = append(guide.Steps, local)

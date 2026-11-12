@@ -81,7 +81,20 @@ func HostKeyFingerprint(key state.HostKey) string {
 	return "SHA256:" + base64.RawStdEncoding.EncodeToString(digest[:])
 }
 
-// HostKeyPins returns pinned keys by destination ID. It never repairs the file.
+// PinStatus is the pin status wording shared by the guide, list and TUI.
+// known is false when the pin file could not be read.
+func PinStatus(count int, known bool) string {
+	switch {
+	case !known:
+		return "unknown"
+	case count > 0:
+		return fmt.Sprintf("pinned (%d)", count)
+	}
+	return "not pinned"
+}
+
+// HostKeyPins returns pinned keys by destination ID, in file order. It never
+// repairs the file.
 func HostKeyPins(home string) (map[string][]state.HostKey, error) {
 	entries, err := state.LoadPins(home)
 	if err != nil {
@@ -177,7 +190,7 @@ func pinHost(options Options) error {
 	host := document.Hosts[index]
 	options.target = ReportTarget{HostID: host.ID}
 	text := request.HostKeys
-	if text == "" {
+	if request.ReadsPaste() {
 		elevated := ""
 		if host.OS == "windows" {
 			elevated = " in PowerShell opened with Run as Administrator"
@@ -212,11 +225,11 @@ func pinHost(options Options) error {
 		if _, err := destinationIndex(document, host.ID); err != nil {
 			return err
 		}
-		entries, err := state.LoadPins(options.Home)
+		pins, err := HostKeyPins(options.Home)
 		if err != nil {
 			return err
 		}
-		existing := state.HostPins(entries, host.ID)
+		existing := pins[host.ID]
 		if sameKeys(existing, paste.Keys) {
 			_, err := fmt.Fprintln(options.Output, "These host keys are already pinned; no changes.")
 			return err
@@ -269,11 +282,11 @@ func unpinHost(options Options) error {
 		if _, err := destinationIndex(document, host.ID); err != nil {
 			return err
 		}
-		entries, err := state.LoadPins(options.Home)
+		pins, err := HostKeyPins(options.Home)
 		if err != nil {
 			return err
 		}
-		existing := state.HostPins(entries, host.ID)
+		existing := pins[host.ID]
 		if len(existing) == 0 {
 			_, err := fmt.Fprintf(options.Output, "No host keys are pinned for %s; no changes.\n", host.Alias)
 			return err
@@ -299,45 +312,60 @@ func unpinHost(options Options) error {
 
 type guidePinning struct {
 	lines, instructions string
-	// steps adds the print and pin steps before the SSH config step.
-	steps bool
+	// needsPinSteps adds the print and pin steps before the SSH config step.
+	needsPinSteps bool
 }
 
 // hostKeyPinning reads the pin file only for this computer's terminal, since the
 // file path and the pin command belong to it. It never fails the guide.
-func hostKeyPinning(home string, host state.Host, localOS string) (guidePinning, bool) {
+func hostKeyPinning(home string, host state.Host, localOS string) guidePinning {
 	if localOS != LocalPlatform() {
-		return guidePinning{}, false
+		return guidePinning{}
 	}
 	pins, err := HostKeyPins(home)
 	if err != nil {
-		return guidePinning{instructions: fmt.Sprintf("Host keys: unknown (%v). No host-key pinning lines were generated.", err)}, false
+		return guidePinning{instructions: fmt.Sprintf("Host keys: unknown (%v). No host-key pinning lines were generated.", err)}
 	}
 	keys := pins[host.ID]
 	// Check the path first: pin steps are useless if the lines can't follow.
 	lines, notice := pinnedConfig(home, host.ID)
 	if notice != "" {
-		return guidePinning{instructions: notice}, len(keys) > 0
+		return guidePinning{instructions: notice}
 	}
 	if len(keys) == 0 {
-		return guidePinning{steps: true, instructions: "Host keys: not pinned. To connect without a first-connection host key prompt, complete the print and pin steps, then generate this guide again before copying this step."}, false
+		return guidePinning{needsPinSteps: true, instructions: "Host keys: " + PinStatus(0, true) + ". To connect without a first-connection host key prompt, complete the print and pin steps, then generate this guide again before copying this step."}
 	}
-	return guidePinning{lines: lines, instructions: fmt.Sprintf("Host keys: pinned (%d). ssh accepts only those keys for this Host and never asks to trust a new one. If this Host is already in your SSH config, add the HostKeyAlias, UserKnownHostsFile and StrictHostKeyChecking lines to it yourself. If the destination's host keys change, confirm them on the destination and run ssh-keyflow hosts pin --host %s --replace.", len(keys), host.ID)}, true
+	return guidePinning{lines: lines, instructions: fmt.Sprintf("Host keys: %s. ssh accepts only those keys for this Host and never asks to trust a new one. If this Host is already in your SSH config, add the HostKeyAlias, UserKnownHostsFile and StrictHostKeyChecking lines to it yourself. If the destination's host keys change, confirm them on the destination and run ssh-keyflow hosts pin --host %s --replace.", PinStatus(len(keys), true), host.ID)}
 }
 
 // pinnedConfig returns the Host lines for a pinned destination, or a notice when
 // the pin file path cannot be written literally into SSH config.
 func pinnedConfig(home, hostID string) (string, string) {
 	path := filepath.ToSlash(state.PinPath(home))
-	for _, character := range path {
-		if unicode.IsControl(character) {
-			return "", "The host key pin file path contains control characters; no pinning lines were generated.\n"
-		}
-	}
-	if strings.Contains(path, "${") {
+	switch literal := literalConfigPath(path); {
+	case errors.Is(literal, errPathControl):
+		return "", "The host key pin file path contains control characters; no pinning lines were generated.\n"
+	case errors.Is(literal, errPathExpands):
 		return "", "OpenSSH expands ${...} in UserKnownHostsFile. The pin file path cannot be written literally; no pinning lines were generated.\n"
 	}
 	return fmt.Sprintf("    HostKeyAlias %s\n    UserKnownHostsFile \"%s\"\n    StrictHostKeyChecking yes\n", state.PinAlias(hostID), quoteConfigPath(path)), ""
+}
+
+var (
+	errPathControl = errors.New("path contains control characters")
+	errPathExpands = errors.New("OpenSSH expands ${...} in the path")
+)
+
+// literalConfigPath reports why a path can't be written literally into SSH
+// config, or nil when it can.
+func literalConfigPath(path string) error {
+	if strings.ContainsFunc(path, unicode.IsControl) {
+		return errPathControl
+	}
+	if strings.Contains(path, "${") {
+		return errPathExpands
+	}
+	return nil
 }
 
 // quoteConfigPath escapes a path for a double-quoted SSH config value,

@@ -21,6 +21,13 @@ type Request struct {
 	// Replace allows pin-host to replace different, already pinned keys.
 	Replace bool
 }
+
+// ReadsPaste reports whether running the request reads pasted host keys from
+// Input before its confirmation.
+func (request Request) ReadsPaste() bool {
+	return request.Operation == "pin-host" && request.HostKeys == ""
+}
+
 type Destination = state.Host
 
 type View struct {

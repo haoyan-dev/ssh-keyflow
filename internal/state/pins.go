@@ -97,20 +97,10 @@ func (key HostKey) Validate() error {
 	return nil
 }
 
-// HostPins returns the keys pinned for one destination, in file order.
-func HostPins(entries []PinEntry, hostID string) []HostKey {
-	var keys []HostKey
-	for _, entry := range entries {
-		if entry.HostID == hostID {
-			keys = append(keys, entry.Key)
-		}
-	}
-	return keys
-}
-
 // SavePins replaces one destination's keys (none removes them) in the position
 // of its first entry, and keeps other destinations' entries and order. Strict
-// decoding makes the rewritten lines identical to the stored ones. It writes atomically under the held state lock.
+// decoding makes the rewritten lines identical to the stored ones. It writes
+// atomically under the held state lock.
 func (store *LockedStore) SavePins(hostID string, keys []HostKey) error {
 	if !store.active {
 		return fmt.Errorf("operation lock is no longer held")
@@ -118,36 +108,33 @@ func (store *LockedStore) SavePins(hostID string, keys []HostKey) error {
 	if !clean(hostID) || strings.ContainsAny(hostID, " 	") {
 		return fmt.Errorf("invalid destination ID %q for host key pins", hostID)
 	}
+	for _, key := range keys {
+		if err := key.Validate(); err != nil {
+			return err
+		}
+	}
 	entries, err := LoadPins(store.home)
 	if err != nil {
 		return err
 	}
 	var lines strings.Builder
 	replaced := false
-	write := func(id string, key HostKey) {
-		fmt.Fprintf(&lines, "%s %s %s\n", PinAlias(id), key.Type, key.Blob)
+	write := func(id string, keys ...HostKey) {
+		for _, key := range keys {
+			fmt.Fprintf(&lines, "%s %s %s\n", PinAlias(id), key.Type, key.Blob)
+		}
 	}
 	for _, entry := range entries {
-		if entry.HostID != hostID {
+		switch {
+		case entry.HostID != hostID:
 			write(entry.HostID, entry.Key)
-			continue
-		}
-		if !replaced {
-			for _, key := range keys {
-				write(hostID, key)
-			}
+		case !replaced:
+			write(hostID, keys...)
 			replaced = true
 		}
 	}
 	if !replaced {
-		for _, key := range keys {
-			write(hostID, key)
-		}
-	}
-	for _, key := range keys {
-		if err := key.Validate(); err != nil {
-			return err
-		}
+		write(hostID, keys...)
 	}
 	if _, err := decodePins(PinPath(store.home), []byte(lines.String())); err != nil {
 		return err
