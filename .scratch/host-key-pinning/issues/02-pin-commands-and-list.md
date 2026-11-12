@@ -23,3 +23,5 @@ status in `hosts list`, as in spec.md "CLI".
   and `internal/cli/cli.go`; tests in `internal/cli/pins_test.go`. `unpin
   --yes` was dropped during docs review to keep the no-unconditional-approval
   contract.
+
+- 2026-11-12: Integrated by PR #33 as `dc7c84d`; required CI and both reviews passed. Release tracked in `.scratch/release-v0.10.0/`.

@@ -1,4 +1,4 @@
-Status: implemented and verified locally; awaiting human integration review
+Status: integrated by PR #33 (`dc7c84d`); release tracked in `.scratch/release-v0.10.0/`
 
 # Host key pinning
 

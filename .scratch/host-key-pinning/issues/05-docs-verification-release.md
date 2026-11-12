@@ -18,3 +18,5 @@ glossary, record verification, then release v0.10.0 (MINOR).
 
 - 2026-11-12: Documentation and verification done on `feat/host-key-pinning`.
   Release not started: awaiting integration and release authorization.
+
+- 2026-11-12: Integrated by PR #33 as `dc7c84d`; required CI and both reviews passed. Release tracked in `.scratch/release-v0.10.0/`.
