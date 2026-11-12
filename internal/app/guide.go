@@ -155,7 +155,7 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 		// A path supplied for another terminal is never inspected (ADR 0003).
 		keyProtection, reason := undetermined, "the private key path was supplied for this terminal and is not inspected"
 		if publicOnly {
-			// The agent belongs to the key holder, such as 1Password or a FIDO token.
+			// The agent belongs to the key holder, such as a FIDO token.
 			keyProtection, reason = unprotected, ""
 		} else if options.IdentityFile == "" {
 			keyProtection, reason = passphraseProtection(key.PrivatePath)
@@ -171,7 +171,7 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 		config := fmt.Sprintf("Host %s\n    HostName %s\n    User \"%s\"\n    Port %d\n    IdentityFile \"%s\"\n%s    IdentitiesOnly yes\n%s", host.Alias, host.Hostname, configUser, host.Port, configPath, agentConfig, pinning.lines)
 		local := clientSetup(host, config, localOS)
 		if publicOnly {
-			local.Instructions += "\nPublic-only key: IdentityFile names the public key so ssh uses the matching private key from your SSH agent (for example 1Password, or ssh-agent with a FIDO key). That key must be loaded in the agent. On Windows, an \"UNPROTECTED PRIVATE KEY FILE\" or \"bad permissions\" warning means it was not."
+			local.Instructions += "\nPublic-only key: IdentityFile names the public key so ssh uses the matching private key from your SSH agent (for example ssh-agent with a FIDO key). That key must be loaded in the agent. On Windows, an \"UNPROTECTED PRIVATE KEY FILE\" or \"bad permissions\" warning means it was not."
 		} else if options.IdentityFile != "" {
 			local.Instructions += "\nIdentityFile is the path you supplied for this terminal. Ensure it refers to the matching private key; SSH KeyFlow has not checked that path or copied a key."
 		}
