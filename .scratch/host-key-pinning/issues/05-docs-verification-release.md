@@ -10,7 +10,7 @@ glossary, record verification, then release v0.10.0 (MINOR).
 
 - ADR 0006 accepted and listed in `docs/adr/README.md`.
 - `docs/verification.md` records the commit, environments, spike results and
-  limits (macOS and the 1Password agent unverified).
+  limits (macOS unverified).
 - Release follows AGENTS.md "Tags and releases" and needs explicit
   authorization after the PR is integrated.
 

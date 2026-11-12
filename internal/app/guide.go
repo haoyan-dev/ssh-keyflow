@@ -155,7 +155,7 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 		// A path supplied for another terminal is never inspected (ADR 0003).
 		keyProtection, reason := undetermined, "the private key path was supplied for this terminal and is not inspected"
 		if publicOnly {
-			// The agent belongs to the key holder, such as a FIDO token.
+			// The SSH agent holds the private key (for example a FIDO key), so no agent setup step is added.
 			keyProtection, reason = unprotected, ""
 		} else if options.IdentityFile == "" {
 			keyProtection, reason = passphraseProtection(key.PrivatePath)

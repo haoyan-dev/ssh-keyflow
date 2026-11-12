@@ -20,8 +20,8 @@ OpenSSH behaviour checks: `openssh-spike.md`. Work items: `issues/`.
 
 SSH KeyFlow covers the client key, placing it on the remote, pinning the host
 keys, and the Host config that ties them together. No third-party key manager
-is required or documented. Public-only keys whose private half lives in an SSH
-agent, such as a FIDO token, are supported throughout.
+is required or documented. Public-only keys whose private half an SSH agent
+provides (for example ssh-agent with a FIDO key) are supported throughout.
 
 ## Guide flow
 
