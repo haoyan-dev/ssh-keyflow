@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: none
 
 # 01: Prepare and integrate v0.10.0
@@ -14,3 +14,4 @@ Reuse installer/matrix evidence only when the inputs and conditions support it.
   locally and remotely.
 - 2026-11-12: Reviews fixed in `0ff418f`; all local checks reran on that clean
   tree and it is the new tested source.
+- 2026-11-12: Preparation integrated by PR #34 as `0af2631`; required CI passed.
