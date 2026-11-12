@@ -101,7 +101,7 @@
   "version_evidence": "All six binaries contain the tag once; workflow injects main.version; runtime version checked on Windows amd64. Linker flags are absent from build metadata.",
   "native_smoke": "Windows amd64 version, empty keys/hosts JSON including host_key_pins, guide/pin/unpin/tui help, zero home writes",
   "powershell_version": "7.6.10",
-  "installer_smoke": "PowerShell 7 production latest install with -AddToPath, exact-version update, uninstall; isolated install dir and temporary profile; installed binary/notice match the release; profile restored byte-identical; persistent user PATH unchanged",
+  "installer_smoke": "PowerShell 7 production latest install with -AddToPath, exact-version update, uninstall; isolated install dir, temporary profile and home; installed binary/notice match the release; profile restored byte-identical; seeded SSH config/test key/state/pin file byte-identical; persistent user PATH unchanged; temporary root removed",
   "limits": "No native execution on other five targets, live SSH, live paste or TUI session, macOS OpenSSH, or POSIX installer production run",
   "tag_object": "a21029e612fb72e2fe5a69f08af281a44e6d46b5"
 }

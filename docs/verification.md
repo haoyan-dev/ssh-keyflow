@@ -2013,7 +2013,9 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   Only preparation notes and records differ from tested source
   `0ff418f5873b08f956b71484838db95841333ed8`; unchanged-input evidence was
   reused, documentation links reran on the clean candidate, and main CI
-  43218334188 passed on the candidate.
+  43218334188 passed on the candidate. The tag annotation and published notes
+  cite CI runs 43216226895 and 43216236615, which passed on the tested source
+  `0ff418f`; the runs above cover the preparation head, which adds only records.
 - Annotated tag object `a21029e612fb72e2fe5a69f08af281a44e6d46b5` is identical
   locally and remotely and peels to the candidate. Only `refs/tags/v0.10.0` was
   pushed. The annotation records the version rationale, tested source, final
@@ -2027,7 +2029,9 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   `releases/latest`. MINOR rationale: compatible host key pinning and
   public-only key snippets since v0.9.2.
 - Replaced the generated notes with the prepared notes plus the final source and
-  evidence comparison. All seven asset IDs, digests and sizes were unchanged.
+  evidence comparison. The live release body matches the prepared text exactly
+  apart from a trailing newline. All seven asset IDs, digests and sizes were
+  unchanged.
 - Downloaded all seven assets into a new empty directory. SHA256SUMS has exactly
   six unique archive entries in SHA256, two-space, LF format; every archive hash
   and all seven GitHub asset digests and sizes match. Asset identities, binary
@@ -2043,16 +2047,21 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   `hosts list --json` (including empty `host_key_pins`) and the `hosts guide`,
   `hosts pin`, `hosts unpin` and `tui` help passed with zero home writes.
   Audit tools: Windows amd64, Go 1.26.2, Python 3.12.10.
-- Source-hosted `install.sh` and `install.ps1` fetched from main match the
-  candidate exactly and are byte-identical to v0.9.2's. PowerShell 7.6.10
+- Source-hosted `install.sh` and `install.ps1` fetched from main match commit
+  `0af26316c9589203402c46fa6f4f97871f46c414` exactly and are byte-identical to
+  v0.9.2's; their SHA256 values are in the JSON evidence. PowerShell 7.6.10
   production installer passed latest install with `-AddToPath`, exact v0.10.0
-  update and uninstall with an isolated install directory and temporary
-  profile. Installed binary and notice match the release; the seeded profile
-  was restored byte for byte and the persistent user PATH was unchanged.
-- Audit correction: the first installer smoke script looked for the install
-  path as plain text in the profile, but the stanza stores it base64-encoded.
-  The corrected check matches the stanza marker and the encoded path. No tag or
-  asset was changed.
+  update and uninstall with an isolated install directory, temporary profile
+  and temporary home. Installed binary and notice match the release; the
+  seeded profile was restored byte for byte; the seeded SSH config, test public
+  key, state and pin file (four files) stayed byte-identical; the persistent
+  user PATH was unchanged. The temporary root was removed afterwards.
+- Audit corrections: the first installer smoke script looked for the install
+  path as plain text in the profile, but the stanza stores it base64-encoded;
+  the corrected check matches the stanza marker and the encoded path. A later
+  run that added the seeded home failed in the script's own seeding step before
+  invoking the installer and was rerun after the fix. No tag or asset was
+  changed.
 - Standards self-review: preparation integration preceded candidate and tag
   selection; tag, release and binary metadata agree; asset identities stayed
   immutable; installer verification names its main commit. No unresolved
