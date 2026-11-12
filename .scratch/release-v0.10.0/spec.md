@@ -1,6 +1,7 @@
 # Release v0.10.0
 
 Status: ready-for-human
+Published: v0.10.0 at `0af26316c9589203402c46fa6f4f97871f46c414`; audit PR pending
 Previous release: v0.9.2
 Tested source: `0ff418f5873b08f956b71484838db95841333ed8`
 

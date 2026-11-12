@@ -1,0 +1,107 @@
+{
+  "tag": "v0.10.0",
+  "candidate": "0af26316c9589203402c46fa6f4f97871f46c414",
+  "release_url": "https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.10.0",
+  "release_id": 442934333,
+  "workflow": {
+    "conclusion": "success",
+    "databaseId": 43219416150,
+    "headBranch": "v0.10.0",
+    "headSha": "0af26316c9589203402c46fa6f4f97871f46c414",
+    "status": "completed"
+  },
+  "latest": "v0.10.0",
+  "assets": [
+    {
+      "id": 739454019,
+      "name": "SHA256SUMS",
+      "digest": "sha256:2bd6c21f3c4aa0e7462d859ef9627e11ea7e1254b3b3c662b5970d6712a768ab",
+      "size": 630
+    },
+    {
+      "id": 739454017,
+      "name": "ssh-keyflow_v0.10.0_darwin_amd64.tar.gz",
+      "digest": "sha256:b62335e30d0ad844b62a948e59bf1989560896248c56bdd84cd3c4e63725784d",
+      "size": 2729396
+    },
+    {
+      "id": 739454022,
+      "name": "ssh-keyflow_v0.10.0_darwin_arm64.tar.gz",
+      "digest": "sha256:b91298262c994213ba86095797d23d2d025d16e60995e3f66bcaa56cda77b8f8",
+      "size": 2531321
+    },
+    {
+      "id": 739454021,
+      "name": "ssh-keyflow_v0.10.0_linux_amd64.tar.gz",
+      "digest": "sha256:5390c1169bef5a8b5d8e261abbb56f4f9c34b83cd11b69e7e3ea6870fa462203",
+      "size": 2692665
+    },
+    {
+      "id": 739454018,
+      "name": "ssh-keyflow_v0.10.0_linux_arm64.tar.gz",
+      "digest": "sha256:a79b2b4ba75e6913d983dd461d89a41f38b06c1c8791118bbcfd6547f8c21637",
+      "size": 2439343
+    },
+    {
+      "id": 739454052,
+      "name": "ssh-keyflow_v0.10.0_windows_amd64.zip",
+      "digest": "sha256:6b84f41bde3bf8ef0b21890b352c49d5f82ac3426e0faded059efbeb13c128de",
+      "size": 2805224
+    },
+    {
+      "id": 739454054,
+      "name": "ssh-keyflow_v0.10.0_windows_arm64.zip",
+      "digest": "sha256:06ca45541f88033e8d8dca9af8f6fa5aabfc42723ec663e0afc065638dcb7287",
+      "size": 2507150
+    }
+  ],
+  "binaries": [
+    {
+      "target": "darwin_amd64",
+      "sha256": "b98afbf1a2a93ac6a29eaa7a5aad2f8630ae31a4ccd3b6104d6700f3cdaaa641",
+      "embedded_version_tag": "v0.10.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "darwin_arm64",
+      "sha256": "94f60dda52376e90ec051c333e4de3f44098e7a3101c84f78b39188fc0e3a747",
+      "embedded_version_tag": "v0.10.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "linux_amd64",
+      "sha256": "d7f883c052b4d557f3c984a1d1f32e0e1edcc46169971c12ea8c88bd51dee160",
+      "embedded_version_tag": "v0.10.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "linux_arm64",
+      "sha256": "a59cc35e18477760324a17aa8c1403b5cb018140910d0e890fca9634ccf035ec",
+      "embedded_version_tag": "v0.10.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "windows_amd64",
+      "sha256": "09138c7a56c192900d74af4c71623a5354ec7cdf28a8e7e06c95d39fa1b7c7c3",
+      "embedded_version_tag": "v0.10.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "windows_arm64",
+      "sha256": "7fe0833d240b9ad7ea64ecbee2ed5b3b23f61f66cdb4349085cdeac6aaddaea3",
+      "embedded_version_tag": "v0.10.0",
+      "go_toolchain": "go1.26.0"
+    }
+  ],
+  "installer_main": "0af26316c9589203402c46fa6f4f97871f46c414",
+  "installer_sha256": {
+    "install.sh": "b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f",
+    "install.ps1": "88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f"
+  },
+  "version_evidence": "All six binaries contain the tag once; workflow injects main.version; runtime version checked on Windows amd64. Linker flags are absent from build metadata.",
+  "native_smoke": "Windows amd64 version, empty keys/hosts JSON including host_key_pins, guide/pin/unpin/tui help, zero home writes",
+  "powershell_version": "7.6.10",
+  "installer_smoke": "PowerShell 7 production latest install with -AddToPath, exact-version update, uninstall; isolated install dir and temporary profile; installed binary/notice match the release; profile restored byte-identical; persistent user PATH unchanged",
+  "limits": "No native execution on other five targets, live SSH, live paste or TUI session, macOS OpenSSH, or POSIX installer production run",
+  "tag_object": "a21029e612fb72e2fe5a69f08af281a44e6d46b5"
+}

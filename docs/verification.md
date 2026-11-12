@@ -2003,3 +2003,65 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   and the TUI were covered by tests with scripted input, not a live session.
   Crossbuilds are not native smoke tests. No state migration is introduced.
   Published-asset checks follow publication in a separate audit PR.
+
+## 2026-11-12: v0.10.0 publication audit
+
+- [Preparation PR #34](https://github.com/haoyan-dev/ssh-keyflow/pull/34) merged before tagging.
+  Final candidate and tagged source: `0af26316c9589203402c46fa6f4f97871f46c414`.
+  Its tree equals preparation head `b4c4162da4578e36c6d7226c197b406c0873d909`,
+  whose branch and PR CI runs 43217259581 and 43217272321 passed all checks.
+  Only preparation notes and records differ from tested source
+  `0ff418f5873b08f956b71484838db95841333ed8`; unchanged-input evidence was
+  reused, documentation links reran on the clean candidate, and main CI
+  43218334188 passed on the candidate.
+- Annotated tag object `a21029e612fb72e2fe5a69f08af281a44e6d46b5` is identical
+  locally and remotely and peels to the candidate. Only `refs/tags/v0.10.0` was
+  pushed. The annotation records the version rationale, tested source, final
+  source and comparison.
+- [Release workflow 43219416150](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/43219416150)
+  passed verification, documentation checks, the six-target crossbuild and
+  publication on the exact candidate, building the release binaries with the
+  v0.10.0 version injection.
+- [v0.10.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.10.0) is
+  published, stable, not draft or prerelease, and returned by
+  `releases/latest`. MINOR rationale: compatible host key pinning and
+  public-only key snippets since v0.9.2.
+- Replaced the generated notes with the prepared notes plus the final source and
+  evidence comparison. All seven asset IDs, digests and sizes were unchanged.
+- Downloaded all seven assets into a new empty directory. SHA256SUMS has exactly
+  six unique archive entries in SHA256, two-space, LF format; every archive hash
+  and all seven GitHub asset digests and sizes match. Asset identities, binary
+  hashes and installer evidence are in
+  [published-assets.json](../.scratch/release-v0.10.0/published-assets.json).
+- Each archive contains only its executable and `THIRD_PARTY_NOTICES.txt`. Tar
+  members are regular files with modes 0755/0644 and uid/gid 0; zip members are
+  regular files. Every notice matches the tagged source byte for byte. All six
+  binaries have the expected GOOS/GOARCH, CGO_ENABLED=0, trimpath, no VCS
+  stamping, Go 1.26.0 build metadata and one embedded v0.10.0 tag string.
+- Windows amd64 published executable with an empty temporary home:
+  `--version` printed `SSH KeyFlow v0.10.0`; `keys list --json` and
+  `hosts list --json` (including empty `host_key_pins`) and the `hosts guide`,
+  `hosts pin`, `hosts unpin` and `tui` help passed with zero home writes.
+  Audit tools: Windows amd64, Go 1.26.2, Python 3.12.10.
+- Source-hosted `install.sh` and `install.ps1` fetched from main match the
+  candidate exactly and are byte-identical to v0.9.2's. PowerShell 7.6.10
+  production installer passed latest install with `-AddToPath`, exact v0.10.0
+  update and uninstall with an isolated install directory and temporary
+  profile. Installed binary and notice match the release; the seeded profile
+  was restored byte for byte and the persistent user PATH was unchanged.
+- Audit correction: the first installer smoke script looked for the install
+  path as plain text in the profile, but the stanza stores it base64-encoded.
+  The corrected check matches the stanza marker and the encoded path. No tag or
+  asset was changed.
+- Standards self-review: preparation integration preceded candidate and tag
+  selection; tag, release and binary metadata agree; asset identities stayed
+  immutable; installer verification names its main commit. No unresolved
+  standards finding.
+- Specification self-review: the exact asset set, hashes, archive metadata,
+  native version, installer behaviour, stable/latest status, prepared notes and
+  limits are recorded. Publication is complete; this record awaits its PR.
+- Limits: no native execution on the other five targets, POSIX installer
+  production run, live SSH server, macOS OpenSSH, or live paste and TUI session.
+  Crossbuild and embedded-tag evidence are not all-target runtime verification.
+  This audit changes records only; it needs no new version and does not move
+  the immutable tag.
