@@ -1873,14 +1873,19 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
 
 ## 2026-11-12: host key pinning
 
-- Source commit: `06ad3efb2b62979c4cc4c968719e3d92bffb5876` on
-  `feat/host-key-pinning` (feature `62a7df7`, review fixes `06ad3ef`). Base
+- Source commit: `c5e489a112456bf0564a21d6e05faf759598d711` on
+  `feat/host-key-pinning` (feature `62a7df7`, review fixes `06ad3ef`, Linux
+  test fix `9f38bb1`, second review fixes `c5e489a`). Base
   `main` `cdbc0ae7a9eda8b0bbb508e0cdced4d3f20c42ad`. Specification:
   `.scratch/host-key-pinning/spec.md`; issues 01–05; ADR 0006 (accepted).
 - Environment: Windows amd64, Go 1.26.2, Git for Windows sh with OpenSSH
   10.2p1, PowerShell 7.6.10, Python 3.12.10. `go test ./... -count=1`,
   `go vet ./...` (also `GOOS=linux` and `GOOS=darwin`), gofmt on changed files,
   `scripts/check_docs.py` and `scripts/test_docs.py` passed on the commit above.
+  GitHub Actions on `9f38bb1` passed `test` on ubuntu, macos and windows,
+  `crossbuild` and `docs`; the first push failed one CLI test on ubuntu, which
+  expected four guide steps although a linux override on a linux computer
+  adds the two pin steps. The fixed CLI tests also passed on WSL Ubuntu 22.04.
 - OpenSSH behaviour, checked before implementation with throwaway keys and an
   unprivileged sshd on `127.0.0.1` only
   ([spike](../.scratch/host-key-pinning/openssh-spike.md)): Linux OpenSSH
@@ -1896,7 +1901,10 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
 - Unit tests cover strict pin file decoding (CRLF, tabs, comments, markers,
   duplicates, symlinks; never rewritten), atomic writes keeping other
   destinations, parser accept/reject and limits, a newline-free paste stopping
-  at 64 KiB, identical re-pin without writing, refusal without `--replace`,
+  at 64 KiB, every pasted byte counted toward the limit (an exact 64 KiB paste
+  accepted, endless blank lines refused), a BOM after leading whitespace,
+  replacement at a split destination's first entry, no pin steps when the pin
+  file path can't be written literally, identical re-pin without writing, refusal without `--replace`,
   `--yes` never replacing, `hosts unpin` requiring a real terminal, list text
   and JSON (`host_key_pins` only for managed destinations, omitted when the
   file is unreadable), the removal notice, guide steps until pinned and the
@@ -1920,6 +1928,15 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   whitespace field separation and pin steps omitted with the SSH config step
   recorded in the spec. The `host-keys` report kind is internal, like other
   report kinds.
+- Second review on `9f38bb1` (standards and specification passes): pin steps
+  offered for a non-literal pin file path, a paste limit one byte stricter
+  than `--file` and not counting blank lines, a BOM after whitespace kept, a
+  `SavePins` comment overstating byte-for-byte preservation, a missing
+  split-position test, and this record's stale commit were fixed in
+  `c5e489a`. Accepted judgement calls: the path checks, pin status wording
+  and pin grouping are repeated in a few places; `hostKeyPinning` returns an
+  extra boolean; the TUI executor checks the `pin-host` operation to choose
+  its input reader; removal also reports an unreadable pin file.
 - Limits: macOS clients and servers and the 1Password agent were not tested.
   No real interactive paste through `hosts pin` in a native terminal was run
   in this session; the terminal flow is covered by tests with scripted input.
