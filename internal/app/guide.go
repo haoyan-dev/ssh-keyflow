@@ -151,7 +151,7 @@ func PrepareGuideWithOptions(home, hostReference, keyReference string, options G
 		notice = "OpenSSH expands ${...} environment variables in identity paths. This identity path cannot be represented literally here; no IdentityFile snippet or connection command was generated. Select a key path without ${...} yourself.\n"
 	default:
 		// SSH expands percent tokens in IdentityFile even inside quotes.
-		configPath := strings.NewReplacer("%", "%%", "\\", "\\\\", "\"", "\\\"").Replace(path)
+		configPath := quoteConfigPath(path)
 		configUser := strings.NewReplacer("\\", "\\\\", "\"", "\\\"").Replace(host.User)
 		// A path supplied for another terminal is never inspected (ADR 0003).
 		keyProtection, reason := undetermined, "the private key path was supplied for this terminal and is not inspected"

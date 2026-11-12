@@ -343,7 +343,7 @@ func (m model) chrome() (string, string) {
 		if m.tab == 0 {
 			footer = "c create · i import · d remove · u unlink\n" + footer
 		} else {
-			footer = "a add · l link · u unlink · d remove · t pin keys\n" + footer
+			footer = "a add · l link · u unlink · d remove · t/T pin/unpin keys\n" + footer
 		}
 	case "details":
 		footer = "p public · g guide · d remove · u unlink\nt/T pin/unpin host keys · v details · Esc back"

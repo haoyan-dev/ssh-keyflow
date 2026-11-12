@@ -45,6 +45,9 @@ placement and the SSH config step:
 - Steps 2–3 and the pinning lines appear only when the guide's local OS is the
   computer running the app. The pin file path and the `hosts pin` command
   belong to this computer. Other local terminals get today's guide.
+- Steps 2–3 belong to the SSH config step. When the guide omits that step
+  (an identity path containing `${...}`, or another local OS without a usable
+  `IdentityFile`), it omits them too.
 - If the pin file can't be read, the guide says `Host keys: unknown (<reason>)`
   and generates no pinning lines and no pin steps. It never fails because of
   the pin file.
@@ -68,7 +71,7 @@ for keys installed by cloud-init or already present.
 | `hosts pin ... --yes` | Skips the typed confirmation only when no different keys are pinned. Required for non-terminal input. `--yes` never replaces. |
 | `hosts pin ... --replace` | Required when different keys are already pinned. Shows the old fingerprints and a warning, then needs a typed `yes` in a real terminal. Non-terminal input with `--replace` is refused. |
 | `hosts unpin --host <ref>` | Real terminal and typed `yes`, like `hosts remove`. Shows the pinned fingerprints and reminds the user to remove the pinning lines from their SSH config. Later guides use the unpinned form. |
-| `hosts list` | Text adds a `HOST KEYS` column: `pinned (N)`, `not pinned` or `unknown`. JSON adds `host_key_pins`: destination ID → `[{type, fingerprint}]`. The field is omitted and stderr reports the reason when the pin file can't be read. |
+| `hosts list` | Text adds a `HOST KEYS` column: `pinned (N)`, `not pinned` or `unknown`. JSON adds `host_key_pins`: managed destination ID → `[{type, fingerprint}]`; pins left by removed destinations aren't listed. The field is omitted and stderr reports the reason when the pin file can't be read. |
 
 Only managed (not removed) destinations can be pinned or unpinned. Input is
 limited to 64 KiB. Exit codes follow the existing contract.
@@ -111,7 +114,8 @@ limited to 64 KiB. Exit codes follow the existing contract.
 
 ## Parsing pasted output
 
-- Accept only lines of the form `<type> <base64> [comment]` with type
+- Accept only lines of the form `<type> <base64> [comment]`, fields separated
+  by any whitespace (the stored line is rebuilt from parsed fields), with type
   `ssh-ed25519`, `ecdsa-sha2-nistp256`, `ecdsa-sha2-nistp384`,
   `ecdsa-sha2-nistp521` or `ssh-rsa`.
 - The base64 must be canonical standard encoding, and the algorithm inside the
@@ -202,5 +206,7 @@ stored fingerprint before use.
    identical re-pin without writing, refusal without `--replace`, `--yes`
    never replacing, malformed files stopping pin and unpin, unpinned snippets
    equal to the pinned ones minus the three lines, public-only snippets, native
-   `ssh -G` parsing of the pinned snippet, the TUI handoff and removal notices.
+   `ssh -G` parsing of the pinned snippet, the TUI handoff and removal notices,
+   a paste with no newline stopping at the limit, and pins of removed
+   destinations left out of `hosts list`.
 3. Results are recorded in `docs/verification.md`.

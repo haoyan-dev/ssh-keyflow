@@ -99,7 +99,7 @@ ADR 0004により管理メタデータの削除・関連付け解除を追加す
 
 引数なしで入出力のいずれかが非端末ならヘルプを出して0で終了する。両方が実端末ならTUIを開く。明示的な `tui` の端末要件違反は2を返す。list・公開鍵・ガイドはリダイレクトでき、書き込み可能性やSSHコマンドのプローブを行わない。
 
-listの通常出力は表形式。JSONは改行で終わる1オブジェクトで、`keys list` は `keys` / `creations`、`hosts list` は `hosts` / `associations` / `host_key_pins` を返す。`host_key_pins` は接続先ID → `[{type, fingerprint}]` で、固定ファイルを読めない場合は省略し理由をstderrに出す。通常出力の `HOST KEYS` 列は `pinned (N)` / `not pinned` / `unknown` を示す。配列はnullでなく空配列とし、フィールド名は保存スキーマに一致する。要確認情報はstderrだけに出し、検証できた状態レコードは読み取り可能とする。不正な状態は1を返してJSONを出さず元ファイルを保持する。公開鍵・ガイドはコピー用のテキストをstdoutへ出す。出力失敗は実行失敗とする。
+listの通常出力は表形式。JSONは改行で終わる1オブジェクトで、`keys list` は `keys` / `creations`、`hosts list` は `hosts` / `associations` / `host_key_pins` を返す。`host_key_pins` は管理対象の接続先ID → `[{type, fingerprint}]` で削除済み接続先の固定は含めず、固定ファイルを読めない場合は省略し理由をstderrに出す。通常出力の `HOST KEYS` 列は `pinned (N)` / `not pinned` / `unknown` を示す。配列はnullでなく空配列とし、フィールド名は保存スキーマに一致する。要確認情報はstderrだけに出し、検証できた状態レコードは読み取り可能とする。不正な状態は1を返してJSONを出さず元ファイルを保持する。公開鍵・ガイドはコピー用のテキストをstdoutへ出す。出力失敗は実行失敗とする。
 
 ## 共通バックエンドと手動ガイド
 

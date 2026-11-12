@@ -80,7 +80,7 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 				var pins map[string][]app.PinSummary
 				if category == "hosts" {
 					// An unreadable pin file is reported, never guessed at or repaired.
-					if pins, err = app.PinSummaries(home); err != nil {
+					if pins, err = app.PinSummaries(home, view.State.Hosts); err != nil {
 						fmt.Fprintf(options.Error, "Host key pins: unknown: %v\n", err)
 					}
 				}

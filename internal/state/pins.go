@@ -14,8 +14,8 @@ const PinPrefix = "ssh-keyflow-"
 
 // HostKey is one pinned host public key: an algorithm and its base64 blob.
 type HostKey struct {
-	Type string `json:"type"`
-	Blob string `json:"blob"`
+	Type string
+	Blob string
 }
 
 // PinEntry is one line of the app-owned known_hosts file.

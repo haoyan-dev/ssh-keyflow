@@ -115,7 +115,7 @@ func execute(ctx context.Context, options Options) error {
 	}
 	switch request.Operation {
 	case "pin-host":
-		// The paste is read before the lock is taken, so no lock waits on a person.
+		// The paste is read before the lock; the typed confirmation runs under it, as for removal.
 		return pinHost(options)
 	case "unpin-host":
 		return unpinHost(options)

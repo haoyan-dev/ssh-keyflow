@@ -127,18 +127,34 @@ func HostKeyCommand(platform string) string {
 }
 
 // readPaste reads byte by byte, so a later confirmation reads the next line.
-// It stops at end of input or at an empty line after content.
+// It stops at end of input or at an empty line after content, and refuses
+// input past the paste limit even without a newline.
 func readPaste(input io.Reader) (string, error) {
-	var text strings.Builder
+	var text, line strings.Builder
+	buffer := make([]byte, 1)
 	for {
-		line, err := readLine(input)
-		if line != "" {
-			text.WriteString(line + "\n")
+		count, err := input.Read(buffer)
+		if count > 0 {
+			if text.Len()+line.Len() >= maxHostKeyPaste {
+				return "", fmt.Errorf("%w: pasted host keys exceed %d KiB", ErrInvalidInput, maxHostKeyPaste>>10)
+			}
+			if buffer[0] != '\n' {
+				line.WriteByte(buffer[0])
+				continue
+			}
+			current := strings.TrimSpace(line.String())
+			line.Reset()
+			if current == "" && text.Len() > 0 {
+				return text.String(), nil
+			}
+			if current != "" {
+				text.WriteString(current + "\n")
+			}
 		}
-		if text.Len() > maxHostKeyPaste {
-			return "", fmt.Errorf("%w: pasted host keys exceed %d KiB", ErrInvalidInput, maxHostKeyPaste>>10)
-		}
-		if errors.Is(err, io.EOF) || (err == nil && line == "" && text.Len() > 0) {
+		if errors.Is(err, io.EOF) {
+			if current := strings.TrimSpace(line.String()); current != "" {
+				text.WriteString(current + "\n")
+			}
 			return text.String(), nil
 		}
 		if err != nil {
@@ -174,7 +190,9 @@ func pinHost(options Options) error {
 	}
 	paste, err := ParseHostKeys(text)
 	for _, line := range paste.Ignored {
-		fmt.Fprintf(options.Output, "Ignored line: %s\n", line)
+		if _, err := fmt.Fprintf(options.Output, "Ignored line: %s\n", line); err != nil {
+			return err
+		}
 	}
 	if err != nil {
 		return err
@@ -317,8 +335,13 @@ func pinnedConfig(home, hostID string) (string, string) {
 	if strings.Contains(path, "${") {
 		return "", "OpenSSH expands ${...} in UserKnownHostsFile. The pin file path cannot be written literally; no pinning lines were generated.\n"
 	}
-	quoted := strings.NewReplacer("%", "%%", "\\", "\\\\", "\"", "\\\"").Replace(path)
-	return fmt.Sprintf("    HostKeyAlias %s\n    UserKnownHostsFile \"%s\"\n    StrictHostKeyChecking yes\n", state.PinAlias(hostID), quoted), ""
+	return fmt.Sprintf("    HostKeyAlias %s\n    UserKnownHostsFile \"%s\"\n    StrictHostKeyChecking yes\n", state.PinAlias(hostID), quoteConfigPath(path)), ""
+}
+
+// quoteConfigPath escapes a path for a double-quoted SSH config value,
+// including OpenSSH's own % token expansion.
+func quoteConfigPath(path string) string {
+	return strings.NewReplacer("%", "%%", "\\", "\\\\", "\"", "\\\"").Replace(path)
 }
 
 func hostKeyPrintStep(host state.Host) GuideStep {
@@ -349,16 +372,17 @@ type PinSummary struct {
 	Fingerprint string `json:"fingerprint"`
 }
 
-// PinSummaries lists pinned key fingerprints by destination ID, read-only.
-func PinSummaries(home string) (map[string][]PinSummary, error) {
+// PinSummaries lists pinned key fingerprints by managed destination ID,
+// read-only. Pins left by removed destinations are not listed.
+func PinSummaries(home string, hosts []state.Host) (map[string][]PinSummary, error) {
 	pins, err := HostKeyPins(home)
 	if err != nil {
 		return nil, err
 	}
 	summaries := map[string][]PinSummary{}
-	for id, keys := range pins {
-		for _, key := range keys {
-			summaries[id] = append(summaries[id], PinSummary{Type: key.Type, Fingerprint: HostKeyFingerprint(key)})
+	for _, host := range hosts {
+		for _, key := range pins[host.ID] {
+			summaries[host.ID] = append(summaries[host.ID], PinSummary{Type: key.Type, Fingerprint: HostKeyFingerprint(key)})
 		}
 	}
 	return summaries, nil

@@ -157,6 +157,46 @@ func TestPinHostReadsPasteThenConfirmationFromOneInput(t *testing.T) {
 	}
 }
 
+// endless never ends a line, so an unbounded reader would never return.
+type endless struct{ read int }
+
+func (e *endless) Read(buffer []byte) (int, error) {
+	e.read += len(buffer)
+	for index := range buffer {
+		buffer[index] = 'A'
+	}
+	return len(buffer), nil
+}
+
+func TestPinHostPasteWithoutNewlineStopsAtLimit(t *testing.T) {
+	home, _, host := pinnedDestination(t, "linux", "")
+	input := &endless{}
+	request := app.Request{Operation: "pin-host", Host: host.ID}
+	err := app.Run(t.Context(), app.Options{Home: home, Input: input, Output: &bytes.Buffer{}, Request: &request, Confirm: func(string) (bool, error) { return true, nil }})
+	if !errors.Is(err, app.ErrInvalidInput) || input.read > 64<<10+1 {
+		t.Fatal(err, input.read)
+	}
+	if _, statErr := os.Stat(state.PinPath(home)); !os.IsNotExist(statErr) {
+		t.Fatal("oversize paste created the pin file", statErr)
+	}
+}
+
+func TestPinSummariesListOnlyManagedDestinations(t *testing.T) {
+	home, _, host := pinnedDestination(t, "linux", "")
+	if _, err := pin(t, home, app.Request{Host: host.ID, HostKeys: hostKeyA}, true); err != nil {
+		t.Fatal(err)
+	}
+	if summaries, err := app.PinSummaries(home, load(t, home).Hosts); err != nil || len(summaries[host.ID]) != 1 {
+		t.Fatal(summaries, err)
+	}
+	if _, err := run(t, home, app.Request{Operation: "remove-host", Host: host.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if summaries, err := app.PinSummaries(home, load(t, home).Hosts); err != nil || len(summaries) != 0 {
+		t.Fatal("removed destination listed", summaries, err)
+	}
+}
+
 func TestPinAndUnpinRefuseMalformedFileAndUnknownHosts(t *testing.T) {
 	home, _, host := pinnedDestination(t, "linux", "")
 	write(t, state.PinPath(home), "garbage\n")
