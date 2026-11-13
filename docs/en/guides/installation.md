@@ -94,7 +94,7 @@ To remove the executable, exit the app and delete the executable and the bundled
 
 ## Users of the v0.1.0 installer
 
-The old default install location is `~/.local/bin` on Linux/macOS and `%LOCALAPPDATA%\Programs\ssh-keyflow` on Windows. If you have not changed the executable or the old ownership record, you can update with the new installer. It keeps the existing PATH stanza and also starts managing the bundled license document. The v0.2.0 archives are not supported by the old installer, which expects exactly one executable in the archive, so do not reuse the old script.
+The old default install location is `~/.local/bin` on Linux/macOS and `%LOCALAPPDATA%\Programs\ssh-keyflow` on Windows. If you have not changed the executable or the old ownership record, you can update with the new installer. It keeps the existing PATH stanza and also starts managing the bundled license document. Archives from v0.2.0 onward are not supported by the old installer, which expects exactly one executable in the archive, so do not reuse the old script.
 
 After a manual replacement, the executable's hash no longer matches the old ownership record, and the old script may refuse to update or remove it. From then on, update and remove manually. The old ownership records (`.ssh-keyflow-install/` on POSIX, `.ssh-keyflow-install.json` on Windows) and the existing PATH are not migrated or edited automatically. You can leave the records as they are.
 

@@ -18,7 +18,7 @@
 
 - 发布恰好包含 6 个归档（Windows/Linux/macOS 的 amd64/arm64；Windows 为 zip，其余为 tar.gz）和 `SHA256SUMS`，共 7 个资产，不包含安装程序。每个归档只包含对应平台的可执行文件和 `THIRD_PARTY_NOTICES.txt`。由 `scripts/package_release.py --version <tag>` 构建。
 - Portable 指可执行文件可自由放置。存储位置始终为 `<Home>/.ssh/ssh-keyflow`；移动、替换或删除可执行文件不会迁移数据，也不会更改 SSH 密钥、状态、config、远程注册、PATH、配置文件或安装程序记录。最终用户需要操作系统的 OpenSSH，不需要 Go。
-- 旧的 v0.1.0 安装程序会拒绝新归档；完好的 v0.1.0 安装请使用新的源代码分发安装程序。手动替换二进制文件后，更新或删除可能被拒绝。README 中说明了手动维护以及可选地手动清理 PATH 段落，不提供自动修复。
+- 旧的 v0.1.0 安装程序会拒绝新归档；完好的 v0.1.0 安装请使用新的源代码分发安装程序。手动替换二进制文件后，更新或删除可能被拒绝。安装指南中说明了手动维护以及可选地手动清理 PATH 段落，不提供自动修复。
 - CI 运行测试并进行 6 个目标的交叉构建，发布工作流在 CI 之后上传 7 个资产。基于测试夹具（fixture）的制品测试和交叉构建不能证明每个目标上的原生运行行为。
 
 正本（该节原文为英语，以原文为准）：[Portable release](../../application-contract.md#portable-release)
@@ -55,8 +55,8 @@
   - Windows 标准账户：`%USERPROFILE%\.ssh\authorized_keys`；保留现有行，写入权限限定为本人、SYSTEM 和 Administrators。
   - Windows 管理员账户：`%ProgramData%\ssh\administrators_authorized_keys`；由管理员登录共享，因此保留其他密钥，并确认 SYSTEM 和 Administrators 的 ACL。
 - 自定义配置下由用户确认实际的 `AuthorizedKeysFile` / `Match`。前提是 SSH 服务器和网络事先可用。取消注册时保留其他有效的访问方式，只从同一文件中手动删除匹配的公钥行。不验证取消注册是否成功。
-- 第二步是将 Host 片段追加到 `~/.ssh/config` 的脚本，片段包含客户端的 `HostName` / `User` / `Port` / `IdentityFile` / `IdentitiesOnly yes`；使用私钥路径，仅有公钥的密钥则使用已保存的公钥路径。按所选本地操作系统，Windows 使用 PowerShell，Linux/macOS 使用 POSIX shell。本地操作系统与运行应用的系统不同时，必须用 IdentityFile 指定对应私钥在该终端中的路径；接受所指定操作系统的绝对路径或 ~/path，拒绝控制字符、相对路径和其他操作系统的路径。不读取指定路径的文件，不传输密钥、不转换路径、不保证一致。仍维持受管原文件的同一性验证，不会因指定 IdentityFile 而将仅有公钥的密钥变为密钥对。保留现有内容；如果存在相同的显式别名（包括分组的 Host 行），则停止。不解析 Include、通配符、Match，也不保证优先级。PowerShell 要求现有文件为 UTF-8，在追加前拒绝 UTF-16 和无效的 UTF-8。标准账户的 Windows 公钥部署将 `.ssh` 目录和密钥文件的 DACL 限定为本人、SYSTEM 和 Administrators；管理员账户只将共享文件的 DACL 限定为 SYSTEM 和 Administrators。保留所有者和审计信息，并分别使用 Windows PowerShell 5.1 / PowerShell 7 的 .NET ACL API。
-- 第三步是在运行前两步之后于本地终端使用的 `ssh 別名` 连接命令（`別名` 处为别名）。连接命令在 POSIX shell / PowerShell 中通用，不在命令参数中重复展开私钥路径。考虑到 OpenSSH 自身的展开，IdentityFile 中的 `%` 会被转义。包含 `${...}` 的路径无法保证按字面引用，因此保留公钥部署说明，注明原因并省略 config 追加和连接步骤。对于仅有公钥的密钥，将公钥文件用作 `IdentityFile`，使 OpenSSH 只从 SSH 代理（如 FIDO 密钥）使用对应的密钥，并提示需要将对应私钥加载到代理中；不加入 `AddKeysToAgent` 和 ssh-agent 步骤。本地操作系统与运行应用的系统不同时要求指定 `--identity-file`，未指定时只显示部署步骤。应用不运行任何脚本或命令。
+- 部署步骤（如有主机密钥的显示和固定步骤，则在其后）之后是将 Host 片段追加到 `~/.ssh/config` 的脚本，片段包含客户端的 `HostName` / `User` / `Port` / `IdentityFile` / `IdentitiesOnly yes`；使用私钥路径，仅有公钥的密钥则使用已保存的公钥路径。按所选本地操作系统，Windows 使用 PowerShell，Linux/macOS 使用 POSIX shell。本地操作系统与运行应用的系统不同时，必须用 IdentityFile 指定对应私钥在该终端中的路径；接受所指定操作系统的绝对路径或 ~/path，拒绝控制字符、相对路径和其他操作系统的路径。不读取指定路径的文件，不传输密钥、不转换路径、不保证一致。仍维持受管原文件的同一性验证，不会因指定 IdentityFile 而将仅有公钥的密钥变为密钥对。保留现有内容；如果存在相同的显式别名（包括分组的 Host 行），则停止。不解析 Include、通配符、Match，也不保证优先级。PowerShell 要求现有文件为 UTF-8，在追加前拒绝 UTF-16 和无效的 UTF-8。标准账户的 Windows 公钥部署将 `.ssh` 目录和密钥文件的 DACL 限定为本人、SYSTEM 和 Administrators；管理员账户只将共享文件的 DACL 限定为 SYSTEM 和 Administrators。保留所有者和审计信息，并分别使用 Windows PowerShell 5.1 / PowerShell 7 的 .NET ACL API。
+- 最后一步是在运行前面的步骤之后于本地终端使用的 `ssh 別名` 连接命令（`別名` 处为别名）。连接命令在 POSIX shell / PowerShell 中通用，不在命令参数中重复展开私钥路径。考虑到 OpenSSH 自身的展开，IdentityFile 中的 `%` 会被转义。包含 `${...}` 的路径无法保证按字面引用，因此保留公钥部署说明，注明原因并省略 config 追加和连接步骤。对于仅有公钥的密钥，将公钥文件用作 `IdentityFile`，使 OpenSSH 只从 SSH 代理（如 FIDO 密钥）使用对应的密钥，并提示需要将对应私钥加载到代理中；不加入 `AddKeysToAgent` 和 ssh-agent 步骤。本地操作系统与运行应用的系统不同时要求指定 `--identity-file`，未指定时只显示部署步骤。应用不运行任何脚本或命令。
 - 应用本身不编辑、重新生成或删除普通的 `~/.ssh/config`、过去的专用 config、Include 和备份。只有用户运行复制的 config 追加脚本时，才会追加到普通 config。不提供递归搜索或通配符、Include 优先级的解析。粘贴位置以及与现有 Host 的重复和优先级由用户确认。现有 Include 启用过去专用 config 的情况也会原样保留。
 
 正本：[共通バックエンドと手動ガイド](../../application-contract.md#共通バックエンドと手動ガイド)（日语）
@@ -102,7 +102,7 @@
 
 ## 验证与发布
 
-- 适用 README 中的 Go 测试和 vet、Portable / 安装程序测试以及 6 个目标的构建。测试使用临时主目录和替代进程，不更改真实用户的 SSH 数据、PATH、配置文件或连接目标。验证项包括：v1 读取不更改、v2 迁移与精确的上一状态备份、旧历史保留、只阻止受影响密钥的删除、读取不产生更改、密钥创建恢复与同一性验证。
+- 适用 CONTRIBUTING 中的 Go 测试和 vet、Portable / 安装程序测试以及 6 个目标的构建。测试使用临时主目录和替代进程，不更改真实用户的 SSH 数据、PATH、配置文件或连接目标。验证项包括：v1 读取不更改、v2 迁移与精确的上一状态备份、旧历史保留、只阻止受影响密钥的删除、读取不产生更改、密钥创建恢复与同一性验证。
 - 结果、目标提交、环境和未验证范围记录在 `docs/verification.md` 中。过去自动注册与取消注册的测试记录只是历史，不是当前功能的契约或新实现的验证结果。交叉构建要与在各操作系统实机上运行 TUI 和原生密钥创建的证据区分开。显示指南并不验证实际的连接目标设置、注册、取消注册或连接成功。
 - 发布使用指向已合并到 main 并经过验证的提交的附注 `vMAJOR.MINOR.PATCH` 标签。从合并准备 PR、验证最终候选版本、创建标签并发布，到合并发布后的验证记录 PR，其步骤、完成条件和批准范围以 [AGENTS.md 的 Tags and releases](../../../AGENTS.md#tags-and-releases)（英语）为准。准备记录引用已验证的源代码提交，最终标签的提交记录在标签、发布信息和发布后的记录中。即使因添加审计文档使 main 领先于标签，已发布的标签仍指向构建来源。推送 `v*` 标签会在 CI 之后启动自动发布。预发布不成为 latest，稳定版 latest 前进到更新的稳定版。已发布的标签和二进制资产不可变，修复以新版本发布。发布后确认分发物、校验和、内部版本、标签和源代码提交一致。开发构建仍显示 `dev`。
 

@@ -46,7 +46,7 @@ ssh-keyflow resume --id creation-example
 
 对于已固定主机密钥的连接目标，固定密钥以外的密钥都会被拒绝。如果重装了连接目标或更新了主机密钥，请先在连接目标自身的终端中确认新的主机公钥，然后在真实终端中运行 `ssh-keyflow hosts pin --host <ID> --replace`。原因不明的变更可能是攻击，请不要替换。解除固定后，也请删除添加到 SSH config 中的 `HostKeyAlias`、`UserKnownHostsFile` 和 `StrictHostKeyChecking` 这 3 行。如果 `hosts list` 显示 `unknown`，请检查 `~/.ssh/ssh-keyflow/known_hosts`。应用不会改写无效的固定文件。
 
-如果仅有公钥的密钥无法连接，请确认对应的私钥是否已加载到代理中。在 Windows 上出现 `UNPROTECTED PRIVATE KEY FILE` 警告，同样表示代理中没有该密钥。
+如果仅有公钥的密钥无法连接，请确认对应的私钥是否已加载到代理中。在 Windows 上，如果 `UNPROTECTED PRIVATE KEY FILE` 警告指向公钥文件（`.pub`），同样表示代理中没有该密钥：OpenSSH 在代理中找不到该密钥，于是尝试把公钥文件当作私钥读取。请不要修改公钥文件的权限，而是将私钥加载到代理中。如果警告指向私钥文件，请限制该文件的权限，使其他用户无法读取。
 
 ## 安装程序拒绝更新或删除
 

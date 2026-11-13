@@ -46,7 +46,7 @@ If you are repeatedly asked for a passphrase, check the guide's ssh-agent step. 
 
 For a destination whose host keys are pinned, any key other than the pinned ones is rejected. If you reinstalled the destination or updated its host keys, check the new host public keys on the destination's own terminal, then run `ssh-keyflow hosts pin --host <ID> --replace` in a real terminal. If you do not know why the key changed, it may be an attack, so do not replace it. If you unpin, also delete the three lines `HostKeyAlias`, `UserKnownHostsFile` and `StrictHostKeyChecking` that you added to your SSH config. If `hosts list` shows `unknown`, check `~/.ssh/ssh-keyflow/known_hosts`. The app does not rewrite an invalid pin file.
 
-If you cannot connect with a public-key-only key, check that the matching private key is loaded into the agent. On Windows, an `UNPROTECTED PRIVATE KEY FILE` warning also indicates that the key is not in the agent.
+If you cannot connect with a public-key-only key, check that the matching private key is loaded into the agent. On Windows, an `UNPROTECTED PRIVATE KEY FILE` warning that names the public key file (`.pub`) also indicates that the key is not in the agent: OpenSSH could not find the key in the agent and tried to read the public key file as a private key. Do not change the public key file's permissions; load the private key into the agent. If the warning names a private key file, restrict that file's permissions so other users cannot read it.
 
 ## The installer refuses to update or remove
 

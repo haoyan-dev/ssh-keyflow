@@ -55,7 +55,7 @@ The release contains exactly six archives and `SHA256SUMS` (seven assets), with 
 
 Portable means freely placed executables. Storage remains `<Home>/.ssh/ssh-keyflow`; moving/replacing/removing the executable neither migrates data nor changes SSH keys, state, config, remote registrations, PATH, profiles or installer receipts. End users need OS OpenSSH, not Go. They exit the application before manual replacement/removal and retain the notice document when redistributing the binary.
 
-Old v0.1.0 installers require one archive member and therefore reject the new archives. Use the new source-hosted installer for intact v0.1.0 installations. Manual binary replacement also invalidates the old ownership digest, so updates/removal may be rejected. README documents manual maintenance and optional manual cleanup of the exact owned PATH stanza; no automatic repair of changed receipts/profiles is added.
+Old v0.1.0 installers require one archive member and therefore reject the new archives. Use the new source-hosted installer for intact v0.1.0 installations. Manual binary replacement also invalidates the old ownership digest, so updates/removal may be rejected. The installation guide (`docs/guides/installation.md`) documents manual maintenance and optional manual cleanup of the exact owned PATH stanza; no automatic repair of changed receipts/profiles is added.
 
 CI runs Go and Portable artifact tests on three OSes plus actual six-target crossbuilds. Release workflow uploads the seven staged assets after CI; implementation itself does not tag/push/publish. Fixture artifact tests and crossbuilds do not establish native runtime behavior on every target.
 
@@ -121,9 +121,9 @@ listの通常出力は表形式。JSONは改行で終わる1オブジェクト�
 
 カスタム構成では実際の `AuthorizedKeysFile` / `Match` を利用者が確認する。SSHサーバーとネットワークは事前に利用可能であることを前提とする。解除時は別の有効なアクセス手段を残し、同じファイルから一致する公開鍵の行だけを手動で取り除く。解除の成否は検証しない。
 
-秘密鍵パス、または公開鍵のみの鍵では保存済みの公開鍵パスを使い、クライアント用の `HostName` / `User` / `Port` / `IdentityFile` / `IdentitiesOnly yes` を含むHostスニペットを `~/.ssh/config` に追記するスクリプトを第2ステップにする。選択したローカルOSに従い、WindowsはPowerShell、Linux/macOSはPOSIXシェルを使う。実行元と異なるローカルOSでは、対応する秘密鍵の端末内パスをIdentityFileで必須とする。指定OSの絶対パスまたは ~/pathを受け付け、制御文字・相対パス・異なるOSのパスは拒否する。指定パスのファイルは読み取らず、鍵の転送・パス変換・一致の保証はしない。管理済み元ファイルの同一性検証は維持し、公開鍵のみの鍵をIdentityFile指定で鍵ペアへ変更しない。既存内容を保持し、グループ化されたHost行を含め、同じ明示的な別名があれば停止する。Include・ワイルドカード・Matchの解決や優先順位の保証は行わない。PowerShellの既存ファイルはUTF-8を要求し、UTF-16・不正なUTF-8は追記前に拒否する。標準アカウント用のWindows公開鍵配置では `.ssh` ディレクトリと鍵ファイルのDACLを本人・SYSTEM・Administratorsに限定し、管理者用では共有ファイルだけのDACLをSYSTEM・Administratorsに限定する。所有者と監査情報を保持し、Windows PowerShell 5.1 / PowerShell 7それぞれの.NET ACL APIを使う。
+秘密鍵パス、または公開鍵のみの鍵では保存済みの公開鍵パスを使い、クライアント用の `HostName` / `User` / `Port` / `IdentityFile` / `IdentitiesOnly yes` を含むHostスニペットを `~/.ssh/config` に追記するスクリプトを、配置ステップ（ホスト鍵の表示・固定ステップがあればその後）の次のステップにする。選択したローカルOSに従い、WindowsはPowerShell、Linux/macOSはPOSIXシェルを使う。実行元と異なるローカルOSでは、対応する秘密鍵の端末内パスをIdentityFileで必須とする。指定OSの絶対パスまたは ~/pathを受け付け、制御文字・相対パス・異なるOSのパスは拒否する。指定パスのファイルは読み取らず、鍵の転送・パス変換・一致の保証はしない。管理済み元ファイルの同一性検証は維持し、公開鍵のみの鍵をIdentityFile指定で鍵ペアへ変更しない。既存内容を保持し、グループ化されたHost行を含め、同じ明示的な別名があれば停止する。Include・ワイルドカード・Matchの解決や優先順位の保証は行わない。PowerShellの既存ファイルはUTF-8を要求し、UTF-16・不正なUTF-8は追記前に拒否する。標準アカウント用のWindows公開鍵配置では `.ssh` ディレクトリと鍵ファイルのDACLを本人・SYSTEM・Administratorsに限定し、管理者用では共有ファイルだけのDACLをSYSTEM・Administratorsに限定する。所有者と監査情報を保持し、Windows PowerShell 5.1 / PowerShell 7それぞれの.NET ACL APIを使う。
 
-第3ステップは、前の2ステップを実行した後にローカル端末で使う `ssh 別名` 接続コマンドとする。接続コマンドはPOSIXシェル / PowerShell共通とし、秘密鍵パスをコマンド引数へ重複展開しない。OpenSSH自身の展開も考慮し、`%`はIdentityFile内でエスケープする。`${...}`を含むパスではリテラル参照を保証できないため、公開鍵の配置案内を維持し、理由を示してconfig追記・接続ステップを省略する。公開鍵のみの鍵では、OpenSSHがSSHエージェント（FIDO鍵等）から対応する鍵だけを使うよう公開鍵ファイルを `IdentityFile` にし、対応する秘密鍵をエージェントに読み込む必要がある旨を示す。`AddKeysToAgent` とssh-agentステップは加えない。実行元と異なるローカルOSでは `--identity-file` の指定を求め、未指定なら配置ステップだけを示す。どのスクリプト・コマンドもアプリは実行しない。
+最後のステップは、前のステップを実行した後にローカル端末で使う `ssh 別名` 接続コマンドとする。接続コマンドはPOSIXシェル / PowerShell共通とし、秘密鍵パスをコマンド引数へ重複展開しない。OpenSSH自身の展開も考慮し、`%`はIdentityFile内でエスケープする。`${...}`を含むパスではリテラル参照を保証できないため、公開鍵の配置案内を維持し、理由を示してconfig追記・接続ステップを省略する。公開鍵のみの鍵では、OpenSSHがSSHエージェント（FIDO鍵等）から対応する鍵だけを使うよう公開鍵ファイルを `IdentityFile` にし、対応する秘密鍵をエージェントに読み込む必要がある旨を示す。`AddKeysToAgent` とssh-agentステップは加えない。実行元と異なるローカルOSでは `--identity-file` の指定を求め、未指定なら配置ステップだけを示す。どのスクリプト・コマンドもアプリは実行しない。
 
 アプリ自身は通常の `~/.ssh/config`、過去の専用config、Include、バックアップを編集・再生成・削除しない。コピーしたconfig追記スクリプトを利用者が実行した場合だけ通常のconfigを追記する。再帰的探索、ワイルドカード・Include優先順位の解析は提供しない。利用者が貼り付け先と既存Hostの重複・優先順位を確認する。既存Includeが過去の専用configを有効にしている場合もそのまま残る。
 
@@ -178,7 +178,7 @@ v1とv2を読む。v1は読み込みだけでは内容・バージョン・バ�
 
 ## 検証と公開
 
-READMEのGoテスト・vet、Portable / インストーラーテスト、6ターゲットビルドを適用する。テストは一時ホームと代替プロセスを使い、実ユーザーのSSHデータ、PATH、プロファイル、接続先を変更しない。v1非変更読込、v2移行と正確な直前バックアップ、旧履歴保持、影響鍵だけの削除ブロック、読み取りの非変更性、鍵作成再開と同一性検証を確認対象に含める。
+CONTRIBUTINGのGoテスト・vet、Portable / インストーラーテスト、6ターゲットビルドを適用する。テストは一時ホームと代替プロセスを使い、実ユーザーのSSHデータ、PATH、プロファイル、接続先を変更しない。v1非変更読込、v2移行と正確な直前バックアップ、旧履歴保持、影響鍵だけの削除ブロック、読み取りの非変更性、鍵作成再開と同一性検証を確認対象に含める。
 
 結果・対象コミット・環境・未検証範囲は `docs/verification.md` に記録する。過去の自動登録・解除テスト記録は履歴であり、現行機能の契約や新実装の検証結果ではない。クロスビルドは各OS実機でのTUI・ネイティブ鍵作成の実行証拠と区別する。ガイド表示は実際の接続先設定・登録・解除・接続成功の検証ではない。
 
