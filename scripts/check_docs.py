@@ -210,8 +210,6 @@ def check_translations(root, translations):
 
 
 def main():
-    for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(encoding="utf-8")
     pages = [ROOT / name for name in PAGES]
     pages += [page for name in DIRECTORIES for page in (ROOT / name).rglob("*.md")]
     pages += [ROOT / path for entry in TRANSLATIONS for path in entry.values() if path]
@@ -236,4 +234,6 @@ def main():
 
 
 if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8")
     sys.exit(main())
