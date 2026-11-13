@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: none
 
 # 04: Provide Simplified Chinese, English, and Japanese documentation
@@ -23,3 +23,8 @@ Historical research, tickets, ADRs, and verification records need not be transla
 
 - Added at the user's request after the initial Japanese documentation structure.
 - Requirements are recorded; translation implementation has not started.
+- 2026-11-13: Implemented on `docs/multilingual-documentation`. The Japanese
+  source stays at the existing paths; English and Simplified Chinese live in
+  `*.en.md` / `*.zh-CN.md` and `docs/en/` / `docs/zh-CN/`, and the contract and
+  glossary get non-authoritative overviews. All 13 page sets are complete.
+  Integration is pending PR review.
