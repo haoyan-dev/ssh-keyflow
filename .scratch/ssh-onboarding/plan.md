@@ -1,6 +1,7 @@
 # SSH KeyFlow — 最小実装計画
 
-Status: ready-for-agent
+Status: ready-for-human
+Released: v0.1.0 (`ee3a00f`); remote registration and revocation retired in v0.5.0 (PR #8, ADR 0001)
 
 仕様は spec.md、用語は ../../GLOSSARY.md を参照する。これは実装順と内部設計を示す計画であり、本体はまだ実装していない。
 

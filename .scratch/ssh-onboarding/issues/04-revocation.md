@@ -1,6 +1,6 @@
 # 04: 別認証確認・公開鍵登録解除・ローカル鍵削除
 
-Status: ready-for-agent
+Status: ready-for-human
 Resolution: completed
 
 ## What to build
@@ -28,3 +28,5 @@ Resolution: completed
 検証: `go test ./... -count=1` PASS (`cmd/ssh-keyflow` 0.768s、`internal/app` 32.934s、`internal/ssh` 10.656s)、`go vet ./...` PASS。既存の「4/6未実装」テストは実装済みメニューを妨げるため未知入力7/invalidの無変更テストへ更新。app.Run 境界の RED→GREEN、実際の guarded POSIX payload (Linux/macOS Git Bash fixture)、Windows PowerShell/NTFS の inspect/remove/retry と bytes/SDDL 保持、拒否ケースを含む。ユーザーの SSH ファイルと実サーバーにはアクセスしていない。
 
 検証範囲: native Linux/macOS・実SSH接続/host-key handshake・昇格済み Windows 共有管理者での成功実行は未検証。Windows 標準アカウントの実スクリプト実行と共有管理者の権限/承認拒否は fixture 検証済み。README.md と docs/verification.md、配布コードは変更していない。外部環境での検証は親の独立レビューへ引き継ぐ。
+
+2026-11-13: v0.1.0（`ee3a00f`）で公開済み。v0.5.0でPR #8（`2ed184f`、ADR 0001）により、自動登録・解除・接続検査・設定編集・ローカル鍵削除は廃止された。この課題の機能は現行版にない。

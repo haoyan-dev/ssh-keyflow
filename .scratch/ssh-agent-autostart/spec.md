@@ -1,4 +1,5 @@
-Status: ready-for-agent
+Status: ready-for-human
+Released: v0.9.0; integrated by PR #22 (`f9956c9`), record in PR #23 (ADR 0005)
 
 # ssh-agent automatic startup for passphrase-protected keys
 

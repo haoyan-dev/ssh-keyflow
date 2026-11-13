@@ -1,6 +1,6 @@
 # 01: TUI・CLI共通処理とライブラリ導入
 
-Status: ready-for-agent
+Status: ready-for-human
 Resolution: completed
 Blocked by: None
 
@@ -34,3 +34,5 @@ completed (2026-11-06): `Options.Request`による直接操作、`Confirm`承認
 2026-11-06: v0.2.0方針の合意に基づき作成。依存は必要になる段階で追加してよい。
 
 2026-11-06: to-specに従って仕様を再整理。公開アプリケーション境界を中心とする検証方針をユーザー確認済み。
+
+2026-11-13: PR #1（`3e71b0e`）で統合され、v0.2.0として公開済み。

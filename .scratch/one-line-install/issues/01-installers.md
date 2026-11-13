@@ -1,6 +1,6 @@
 # 01: One-line installers for Portable releases
 
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: None
 Resolution: completed
 
@@ -43,3 +43,5 @@ using isolated paths; the exact original profile bytes were restored. Public
 release notes include installation and usage. Details and remaining validation
 limits are in docs/verification.md. The released tag remains on the tested
 implementation commit; the final documentation update is a separate commit.
+
+2026-11-13: Released in v0.2.1 (`3e56744`); the installers are still the supported install path.

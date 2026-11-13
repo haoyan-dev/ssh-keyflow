@@ -1,6 +1,6 @@
 # 01: 起動・環境確認・管理対象外の一覧・既存鍵の取り込み
 
-Status: ready-for-agent
+Status: ready-for-human
 Resolution: completed
 Blocked by: None (can start immediately)
 
@@ -29,3 +29,5 @@ Blocked by: None (can start immediately)
 2026-11-04: Completion verification: `gofmt -l cmd internal` produced no paths; `go test ./... -count=1` passed both cmd and app packages (state intentionally has no private-boundary tests); `go vet ./...` passed; `git diff --check` passed. Final schema regression rejected ambiguous `version`/`Version` input after an observed red/green cycle. No inline code comments or single-letter Go identifiers remain. Tests/vet ran with sandbox escalation for Windows fixture/cache access. Patches used the installed `codex.exe --codex-run-as-apply-patch` entry point because the batch wrapper did not pass patch stdin correctly.
 
 2026-11-04: Merged current integration tip `c579a1f` into the assigned branch (fast-forward, including `9ed731f` and `docs/verification.md`); implementation remains entirely in this worktree. The public app/runner, state schema, full-operation locking contract, version injection, and followup limits are documented in `docs/application-contract.md`. Remaining functionality belongs to tickets 02–05: generation/registration/SSH aliases/remote verification, unregister/local deletion, installers/distribution. Menu paths for unavailable operations say so explicitly. Linux/macOS native behavior is not claimed by this ticket.
+
+2026-11-13: v0.1.0（`ee3a00f`）で公開済み。起動・環境確認・既存鍵の取り込みは現行版に残る。

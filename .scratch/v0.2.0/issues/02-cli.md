@@ -1,6 +1,6 @@
 # 02: CobraによるCLI
 
-Status: ready-for-agent
+Status: ready-for-human
 Resolution: completed
 Blocked by: 01
 
@@ -36,3 +36,5 @@ completed (2026-11-06): Cobra v1.10.2による直接指定CLIと公開入口`cli
 2026-11-06: to-specに従って仕様を再整理。入口固有の引数・JSON・終了コードを検証し、共通処理のテストは重複させない方針をユーザー確認済み。
 
 2026-11-06: 実装とローカル検証を完了。リリース公開・実SSHサーバーへの操作は行っていない。
+
+2026-11-13: PR #1（`3e71b0e`）で統合され、v0.2.0として公開済み。

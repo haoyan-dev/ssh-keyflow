@@ -1,6 +1,7 @@
 # SSH KeyFlow — 設計中の仕様
 
-Status: ready-for-agent
+Status: ready-for-human
+Released: v0.1.0 (`ee3a00f`); remote registration and revocation retired in v0.5.0 (PR #8, ADR 0001)
 
 会話で合意した要件を記録する。未決定事項は実装上の確定事項として扱わない。
 
