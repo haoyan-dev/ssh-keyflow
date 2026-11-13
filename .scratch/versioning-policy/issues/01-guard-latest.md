@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 Resolution: completed
 
 # Guard latest against older maintenance releases
@@ -41,3 +41,5 @@ published. Integration is the remaining delivery step.
 reviewed head `b4cefe0d91c37f106685661f739e43a7dc7b2151`. Independent standards
 and specification reviews reported zero findings. Hosted tests verify the code;
 live release publication and the publication queue itself remain unexercised.
+
+2026-11-13: Released in v0.9.1, which contains `7641bc0`.

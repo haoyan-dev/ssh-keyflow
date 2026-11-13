@@ -1,6 +1,7 @@
 # v0.2.0: TUI・CLIとPortable配布
 
-Status: ready-for-agent
+Status: ready-for-human
+Released: v0.2.0（`3e71b0e`、PR #1）
 Resolution: completed
 
 合意日：2026-11-06

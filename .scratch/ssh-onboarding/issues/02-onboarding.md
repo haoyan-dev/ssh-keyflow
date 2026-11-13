@@ -1,6 +1,6 @@
 # 02: 鍵生成・接続先追加・手動登録案内・中断後の再開
 
-Status: ready-for-agent
+Status: ready-for-human
 Resolution: completed
 Blocked by: 01
 
@@ -33,3 +33,5 @@ Blocked by: 01
 検証: gofmt、`go test ./...`、`go vet ./...` が成功。Windows sandboxの一時fixtureアクセス拒否後に昇格して実行、Goキャッシュはルート `.tmp/go-cache` を使用。integration `implement/ssh-keyflow` の最新 `b6099cf`（指定の `331c2fe` を含む）を取り込み済み。配布ファイルや他チケットへの独自編集、配布スイート再実行はなし。
 
 契約: version 1にoptional `creations`/`onboardings`、created来歴、Windows accountを追加。`internal/ssh.StandardRegistration` と既存登録ペアを03で再利用できる。Interactive SSHのStdinは端末を維持し、将来のスクリプトは安全に引用したコマンドpayloadで渡す。詳細は `docs/application-contract.md`。
+
+2026-11-13: v0.1.0（`ee3a00f`）で公開済み。v0.5.0（`6a09684`、PR #8、ADR 0001）で、自動登録・解除・接続検査・設定編集・ローカル鍵削除は廃止された。鍵生成とローカル作成の再開は現行版に残る。

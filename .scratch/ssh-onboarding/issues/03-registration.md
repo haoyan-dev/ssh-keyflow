@@ -1,6 +1,6 @@
 # 03: 自動登録・指定鍵の接続確認・SSH別名設定
 
-Status: ready-for-agent
+Status: ready-for-human
 Resolution: completed
 Blocked by: 02
 
@@ -26,3 +26,5 @@ Blocked by: 02
 Evidence: go test ./... -count=1 and go vet ./... pass. Focused native ssh -G argument parsing passes without a network connection. Automatic POSIX scripts run in isolated Git Bash fixtures; Windows standard-account automatic registration/reconciliation runs with real NTFS ACLs in isolated homes. PowerShell administrator syntax/error fixtures pass. docs/application-contract.md defines the schema, operation lifecycle, config ownership and ticket04 handoff.
 
 Validation gaps: no live SSH server/password/key/host-key handshake, native Linux/macOS server execution or elevated Windows shared-administrator ACL execution. Script fixtures and native local parsing do not establish those results. Tests never modify real user .ssh files or remote servers. README.md and docs/verification.md remain parent-owned; integration is merged into this ticket branch only.
+
+2026-11-13: v0.1.0（`ee3a00f`）で公開済み。v0.5.0（`6a09684`、PR #8、ADR 0001）で、自動登録・解除・接続検査・設定編集・ローカル鍵削除は廃止された。この課題の機能は現行版にない。

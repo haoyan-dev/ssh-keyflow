@@ -1,6 +1,6 @@
 # 03: Bubble Teaによる一覧中心のTUI
 
-Status: ready-for-agent
+Status: ready-for-human
 Resolution: completed
 Blocked by: 01, 02
 
@@ -33,3 +33,5 @@ Bubble Tea v2.1.1、Bubbles v2.2.1、Lip Gloss v2.0.6を固定し、一覧・詳
 2026-11-06: v0.2.0方針の合意に基づき作成。共通処理や起動点を重複実装しない順序とする。
 
 2026-11-06: to-specに従って仕様を再整理。入口固有の遷移・キャンセルを確認し、端末受け渡しと復元は実端末でも確認する方針をユーザー確認済み。
+
+2026-11-13: PR #1（`3e71b0e`）で統合され、v0.2.0として公開済み。TUIはその後も再設計されている（tui-ux、tui-grouped-panels等）。
