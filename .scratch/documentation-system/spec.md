@@ -1,7 +1,7 @@
 # SSH KeyFlow documentation system
 
 Status: ready-for-human
-Progress: criteria 10–13 implemented on `docs/multilingual-documentation`; integration pending review
+Progress: criteria 1–13 merged (PR #30 for 1–9, PR #37 for 10–13); no release tag created
 Base: `1d2f44eb0449b389629e01fe71b970f715badd47`
 Research: [research.md](research.md)
 
