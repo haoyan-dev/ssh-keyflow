@@ -28,3 +28,4 @@ Historical research, tickets, ADRs, and verification records need not be transla
   `*.en.md` / `*.zh-CN.md` and `docs/en/` / `docs/zh-CN/`, and the contract and
   glossary get non-authoritative overviews. All 13 page sets are complete.
   Integration is pending PR review.
+- 2026-11-13: Merged in PR #37 (`4ffa539`).

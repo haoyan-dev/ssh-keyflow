@@ -20,3 +20,6 @@ Follow the existing release gates if a release is separately authorized.
 - The later language requirement expands the scope to `zh-CN`, English, and
   Japanese. Requirements are recorded; tickets 04–05 remain unimplemented.
   Earlier implementation-complete statements refer to the original scope only.
+- 2026-11-13: The review PR (#30) was merged on 2026-11-11 as `aaa8def`.
+  The multilingual scope was implemented and merged separately in PR #37
+  (tickets 04–05). No release tag was created for this documentation work.

@@ -35,3 +35,8 @@ link-check success alone.
   - the installation guide limiting the old-installer note to v0.2.0 archives;
   - the tutorial omitting the local-OS condition for pinning steps.
   Fix them in all three languages in a later PR.
+- 2026-11-13: Merged in PR #37 (`4ffa539`). The source follow-ups above were
+  fixed in all three languages on `docs/source-accuracy-fixes`, together with
+  two related errors: the contract named the README for the Go tests and
+  vet (they are in CONTRIBUTING), and called the config step the second
+  step, which is not true when the pinning steps are shown.
