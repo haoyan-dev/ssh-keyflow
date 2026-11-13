@@ -18,7 +18,7 @@
 
 - 发布恰好包含 6 个归档（Windows/Linux/macOS 的 amd64/arm64；Windows 为 zip，其余为 tar.gz）和 `SHA256SUMS`，共 7 个资产，不包含安装程序。每个归档只包含对应平台的可执行文件和 `THIRD_PARTY_NOTICES.txt`。由 `scripts/package_release.py --version <tag>` 构建。
 - Portable 指可执行文件可自由放置。存储位置始终为 `<Home>/.ssh/ssh-keyflow`；移动、替换或删除可执行文件不会迁移数据，也不会更改 SSH 密钥、状态、config、远程注册、PATH、配置文件或安装程序记录。最终用户需要操作系统的 OpenSSH，不需要 Go。
-- 旧的 v0.1.0 安装程序会拒绝新归档；完好的 v0.1.0 安装请使用新的源代码分发安装程序。手动替换二进制文件后，更新或删除可能被拒绝。安装指南中说明了手动维护以及可选地手动清理 PATH 段落，不提供自动修复。
+- 旧的 v0.1.0 安装程序会拒绝新归档；完好的 v0.1.0 安装请使用新的源代码分发安装程序。手动替换二进制文件后，更新或删除可能被拒绝。[安装指南](../guides/installation.md)中说明了手动维护以及可选地手动清理 PATH 段落，不提供自动修复。
 - CI 运行测试并进行 6 个目标的交叉构建，发布工作流在 CI 之后上传 7 个资产。基于测试夹具（fixture）的制品测试和交叉构建不能证明每个目标上的原生运行行为。
 
 正本（该节原文为英语，以原文为准）：[Portable release](../../application-contract.md#portable-release)
