@@ -27,7 +27,7 @@ README、文档索引、教程、操作与问题处理指南、参与贡献、�
 | `docs/application-contract.md`（正本） | `docs/en/reference/application-contract.md`（概要） | `docs/zh-CN/reference/application-contract.md`（概要） |
 | `GLOSSARY.md`（正本） | `docs/en/reference/glossary.md`（概要） | `docs/zh-CN/reference/glossary.md`（概要） |
 
-契约和术语表的英文版与中文版是概要。它们链接到正本的对应章节，并注明如有出入以日语正本为准。术语同时标注正本中的日语写法。ADR、验证记录、过去的调查与评审、`AGENTS.md`、代理（agent）运用文档以及第三方许可证的核对不在翻译范围内。在翻译版的索引中，这些链接会注明原文的语言。
+契约和术语表的英文版与中文版是概要。它们链接到正本的对应章节，并注明如有出入以日语正本为准。术语同时标注正本中的日语写法。ADR、验证记录、过去的调查与评审、`AGENTS.md`、AI 代理（agent）工作流文档以及第三方许可证的核对不在翻译范围内。在翻译版的索引中，这些链接会注明原文的语言。
 
 在每个页面的标题之后，以 `[简体中文](…) · [English](…) · 日本語` 的形式（此为日语页面的示例）放置语言链接，当前语言不做成链接。链接目标是内容相同的页面，不附加指向标题的片段（fragment）。无法提供翻译的页面，在 `scripts/check_docs.py` 的 `TRANSLATIONS` 中将该语言设为 `None`，并在其他语言版本中以 `[English → 日本語](…)` 的形式链接到日语版。如果翻译未跟上日语版的变更，则在标题和语言链接之后放置 `<!-- translation: stale -->`，以及用该语言写的 `> ` 提示。检查程序会分别显示已完成、待更新和回退的数量。
 
@@ -42,6 +42,7 @@ README、文档索引、教程、操作与问题处理指南、参与贡献、�
 | `docs/application-contract.md` | 用户和自动化脚本的作者。公开接口的准确约定 | CLI、JSON、兼容性或分发要求发生变化时 |
 | `GLOSSARY.md` / `docs/adr/` | 设计者。术语和决策的理由 | 术语或设计决策被添加或更新时 |
 | `CONTRIBUTING.md` / `docs/maintaining/` | 贡献者和维护者。开发与发布 | 检查、评审或维护流程发生变化时 |
+| `*.en.md` / `*.zh-CN.md` / `docs/en/` / `docs/zh-CN/` | 英文和中文读者。与日语版内容相同的翻译，以及契约和术语表的概要 | 对应的日语页面发生变化时 |
 | `docs/verification.md` | 评审者和维护者。按时间点记录的验证证据 | 验证或发布审计完成时 |
 | `.scratch/<feature>/` | 工作者。研究、规格、工单和工作记录 | 按功能进行调查和推进时 |
 
@@ -65,6 +66,6 @@ README、文档索引、教程、操作与问题处理指南、参与贡献、�
 4. 规范评审检查文件位置、语言、术语、信息归属和现有链接。规格评审则另行检查工单的完成条件，以及用户能否完成操作步骤。修改了翻译时，按语言将术语、命令示例、安全条件和兼容性约定与日语版进行核对。
 5. 在 PR 中记录验证的 SHA、环境、结果和局限，不要把未验证的事项当作成功。
 
-检查程序的对象是 README、CONTRIBUTING、术语表、AGENTS，以及索引、tutorials、guides、maintaining、ADR、代理运用文档、应用契约及其英文版和中文版。对于历史文档和 `.scratch/`，只检查链接目标是否存在，不会把旧内容递归改写为当前规格。添加新的文档组或需要翻译的页面时，也请更新 `scripts/check_docs.py` 的检查对象和 `TRANSLATIONS`。
+检查程序的对象是 README、CONTRIBUTING、术语表、AGENTS，以及索引、tutorials、guides、maintaining、ADR、AI 代理（agent）工作流文档、应用契约及其英文版和中文版。对于历史文档和 `.scratch/`，只检查链接目标是否存在，不会把旧内容递归改写为当前规格。添加新的文档组或需要翻译的页面时，也请更新 `scripts/check_docs.py` 的检查对象和 `TRANSLATIONS`。
 
 仅修改文档时，作为普通的评审 PR 发布。应用的版本、标签和分发物按照[现有的发布流程](releases.md)处理。

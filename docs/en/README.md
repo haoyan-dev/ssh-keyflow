@@ -12,7 +12,7 @@ This directory documents the current implementation on `main`. To find out how a
 | --- | --- |
 | Prepare your first key and destination and set up the connection | [Your first connection setup](tutorials/first-connection.md) |
 | Install, update or remove the executable | [Installation guide](guides/installation.md) |
-| Check TUI keys and where copies go | [Using the TUI](guides/terminal-ui.md) |
+| Check TUI key bindings and where copies go | [Using the TUI](guides/terminal-ui.md) |
 | Manage keys, destinations and associations with the CLI | [Using the CLI](guides/cli.md) |
 | Back up state, migrate, and check caveats for returning to an older version | [Data, migration and recovery](guides/data-and-recovery.md) |
 | Investigate launch, copy, key and connection problems | [Troubleshooting](guides/troubleshooting.md) |

@@ -51,7 +51,7 @@ TUI 需要在交互式终端中使用。准备第一个密钥和连接目标的�
 | --- | --- |
 | 准备第一个密钥和连接目标 | [教程](docs/zh-CN/tutorials/first-connection.md) |
 | 查找操作步骤和问题处理方法 | [文档索引](docs/zh-CN/README.md) |
-| 确认 CLI、JSON 和保存状态的约定 | [应用契约](docs/zh-CN/reference/application-contract.md) |
+| 查阅 CLI、JSON 和保存状态的约定 | [应用契约（中文概要）](docs/zh-CN/reference/application-contract.md) |
 | 参与修复或改进文档 | [参与贡献](CONTRIBUTING.zh-CN.md) |
 
 ## 安全条件与数据

@@ -84,4 +84,4 @@ ssh-keyflow hosts guide --host my-server --key laptop
 
 如需在 TUI 中进行同样的管理，请启动 `ssh-keyflow` 并参阅 [TUI 操作](../guides/terminal-ui.md)。在指南中，只能用 `y` 复制当前显示的步骤。
 
-解除关联和从管理中移除请参阅 [CLI 指南](../guides/cli.md)。这两种操作都不会吊销 SSH 访问。如果要从连接目标上移除公钥，请阅读手动设置指南中的移除说明，并在确保有其他登录方式后再操作。
+解除关联和从管理中移除请参阅 [CLI 指南](../guides/cli.md)。这两种操作都不会吊销 SSH 访问。如果要从连接目标上移除公钥，请阅读手动设置指南中的取消注册说明，并在确保有其他登录方式后再操作。

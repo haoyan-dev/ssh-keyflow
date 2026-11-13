@@ -89,4 +89,4 @@ ssh-keyflow keys remove --key existing
 
 JSON 输出到标准输出，诊断信息输出到标准错误。`keys list --json` 返回 `keys` 和 `creations`，`hosts list --json` 返回 `hosts`、`associations` 和 `host_key_pins`（按连接目标 ID 列出的类型和指纹）。无法读取固定文件时会省略 `host_key_pins`，并在标准错误中输出原因。退出码：成功为 0，执行失败或取消为 1，参数或用法错误为 2。在非终端环境中不带参数启动时，会显示帮助并以 0 退出。
 
-如需按步骤试用，请参阅[首次连接设置](../tutorials/first-connection.md)；准确的输入、输出规格请参阅[应用契约](../reference/application-contract.md#cli)。
+如需按步骤试用，请参阅[首次连接设置](../tutorials/first-connection.md)；准确的输入、输出规格请参阅[应用契约（中文概要）](../reference/application-contract.md#cli)，以及作为正本的[应用契约的 CLI 一节](../../application-contract.md#cli)（日语）。

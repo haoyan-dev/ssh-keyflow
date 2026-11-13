@@ -31,9 +31,9 @@
 
 - [参与贡献](../../CONTRIBUTING.zh-CN.md)：环境搭建、变更流程、检查和评审。
 - [文档维护](maintaining/documentation.md)：文档类型、各文档负责的信息、更新时的检查。
-- [发布与公开](maintaining/releases.md)：分发物、验证命令和发布流程的入口。
+- [发布](maintaining/releases.md)：分发物、验证命令和发布流程的入口。
 - [本地工单](../agents/issue-tracker.md)（日语）和[状态标签](../agents/triage-labels.md)（英语）：规格与工作的记录。
-- [领域文档的运用](../agents/domain.md)（日语）：术语和设计决策的参考位置。
+- [领域文档的使用方式](../agents/domain.md)（日语）：术语和设计决策的参考位置。
 - [工作、分支与发布规范](../../AGENTS.md)（英语）：开发时的规则和批准范围。
 
 ## 过去的调查与评审

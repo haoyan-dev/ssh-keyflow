@@ -90,7 +90,7 @@ Before updating, exit the app, verify the checksum of the new distribution, and 
 
 Set PATH yourself only if you need it. For the current session only, run `export PATH="/absolute/path/ssh-keyflow-portable:$PATH"` in a POSIX shell or `$env:PATH = 'C:\absolute\path\ssh-keyflow-portable;' + $env:PATH` in PowerShell. To make it persistent, edit your shell profile or the OS PATH settings yourself. The executable never changes PATH, profiles or the registry automatically.
 
-To remove the executable, exit the app and delete the executable and the bundled license document. Remove any PATH entry you added yourself if needed. Keys, state, SSH configuration, registration history and public key registrations on destinations are kept. Removing the executable is separate from unregistering keys or deleting local keys.
+To remove the executable, exit the app and delete the executable and the bundled license document. Remove any PATH entry you added yourself if needed. Keys, state, SSH configuration, registration history and public key registrations on destinations are kept. Removing the executable is separate from manual unregistration and local key deletion.
 
 ## Users of the v0.1.0 installer
 

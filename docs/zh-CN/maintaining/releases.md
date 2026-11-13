@@ -1,10 +1,10 @@
-# 发布与公开
+# 发布
 
 简体中文 · [English](../../en/maintaining/releases.md) · [日本語](../../maintaining/releases.md)
 
 [文档索引](../README.md) · [参与贡献](../../../CONTRIBUTING.zh-CN.md)
 
-本页是分发的概要和检查的入口。批准范围和各阶段的完成条件以 [AGENTS.md](../../../AGENTS.md#tags-and-releases)（英语）为准；发布前还请确认[应用契约](../reference/application-contract.md)和 [release.yml](../../../.github/workflows/release.yml)。为了合并仅修改文档的变更，不需要创建应用的发布标签。
+本页是分发的概要和检查的入口。批准范围和各阶段的完成条件以 [AGENTS.md](../../../AGENTS.md#tags-and-releases)（英语）为准；发布前还请确认[应用契约（中文概要）](../reference/application-contract.md)、作为正本的[应用契约](../../application-contract.md)（日语）和 [release.yml](../../../.github/workflows/release.yml)。为了合并仅修改文档的变更，不需要创建应用的发布标签。
 
 ## 开发与发布契约
 
@@ -36,4 +36,4 @@ CI 在 3 种操作系统上运行 Go 测试、Portable 生成物测试和安装�
 
 发布作业跨标签串行执行，并在其中获取当前的 latest，按版本号的数值顺序比较。旧系列的修复版可以发布，但不会取代更新的 latest。latest 返回 404 时，只有在成功获取全部发布列表、并确认没有已发布的正式版时，才作为首次发布处理。如果认证、通信或 API 响应异常，或者存在正式版却无法获取 latest，则停止发布。`scripts/test_release.py` 在不进行外部发布的情况下验证这些判断和发布命令。
 
-测试使用临时主目录、安装位置和分发物，不会更改真实用户的 SSH 数据、永久 PATH、配置文件或连接目标。交叉构建与在各操作系统 / CPU 上实机运行的证据要区分开来。已确认的范围请参阅 [docs/verification.md](../../verification.md)（日语），公开接口请参阅[应用契约](../reference/application-contract.md)。
+测试使用临时主目录、安装位置和分发物，不会更改真实用户的 SSH 数据、永久 PATH、配置文件或连接目标。交叉构建与在各操作系统 / CPU 上实机运行的证据要区分开来。已确认的范围请参阅 [docs/verification.md](../../verification.md)（日语），公开接口请参阅[应用契约（中文概要）](../reference/application-contract.md)。

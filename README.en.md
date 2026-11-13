@@ -43,7 +43,7 @@ ssh-keyflow --version
 ssh-keyflow
 ```
 
-Use the TUI in an interactive terminal. To prepare your first key and destination, see [Your first connection setup](docs/en/tutorials/first-connection.md); for keys see [Using the TUI](docs/en/guides/terminal-ui.md); for command examples see [Using the CLI](docs/en/guides/cli.md).
+Use the TUI in an interactive terminal. To prepare your first key and destination, see [Your first connection setup](docs/en/tutorials/first-connection.md); for key bindings see [Using the TUI](docs/en/guides/terminal-ui.md); for command examples see [Using the CLI](docs/en/guides/cli.md).
 
 ## Documentation
 

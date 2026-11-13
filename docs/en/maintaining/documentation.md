@@ -42,6 +42,7 @@ Put the language links right after each page title in the form `[简体中文](�
 | `docs/application-contract.md` | Users and automation authors. Exact promises of the public interface | Changes to the CLI, JSON, compatibility or distribution requirements |
 | `GLOSSARY.md` / `docs/adr/` | Designers. Terms and the reasons for decisions | Terms or design decisions added or updated |
 | `CONTRIBUTING.md` / `docs/maintaining/` | Contributors and maintainers. Development and publishing | Changes to checks, reviews or maintenance procedures |
+| `*.en.md` / `*.zh-CN.md` / `docs/en/` / `docs/zh-CN/` | English and Chinese readers. Translations equivalent to the Japanese pages, and overviews of the contract and glossary | Changes to the corresponding Japanese page |
 | `docs/verification.md` | Reviewers and maintainers. Point-in-time verification evidence | Completion of verification or release audits |
 | `.scratch/<feature>/` | Workers. Research, specs, tickets and work records | Per-feature investigation and progress |
 

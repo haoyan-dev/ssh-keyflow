@@ -42,6 +42,7 @@ README、文書索引、チュートリアル、操作・問題解決ガイド�
 | `docs/application-contract.md` | 利用者・自動化の作者。公開インターフェースの正確な約束 | CLI・JSON・互換性・配布要件の変更 |
 | `GLOSSARY.md` / `docs/adr/` | 設計者。用語と判断の理由 | 用語・設計判断の追加や更新 |
 | `CONTRIBUTING.md` / `docs/maintaining/` | コントリビューター・保守者。開発と公開 | チェック・レビュー・保守手順の変更 |
+| `*.en.md` / `*.zh-CN.md` / `docs/en/` / `docs/zh-CN/` | 英語・中国語の読者。日本語版と同じ内容の翻訳と、契約・用語集の概要 | 対応する日本語ページの変更 |
 | `docs/verification.md` | レビュアー・保守者。時点ごとの検証証拠 | 検証・公開監査の完了 |
 | `.scratch/<feature>/` | 作業者。研究・仕様・チケット・作業記録 | 機能単位の調査と進行 |
 

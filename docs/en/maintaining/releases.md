@@ -4,7 +4,7 @@
 
 [Documentation index](../README.md) · [Contributing](../../../CONTRIBUTING.en.md)
 
-This page is an overview of distribution and an entry point to the checks. [AGENTS.md](../../../AGENTS.md#tags-and-releases) is authoritative for approval scope and the completion criteria of each stage; before publishing, also check the [application contract](../reference/application-contract.md) and [release.yml](../../../.github/workflows/release.yml). You do not need to create an application release tag to merge documentation-only changes.
+This page is an overview of distribution and an entry point to the checks. [AGENTS.md](../../../AGENTS.md#tags-and-releases) is authoritative for approval scope and the completion criteria of each stage; before publishing, also check the [application contract](../reference/application-contract.md) (overview) and its [authoritative version](../../application-contract.md) (Japanese), and [release.yml](../../../.github/workflows/release.yml). You do not need to create an application release tag to merge documentation-only changes.
 
 ## Development and release contract
 
