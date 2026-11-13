@@ -105,6 +105,8 @@ def anchors(text):
 
 def check_page(root, page):
     text = prose(page.read_text(encoding="utf-8"))
+    # Link syntax inside inline code is an example, not a link; keep offsets.
+    text = re.sub(r"`[^`\n]+`", lambda m: " " * len(m[0]), text)
     references = {m[1].casefold(): m[2] for m in REFERENCE.finditer(text)}
     links = [(m.start(), m[1].strip("<>")) for m in INLINE_LINK.finditer(text)]
     errors = []

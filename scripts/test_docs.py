@@ -43,6 +43,11 @@ class DocumentationChecks(unittest.TestCase):
             anchors("# v0.1.0の利用者\n# v0.1.0の利用者\n## CLI / JSON\n"),
         )
 
+    def test_inline_code_examples_are_not_links(self):
+        errors = self.check("Use `[English](…)` here.\n`a` [x](missing.md)")
+        self.assertEqual(1, len(errors))
+        self.assertIn("README.md:2: missing target", errors[0])
+
     def test_external_links_are_offline(self):
         self.assertEqual([], self.check("[web](https://example.invalid/x#missing)"))
 
