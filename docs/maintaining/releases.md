@@ -1,5 +1,7 @@
 # リリースと公開
 
+[简体中文](../zh-CN/maintaining/releases.md) · [English](../en/maintaining/releases.md) · 日本語
+
 [ドキュメント一覧](../README.md) · [コントリビューション](../../CONTRIBUTING.md)
 
 このページは配布の概要とチェックの入口です。承認範囲と各段階の完了条件は[AGENTS.md](../../AGENTS.md#tags-and-releases)を正とし、公開前に[アプリケーション契約](../application-contract.md)と[release.yml](../../.github/workflows/release.yml)も確認してください。文書だけの変更を統合するために、アプリケーションのリリースタグを作る必要はありません。

@@ -1,5 +1,7 @@
 # SSH KeyFlow
 
+[简体中文](README.zh-CN.md) · [English](README.en.md) · 日本語
+
 ローカルのSSH鍵と接続先を管理し、公開鍵の配置と接続設定をコピペで支援するGo製のTUI / CLIです。
 
 [はじめて使う](docs/tutorials/first-connection.md) · [ドキュメント](docs/README.md) · [コントリビューション](CONTRIBUTING.md) · [リリース](https://github.com/haoyan-dev/ssh-keyflow/releases)

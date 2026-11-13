@@ -1,5 +1,7 @@
 # TUIの操作
 
+[简体中文](../zh-CN/guides/terminal-ui.md) · [English](../en/guides/terminal-ui.md) · 日本語
+
 [ドキュメント一覧](../README.md)
 
 ## 起動とキー操作

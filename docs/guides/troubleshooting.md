@@ -1,5 +1,7 @@
 # トラブルシューティング
 
+[简体中文](../zh-CN/guides/troubleshooting.md) · [English](../en/guides/troubleshooting.md) · 日本語
+
 [ドキュメント一覧](../README.md)
 
 ## コマンドが見つからない

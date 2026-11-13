@@ -1,5 +1,7 @@
 # はじめての接続設定
 
+[简体中文](../zh-CN/tutorials/first-connection.md) · [English](../en/tutorials/first-connection.md) · 日本語
+
 [ドキュメント一覧](../README.md)
 
 鍵を1つ作成し、接続先と関連付け、手動設定ガイドを表示します。最後のSSH接続は自分で実行して確認します。アプリ内に保存した関連付けだけでは、接続先の設定は変わりません。

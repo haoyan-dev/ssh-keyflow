@@ -1,5 +1,7 @@
 # Application contract
 
+[简体中文](zh-CN/reference/application-contract.md) · [English](en/reference/application-contract.md) · 日本語
+
 ## Source-hosted one-line installers
 
 `install.sh` (POSIX sh on Linux/macOS) and `install.ps1` (Windows PowerShell 5.1
