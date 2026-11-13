@@ -21,7 +21,7 @@
 
 | 文档 | 作用 |
 | --- | --- |
-| [应用契约](reference/application-contract.md)（中文概要） | CLI、JSON、退出码、状态兼容性、安装与分发的公开契约 |
+| [应用契约（中文概要）](reference/application-contract.md) | CLI、JSON、退出码、状态兼容性、安装与分发的公开契约 |
 | [术语表](reference/glossary.md)（中文概要） | 密钥、连接目标、关联、未验证等领域术语 |
 | [设计决策列表](../adr/README.md)（日语） | 已采纳的决策，以及更新或取代它们的决策 |
 | [验证记录](../verification.md)（日语） | 按时间点记录的证据，包括目标提交、运行条件、结果和局限 |

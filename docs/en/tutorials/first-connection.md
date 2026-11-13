@@ -84,4 +84,4 @@ Confirm that you can connect from your own SSH terminal. SSH KeyFlow does not ve
 
 To do the same management in the TUI, launch `ssh-keyflow` and see [Using the TUI](../guides/terminal-ui.md). In the guide, `y` copies only the step currently displayed.
 
-For dissociation and removal from management, see the [CLI guide](../guides/cli.md). Neither revokes SSH access. To remove the public key from the destination, read the removal instructions in the manual setup guide, and make sure you have another way to log in before you start.
+For dissociation and removal from management, see the [CLI guide](../guides/cli.md). Neither revokes SSH access. To remove the public key from the destination, read the manual unregistration instructions in the manual setup guide, and make sure you have another way to log in before you start.
