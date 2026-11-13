@@ -1,5 +1,7 @@
 # SSH KeyFlow
 
+[简体中文](docs/zh-CN/reference/glossary.md) · [English](docs/en/reference/glossary.md) · 日本語
+
 ローカルのSSH鍵と接続先を管理し、公開鍵の配置と接続設定をコピペで支援する。
 
 ## Language

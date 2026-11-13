@@ -2074,3 +2074,76 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   Crossbuild and embedded-tag evidence are not all-target runtime verification.
   This audit changes records only; it needs no new version and does not move
   the immutable tag.
+
+## 2026-11-13: multilingual documentation
+
+- Tested source: `b022bbddc635e75f46d3b35e7d625d3593d1aaa0` on branch
+  `docs/multilingual-documentation`, based on main
+  `3760168`. Scope: [documentation system](../.scratch/documentation-system/spec.md)
+  criteria 10–13, tickets 04 and 05. Environment: Windows 11 Pro 10.0.26300,
+  Python 3.12.10, offline. CI runs the same two scripts on Ubuntu.
+- Layout: Japanese stays the source at the existing paths. English and
+  Simplified Chinese live in `README.{en,zh-CN}.md`,
+  `CONTRIBUTING.{en,zh-CN}.md`, `docs/en/` and `docs/zh-CN/`. The contract and
+  glossary get per-language overviews under `docs/<locale>/reference/`; those
+  overviews name `docs/application-contract.md` and `GLOSSARY.md` as
+  authoritative. No Japanese page path or heading anchor changed. The only
+  Japanese edits are the language link line under each title, the layout and
+  rules in `docs/maintaining/documentation.md`, and the check commands in
+  `CONTRIBUTING.md`.
+- Coverage: 13 page sets, 26 complete translations, 0 stale, 0 Japanese
+  fallbacks. `python -I scripts/check_docs.py` passed on 51 maintained pages.
+  `python scripts/test_docs.py -v` passed 26 tests, 16 of them new. The new
+  tests cover:
+  - missing translations and missing sources;
+  - language links that point at the wrong page, carry a fragment, are
+    missing, or differ only by case or path separator;
+  - an undeclared or misplaced locale file;
+  - a Japanese guide page without a translation set;
+  - a declared fallback, which must be labeled `<Language> → 日本語` and is
+    counted separately;
+  - a stale marker away from the header or without a notice;
+  - broken fragments in locale pages;
+  - link syntax inside inline code, including escaped backticks.
+- Code blocks: a script compared every fenced block on each translated page
+  with the Japanese source. Counts, languages and contents match. The only
+  differences are translated `#` comments in the installation guide (3 lines in
+  English, 5 in Chinese). The contract overviews summarize the contract instead
+  of copying its flag tables and schema fields.
+- Reviews, each recorded apart from the link checks:
+  - English and Simplified Chinese terminology and accuracy reviews compared
+    every page with its source. Both found dropped clauses in the glossary
+    overview rows for the manual setup guide and for removal from management
+    (must-fix). Should-fix items included:
+    - "keys" for key bindings (English);
+    - manual unregistration colliding with removal from management (both);
+    - overview links that didn't say they are overviews (Chinese);
+    - small omissions in the contract overview;
+    - Japanese-style uses of 確認 (Chinese).
+  - The standards review found that the English overview copied the flag and
+    schema tables. It also found checker gaps:
+    - untracked source pages;
+    - misplaced locale files;
+    - stale marker position;
+    - OS-dependent path comparison;
+    - escaped backticks.
+  - The spec review found the authority note mis-described the partly English
+    contract.
+  - All findings were fixed. A separate re-check confirmed each one at
+    `5e9a7f0`, and its three remaining wording items were fixed in `b022bbd`.
+- Limits:
+  - The checker validates structure, links and coverage, not translation
+    quality.
+  - The language reviews were model reviews, not reviews by native-speaker
+    maintainers.
+  - The reviews found possible inaccuracies in the Japanese sources. These are
+    left unchanged and tracked in ticket 05:
+    - the Windows `UNPROTECTED PRIVATE KEY FILE` explanation in
+      troubleshooting;
+    - the contract's README reference for manual maintenance;
+    - the "third step" wording for the connection step;
+    - the old-installer note naming only v0.2.0 archives;
+    - the tutorial omitting the local-OS condition for pinning steps.
+  - Pages that are not translated (ADRs, verification and historical records,
+    `docs/agents/`, `docs/third-party-notices.md`) are labeled with their
+    language by hand; the checker does not verify those labels.

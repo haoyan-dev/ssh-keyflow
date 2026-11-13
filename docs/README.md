@@ -1,5 +1,7 @@
 # SSH KeyFlow ドキュメント
 
+[简体中文](zh-CN/README.md) · [English](en/README.md) · 日本語
+
 [プロジェクト概要](../README.md) · [コントリビューション](../CONTRIBUTING.md)
 
 このディレクトリは `main` の現行実装に対応する文書です。公開済みバージョンの動作を調べる場合は、[対象タグ](https://github.com/haoyan-dev/ssh-keyflow/tags)の同じ文書と[リリースノート](https://github.com/haoyan-dev/ssh-keyflow/releases)を参照してください。古い版へ現行仕様を遡って適用しません。

@@ -1,5 +1,7 @@
 # CLIの使い方
 
+[简体中文](../zh-CN/guides/cli.md) · [English](../en/guides/cli.md) · 日本語
+
 [ドキュメント一覧](../README.md)
 
 ## コマンドの例

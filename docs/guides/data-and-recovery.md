@@ -1,5 +1,7 @@
 # データ・移行・復旧
 
+[简体中文](../zh-CN/guides/data-and-recovery.md) · [English](../en/guides/data-and-recovery.md) · 日本語
+
 [ドキュメント一覧](../README.md)
 
 ## 保存先と保管

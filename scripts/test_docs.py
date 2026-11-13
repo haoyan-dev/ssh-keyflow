@@ -43,6 +43,11 @@ class DocumentationChecks(unittest.TestCase):
             anchors("# v0.1.0の利用者\n# v0.1.0の利用者\n## CLI / JSON\n"),
         )
 
+    def test_inline_code_examples_are_not_links(self):
+        errors = self.check("Use `[English](…)` here.\n`a` [x](missing.md)")
+        self.assertEqual(1, len(errors))
+        self.assertIn("README.md:2: missing target", errors[0])
+
     def test_external_links_are_offline(self):
         self.assertEqual([], self.check("[web](https://example.invalid/x#missing)"))
 
@@ -64,6 +69,7 @@ class DocumentationChecks(unittest.TestCase):
             patch.object(check_docs, "ROOT", self.root),
             patch.object(check_docs, "PAGES", ("README.md",)),
             patch.object(check_docs, "DIRECTORIES", ()),
+            patch.object(check_docs, "TRANSLATIONS", ()),
             redirect_stderr(io.StringIO()) as errors,
             redirect_stdout(io.StringIO()) as output,
         ):
@@ -73,6 +79,126 @@ class DocumentationChecks(unittest.TestCase):
             self.page.write_text("# Valid\n[x](#valid)", encoding="utf-8")
             self.assertEqual(0, check_docs.main())
             self.assertIn("1 maintained pages", output.getvalue())
+
+
+GUIDE_PAGES = {"zh-CN": "docs/zh-CN/guide.md", "en": "docs/en/guide.md", "ja": "docs/guide.md"}
+GUIDE_LANGUAGE_LINKS = {
+    "zh-CN": "简体中文 · [English](../en/guide.md) · [日本語](../guide.md)",
+    "en": "[简体中文](../zh-CN/guide.md) · English · [日本語](../guide.md)",
+    "ja": "[简体中文](zh-CN/guide.md) · [English](en/guide.md) · 日本語",
+}
+
+
+class LocaleChecks(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name).resolve()
+        for code in GUIDE_LANGUAGE_LINKS:
+            self.write(GUIDE_PAGES[code], f"# Title\n\n{GUIDE_LANGUAGE_LINKS[code]}\n\nBody\n")
+
+    def write(self, path, text):
+        (self.root / path).parent.mkdir(parents=True, exist_ok=True)
+        (self.root / path).write_text(text, encoding="utf-8")
+
+    def check(self, translations=(GUIDE_PAGES,)):
+        return check_docs.check_translations(self.root, translations)
+
+    def test_complete_set_passes(self):
+        errors, stats = self.check()
+        self.assertEqual([], errors)
+        self.assertEqual({"sets": 1, "complete": 2, "fallback": 0, "stale": 0}, stats)
+
+    def test_missing_translation_is_reported(self):
+        (self.root / GUIDE_PAGES["en"]).unlink()
+        errors, _ = self.check()
+        self.assertIn("missing translation: docs/en/guide.md", errors[0])
+
+    def test_missing_source_is_reported(self):
+        (self.root / GUIDE_PAGES["ja"]).unlink()
+        self.assertIn("missing source page: docs/guide.md", self.check()[0][0])
+
+    def test_language_link_must_point_to_equivalent_page(self):
+        self.write("docs/en/other.md", "# Other\n")
+        self.write(GUIDE_PAGES["ja"], "# T\n\n[简体中文](zh-CN/guide.md) · [English](en/other.md) · 日本語\n")
+        errors, _ = self.check()
+        self.assertTrue(any("docs/guide.md:3: English link must point to docs/en/guide.md" in e for e in errors))
+        self.assertTrue(any("undeclared translation page: docs/en/other.md" in e for e in errors))
+
+    def test_language_link_rejects_fragment_and_missing_bar(self):
+        self.write(GUIDE_PAGES["ja"], "# T\n\n[简体中文](zh-CN/guide.md#x) · [English](en/guide.md) · 日本語\n")
+        self.write(GUIDE_PAGES["en"], "# T\n\nNo language links here.\n")
+        errors, _ = self.check()
+        self.assertTrue(any("简体中文 link must point" in e for e in errors))
+        self.assertTrue(any("docs/en/guide.md:3: language links must list" in e for e in errors))
+
+    def test_current_language_is_not_a_link(self):
+        self.write(GUIDE_PAGES["en"], "# T\n\n[简体中文](../zh-CN/guide.md) · [English](guide.md) · [日本語](../guide.md)\n")
+        self.assertIn("current language must be plain text English", self.check()[0][0])
+
+    def test_declared_fallback_is_disclosed_and_counted(self):
+        (self.root / GUIDE_PAGES["en"]).unlink()
+        fallback = dict(GUIDE_PAGES, en=None)
+        errors, _ = self.check((fallback,))
+        self.assertEqual(2, len(errors))
+        self.assertIn("expected language link [English → 日本語](docs/guide.md)", errors[0])
+        self.write(GUIDE_PAGES["ja"], "# T\n\n[简体中文](zh-CN/guide.md) · [English → 日本語](guide.md) · 日本語\n")
+        self.write(GUIDE_PAGES["zh-CN"], "# T\n\n简体中文 · [English → 日本語](../guide.md) · [日本語](../guide.md)\n")
+        errors, stats = self.check((fallback,))
+        self.assertEqual([], errors)
+        self.assertEqual({"sets": 1, "complete": 1, "fallback": 1, "stale": 0}, stats)
+
+    def test_stale_translation_needs_notice_and_is_not_complete(self):
+        stale = f"# T\n\n{GUIDE_LANGUAGE_LINKS['en']}\n\n{check_docs.STALE}\n\nBody\n"
+        self.write(GUIDE_PAGES["en"], stale)
+        errors, _ = self.check()
+        self.assertIn("stale marker needs a '> ' notice", errors[0])
+        self.write(GUIDE_PAGES["en"], stale.replace("Body", "> Out of date; see the Japanese page."))
+        errors, stats = self.check()
+        self.assertEqual([], errors)
+        self.assertEqual(1, stats["stale"])
+        self.assertEqual(1, stats["complete"])
+
+    def test_locale_page_links_and_fragments_are_checked(self):
+        page = self.root / GUIDE_PAGES["zh-CN"]
+        self.write(GUIDE_PAGES["zh-CN"], f"# 标题\n\n{GUIDE_LANGUAGE_LINKS['zh-CN']}\n\n[a](../guide.md#missing) [b](#标题)\n")
+        errors = check_page(self.root, page)
+        self.assertEqual(1, len(errors))
+        self.assertIn("docs/zh-CN/guide.md:5: missing heading", errors[0])
+
+    def test_source_page_without_translation_set_is_reported(self):
+        self.write("docs/guides/new.md", "# New\n")
+        errors, _ = self.check()
+        self.assertEqual(["source page without translation set: docs/guides/new.md"], errors)
+
+    def test_misplaced_locale_file_is_reported(self):
+        self.write("docs/guides/new.en.md", "# New\n")
+        self.assertIn("undeclared translation page: docs/guides/new.en.md", self.check()[0])
+
+    def test_language_link_path_must_match_exactly(self):
+        for target in ("EN/guide.md", "en\\guide.md"):
+            self.write(GUIDE_PAGES["ja"], f"# T\n\n[简体中文](zh-CN/guide.md) · [English]({target}) · 日本語\n")
+            errors, _ = self.check()
+            self.assertEqual(["docs/guide.md:3: English link must point to docs/en/guide.md"], errors)
+
+    def test_stale_marker_must_follow_language_links(self):
+        self.write(GUIDE_PAGES["en"], f"# T\n\n{GUIDE_LANGUAGE_LINKS['en']}\n\nBody\n\n{check_docs.STALE}\n\n> Old.\n")
+        errors, stats = self.check()
+        self.assertIn("docs/en/guide.md:7: stale marker must directly follow", errors[0])
+        self.assertEqual(1, stats["stale"])
+
+    def test_escaped_backtick_does_not_hide_links(self):
+        page = self.root / "README.md"
+        page.write_text("\\`q [y](missing.md) `z`\n``a ` [x](nope.md)``\n", encoding="utf-8")
+        errors = check_page(self.root, page)
+        self.assertEqual(1, len(errors))
+        self.assertIn("README.md:1: missing target: missing.md", errors[0])
+
+    def test_repository_translation_table_is_consistent(self):
+        codes = [code for code, _ in check_docs.LANGUAGES]
+        for entry in check_docs.TRANSLATIONS:
+            self.assertEqual(codes, list(entry))
+            self.assertTrue(entry["ja"])
 
 
 if __name__ == "__main__":

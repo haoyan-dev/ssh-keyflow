@@ -1,5 +1,7 @@
 # コントリビューション
 
+[简体中文](CONTRIBUTING.zh-CN.md) · [English](CONTRIBUTING.en.md) · 日本語
+
 [README](README.md) · [ドキュメント一覧](docs/README.md) · [作業ポリシー](AGENTS.md)
 
 不具合修正、機能提案、チュートリアルや文書の改善を受け付けます。1つの変更で解決する課題と、確認できる完了条件を明確にしてください。
@@ -35,9 +37,10 @@ go run ./cmd/ssh-keyflow --help
 
 ## 検証
 
-文書のリンクと見出し参照:
+文書のリンク・見出し参照・言語リンク・翻訳の充足:
 
 ```sh
+python scripts/test_docs.py -v
 python scripts/check_docs.py
 ```
 
@@ -52,7 +55,7 @@ python scripts/test_installers.py -v
 python scripts/test_installer_profiles.py -v
 ```
 
-文書だけの変更ではリンクチェックと手順・コマンドの確認を行います。実装・依存・梱包・インストーラーを変更した場合は対応するテストを実行し、梱包入力が変わる場合は[リリースガイド](docs/maintaining/releases.md)の6対象ビルドも適用してください。CIの必須チェックは変更種別にかかわらず通す必要があります。
+文書だけの変更ではリンクチェックと手順・コマンドの確認を行います。README・ガイドなど翻訳対象のページを変更したら、同じPRで[英語版と中国語版](docs/maintaining/documentation.md#言語別の配置)も更新するか、更新待ちとして明示してください。実装・依存・梱包・インストーラーを変更した場合は対応するテストを実行し、梱包入力が変わる場合は[リリースガイド](docs/maintaining/releases.md)の6対象ビルドも適用してください。CIの必須チェックは変更種別にかかわらず通す必要があります。
 
 継続して参照する検証結果は [docs/verification.md](docs/verification.md)に対象SHA・環境・結果・限界を記録します。クロスビルド、実機実行、実際のSSH接続確認はそれぞれ区別してください。
 

@@ -1,5 +1,7 @@
 # インストール・更新・アンインストール
 
+[简体中文](../zh-CN/guides/installation.md) · [English](../en/guides/installation.md) · 日本語
+
 [ドキュメント一覧](../README.md)
 
 対象はWindows / Linux / macOSのamd64 / arm64です。OSのOpenSSH（`ssh` と `ssh-keygen`）を用意してください。以下の固定バージョンは指定方法の例です。通常は版指定なしで正式版を取得し、過去の版へ戻す前に[データと復旧](data-and-recovery.md)を確認してください。

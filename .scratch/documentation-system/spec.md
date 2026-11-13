@@ -1,6 +1,7 @@
 # SSH KeyFlow documentation system
 
-Status: ready-for-agent
+Status: ready-for-human
+Progress: criteria 10–13 implemented on `docs/multilingual-documentation`; integration pending review
 Base: `1d2f44eb0449b389629e01fe71b970f715badd47`
 Research: [research.md](research.md)
 
