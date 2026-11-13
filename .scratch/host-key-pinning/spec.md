@@ -1,4 +1,5 @@
-Status: integrated by PR #33 (`dc7c84d`); release tracked in `.scratch/release-v0.10.0/`
+Status: ready-for-human
+Released: v0.10.0 (`0af2631`); integrated by PR #33 (`dc7c84d`), release in `.scratch/release-v0.10.0/`
 
 # Host key pinning
 

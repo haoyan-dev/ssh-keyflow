@@ -1,6 +1,7 @@
 # Essential SSH key utility
 
-Status: implemented and verified locally; awaiting human integration review
+Status: ready-for-human
+Released: v0.5.0（`6a09684`、PR #8、ADR 0001）
 Base: 404a3ebe616799b582a9bc8438bf47360065847c
 
 ## Objective

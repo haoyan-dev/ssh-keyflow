@@ -34,4 +34,4 @@ Blocked by: 01
 
 契約: version 1にoptional `creations`/`onboardings`、created来歴、Windows accountを追加。`internal/ssh.StandardRegistration` と既存登録ペアを03で再利用できる。Interactive SSHのStdinは端末を維持し、将来のスクリプトは安全に引用したコマンドpayloadで渡す。詳細は `docs/application-contract.md`。
 
-2026-11-13: v0.1.0（`ee3a00f`）で公開済み。v0.5.0でPR #8（`2ed184f`、ADR 0001）により、自動登録・解除・接続検査・設定編集・ローカル鍵削除は廃止された。鍵生成とローカル作成の再開は現行版に残る。
+2026-11-13: v0.1.0（`ee3a00f`）で公開済み。v0.5.0（`6a09684`、PR #8、ADR 0001）で、自動登録・解除・接続検査・設定編集・ローカル鍵削除は廃止された。鍵生成とローカル作成の再開は現行版に残る。

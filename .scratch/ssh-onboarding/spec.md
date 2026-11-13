@@ -1,7 +1,7 @@
 # SSH KeyFlow
 
 Status: ready-for-human
-Released: v0.1.0 (`ee3a00f`); remote registration and revocation retired in v0.5.0 (PR #8, ADR 0001)
+Released: v0.1.0（`ee3a00f`）。自動登録・解除はv0.5.0（`6a09684`、PR #8、ADR 0001）で廃止
 
 ## Problem Statement
 
