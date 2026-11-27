@@ -1,6 +1,6 @@
 # ADR 0003: ガイドのローカル・接続先OSを明示する
 
-- 状態: 採用
+- 状態: ADR 0007で廃止
 - 日付: 2026-11-09
 - 仕様: `.scratch/guide-platform-selection/spec.md`
 

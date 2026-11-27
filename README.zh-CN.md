@@ -2,19 +2,17 @@
 
 简体中文 · [English](README.en.md) · [日本語](README.md)
 
-一款用 Go 编写的 TUI / CLI 工具，用于管理本地 SSH 密钥和连接目标，并通过复制粘贴的方式辅助部署公钥和设置连接。
+一款用 Go 编写的 CLI 工具，用于创建、导入和管理本机的 SSH 密钥对，并以可复制的形式显示公钥。
 
 [首次使用](docs/zh-CN/tutorials/first-connection.md) · [文档](docs/zh-CN/README.md) · [参与贡献](CONTRIBUTING.zh-CN.md) · [发布](https://github.com/haoyan-dev/ssh-keyflow/releases)
 
 ## 功能
 
-- 创建 Ed25519 密钥，导入现有密钥对或公钥，恢复中断的密钥创建。
-- 通过 Keys / Destinations 的 TUI 和 CLI 管理密钥、连接目标及关联。
-- 显示和复制面向 Linux / macOS / Windows 的公钥部署、SSH config 追加和连接步骤。
-- 粘贴在连接目标上显示的主机公钥，将其固定。这样可以省去首次连接时的确认，并拒绝其他主机密钥。
-- 设置通过公钥文件选择并使用 SSH 代理中的私钥（如 FIDO 密钥）。
+- 创建 Ed25519 密钥，导入现有密钥对，恢复中断的密钥创建。
+- 列出密钥（表格或 JSON），并显示可供复制的单行公钥。
+- 保留密钥文件，仅从管理中移除密钥。
 
-应用本身不执行 SSH 连接或远程注册。关联只是本地的管理信息，不代表连接成功。设置由用户在目标终端上运行生成的脚本完成。从管理中移除与删除密钥文件、吊销 SSH 访问是不同的操作。
+应用本身不执行 SSH 连接、远程注册或 SSH config 编辑。公钥由用户自行部署。从管理中移除与删除密钥文件、吊销 SSH 访问是不同的操作。v0.11.0 已废弃连接目标、手动设置指南、主机密钥固定、TUI 和仅公钥导入（[迁移](docs/zh-CN/guides/data-and-recovery.md#从-v0100-及更早版本迁移)）。
 
 ## 一行命令安装
 
@@ -40,23 +38,23 @@ irm https://raw.githubusercontent.com/haoyan-dev/ssh-keyflow/main/install.ps1 | 
 
 ```sh
 ssh-keyflow --version
-ssh-keyflow
+ssh-keyflow keys list
 ```
 
-TUI 需要在交互式终端中使用。准备第一个密钥和连接目标的步骤见[首次连接设置](docs/zh-CN/tutorials/first-connection.md)，操作按键见 [TUI 操作](docs/zh-CN/guides/terminal-ui.md)，命令示例见 [CLI 用法](docs/zh-CN/guides/cli.md)。
+变更操作的确认需要交互式终端。准备第一个密钥并完成连接的步骤见[首次连接设置](docs/zh-CN/tutorials/first-connection.md)，命令示例见 [CLI 用法](docs/zh-CN/guides/cli.md)。
 
 ## 文档
 
 | 目的 | 阅读页面 |
 | --- | --- |
-| 准备第一个密钥和连接目标 | [教程](docs/zh-CN/tutorials/first-connection.md) |
+| 准备第一个密钥并完成连接 | [教程](docs/zh-CN/tutorials/first-connection.md) |
 | 查找操作步骤和问题处理方法 | [文档索引](docs/zh-CN/README.md) |
 | 查阅 CLI、JSON 和保存状态的约定 | [应用契约（中文概要）](docs/zh-CN/reference/application-contract.md) |
 | 参与修复或改进文档 | [参与贡献](CONTRIBUTING.zh-CN.md) |
 
 ## 安全条件与数据
 
-管理信息保存在 `~/.ssh/ssh-keyflow/state.json`，生成的密钥保存在同一目录的 `keys/` 中，固定的主机公钥保存在 `known_hosts` 中。从旧版本迁移或降级前，请先阅读[数据、迁移与恢复](docs/zh-CN/guides/data-and-recovery.md)。`state.json.bak` 是保存上一状态的滚动更新式备份，并不是用于回退到旧版本的永久备份。
+管理信息保存在 `~/.ssh/ssh-keyflow/state.json`，生成的密钥保存在同一目录的 `keys/` 中。v0.10.0 及更早版本的状态会在首次变更时先写出到 `state.v<N>-<UTC时间>.json`，然后再迁移。从旧版本迁移或降级前，请先阅读[数据、迁移与恢复](docs/zh-CN/guides/data-and-recovery.md)。`state.json.bak` 是保存上一状态的滚动更新式备份，并不是用于回退到旧版本的永久备份。
 
 ## 获取并运行 Portable 发行包
 

@@ -17,7 +17,7 @@
 - Go 版本遵循 [go.mod](go.mod) 的指定。
 - 验证脚本使用 Python 3.12 的标准库。
 - 验证原生密钥操作需要准备 `ssh` 和 `ssh-keygen`。
-- TUI 的手动测试在交互式终端中进行。
+- 变更操作的手动确认在交互式终端中进行。
 
 ```sh
 git clone https://github.com/haoyan-dev/ssh-keyflow.git
@@ -25,7 +25,7 @@ cd ssh-keyflow
 go run ./cmd/ssh-keyflow --help
 ```
 
-开发构建显示的版本为 `dev`。试用 TUI 或变更操作时，请准备一个专用的用户环境，避免与实际使用的密钥混在一起。自动测试使用临时主目录。
+开发构建显示的版本为 `dev`。试用变更操作时，请准备一个专用的用户环境，避免与实际使用的密钥混在一起。自动测试使用临时主目录。
 
 ## 变更流程
 

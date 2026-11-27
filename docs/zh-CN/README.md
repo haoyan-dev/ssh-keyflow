@@ -10,19 +10,18 @@
 
 | 想做的事 | 阅读页面 |
 | --- | --- |
-| 准备第一个密钥和连接目标，并完成连接设置 | [首次连接设置](tutorials/first-connection.md) |
+| 准备第一个密钥，部署公钥并完成连接 | [首次连接设置](tutorials/first-connection.md) |
 | 安装、更新或删除程序 | [安装指南](guides/installation.md) |
-| 查看 TUI 的操作按键和复制内容 | [TUI 操作](guides/terminal-ui.md) |
-| 用 CLI 管理密钥、连接目标和关联 | [CLI 用法](guides/cli.md) |
-| 了解状态的备份保存、迁移以及回退到旧版本时的注意事项 | [数据、迁移与恢复](guides/data-and-recovery.md) |
-| 排查启动、复制、密钥和连接问题 | [故障排除](guides/troubleshooting.md) |
+| 用 CLI 创建、导入或移除密钥 | [CLI 用法](guides/cli.md) |
+| 了解状态的备份保存、从旧版本迁移以及回退到旧版本的步骤 | [数据、迁移与恢复](guides/data-and-recovery.md) |
+| 排查启动、密钥、状态和连接问题 | [故障排除](guides/troubleshooting.md) |
 
 ## 规格与背景
 
 | 文档 | 作用 |
 | --- | --- |
 | [应用契约（中文概要）](reference/application-contract.md) | CLI、JSON、退出码、状态兼容性、安装与分发的公开契约 |
-| [术语表](reference/glossary.md)（中文概要） | 密钥、连接目标、关联、未验证等领域术语 |
+| [术语表](reference/glossary.md)（中文概要） | 密钥、导入、从管理中移除、迁移归档等领域术语 |
 | [设计决策列表](../adr/README.md)（日语） | 已采纳的决策，以及更新或取代它们的决策 |
 | [验证记录](../verification.md)（日语） | 按时间点记录的证据，包括目标提交、运行条件、结果和局限 |
 | [第三方许可证的收集方法](../third-party-notices.md)（日语） | 分发物中包含的许可证文档及其收集依据 |

@@ -1,6 +1,6 @@
 # ADR 0004: Remove local management metadata while retaining history
 
-- Status: accepted
+- Status: accepted; superseded by ADR 0007 (history retention and destination/association removal retired)
 - Date: 2026-11-09
 - Specification: `.scratch/remove-managed-records/spec.md`
 

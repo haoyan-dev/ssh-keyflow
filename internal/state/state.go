@@ -7,138 +7,32 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
-	"unicode"
 )
 
+// Version is the only schema this binary writes.
+const Version = 3
+
+// Key is a managed local key pair. Private key contents are never stored;
+// PrivateSHA256 only detects replacement of the recorded file.
 type Key struct {
-	Origin          string `json:"origin"`
-	ImportedAt      string `json:"imported_at"`
-	CreatedAt       string `json:"created_at,omitempty"`
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	Fingerprint     string `json:"fingerprint"`
-	PublicPath      string `json:"public_path"`
-	PrivatePath     string `json:"private_path,omitempty"`
-	PrivateSHA256   string `json:"private_sha256,omitempty"`
-	ConnectionCheck string `json:"connection_check"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Fingerprint   string `json:"fingerprint"`
+	PublicPath    string `json:"public_path"`
+	PrivatePath   string `json:"private_path"`
+	PrivateSHA256 string `json:"private_sha256"`
+	Origin        string `json:"origin"`
+	CreatedAt     string `json:"created_at,omitempty"`
+	ImportedAt    string `json:"imported_at,omitempty"`
 }
 
-type Host struct {
-	ConfigKeyID    string `json:"config_key_id,omitempty"`
-	ID             string `json:"id"`
-	Alias          string `json:"alias"`
-	Hostname       string `json:"hostname"`
-	User           string `json:"user"`
-	Port           int    `json:"port"`
-	OS             string `json:"os"`
-	WindowsAccount string `json:"windows_account,omitempty"`
-}
-
-func (host Host) Validate() error {
-	validText := func(value, punctuation string) bool {
-		if !clean(value) || strings.HasPrefix(value, "-") || strings.TrimSpace(value) != value {
-			return false
-		}
-		for _, character := range value {
-			if !unicode.IsLetter(character) && !unicode.IsNumber(character) && !unicode.IsMark(character) && !strings.ContainsRune(punctuation, character) {
-				return false
-			}
-		}
-		return true
-	}
-	if !validText(host.Alias, "._-") || (!validText(host.Hostname, ".-_") && net.ParseIP(host.Hostname) == nil) || !validText(host.User, "._-\\$ ") || host.Port < 1 || host.Port > 65535 || !oneOf(host.OS, "unknown", "windows", "linux", "macos") || (host.WindowsAccount != "" && (host.OS != "windows" || !oneOf(host.WindowsAccount, "standard", "administrator"))) {
-		return fmt.Errorf("invalid destination fields")
-	}
-	return nil
-}
-
-type Registration struct {
-	ID              string `json:"id"`
-	KeyID           string `json:"key_id"`
-	HostID          string `json:"host_id"`
-	Status          string `json:"status"`
-	ConnectionCheck string `json:"connection_check"`
-	Operation       string `json:"operation"`
-	Stage           string `json:"stage"`
-}
-
-type Association struct {
-	HostID string `json:"host_id"`
-	KeyID  string `json:"key_id"`
-}
-
-type State struct {
-	RemovedKeys   []Key               `json:"removed_keys,omitempty"`
-	RemovedHosts  []Host              `json:"removed_hosts,omitempty"`
-	Associations  []Association       `json:"associations,omitempty"`
-	DeletedKeys   []DeletedKey        `json:"deleted_keys,omitempty"`
-	Deletions     []LocalDeletion     `json:"deletions,omitempty"`
-	Version       int                 `json:"version"`
-	Keys          []Key               `json:"keys"`
-	Hosts         []Host              `json:"hosts"`
-	Registrations []Registration      `json:"registrations"`
-	Creations     []Creation          `json:"creations,omitempty"`
-	Onboardings   []Onboarding        `json:"onboardings,omitempty"`
-	History       []RegistrationEvent `json:"history,omitempty"`
-	Configs       []Config            `json:"configs,omitempty"`
-	ConfigEdits   []ConfigEdit        `json:"config_edits,omitempty"`
-}
-
-type DeletedKey struct {
-	Key        Key    `json:"key"`
-	DeletedAt  string `json:"deleted_at"`
-	DeletionID string `json:"deletion_id"`
-}
-
-type LocalDeletion struct {
-	ID             string `json:"id"`
-	KeyID          string `json:"key_id"`
-	CreatedAt      string `json:"created_at"`
-	Stage          string `json:"stage"`
-	PublicSHA256   string `json:"public_sha256"`
-	PrivateSHA256  string `json:"private_sha256,omitempty"`
-	PublicRemoved  bool   `json:"public_removed"`
-	PrivateRemoved bool   `json:"private_removed"`
-}
-
-type ConfigEdit struct {
-	Path         string `json:"path"`
-	BeforeSHA256 string `json:"before_sha256"`
-	AfterSHA256  string `json:"after_sha256"`
-	BackupPath   string `json:"backup_path,omitempty"`
-	Complete     bool   `json:"complete"`
-}
-
-type RegistrationEvent struct {
-	Operation       string `json:"operation,omitempty"`
-	RegistrationID  string `json:"registration_id"`
-	At              string `json:"at"`
-	Status          string `json:"status"`
-	ConnectionCheck string `json:"connection_check"`
-	Stage           string `json:"stage"`
-}
-
-type Config struct {
-	Path          string `json:"path"`
-	SHA256        string `json:"sha256,omitempty"`
-	PendingSHA256 string `json:"pending_sha256,omitempty"`
-}
-
-type Onboarding struct {
-	ID         string `json:"id"`
-	HostID     string `json:"host_id"`
-	KeyID      string `json:"key_id"`
-	CreationID string `json:"creation_id,omitempty"`
-	Stage      string `json:"stage"`
-	CreatedAt  string `json:"created_at"`
-}
-
+// Creation is an unfinished local key creation that resume can finish.
+// Completed creations are removed in the same save that adds their key.
 type Creation struct {
 	ID            string `json:"id"`
 	KeyID         string `json:"key_id"`
@@ -151,12 +45,29 @@ type Creation struct {
 	Fingerprint   string `json:"fingerprint,omitempty"`
 }
 
+type State struct {
+	Version   int        `json:"version"`
+	Keys      []Key      `json:"keys"`
+	Creations []Creation `json:"creations,omitempty"`
+	// Migration is set when the file on disk uses an older schema. It is never saved.
+	Migration *Migration `json:"-"`
+}
+
+// Migration describes what the first save will do to an older state file.
+type Migration struct {
+	FromVersion int
+	// Dropped lists records that are not carried into the current schema.
+	Dropped []string
+}
+
 func Directory(home string) string { return filepath.Join(home, ".ssh", "ssh-keyflow") }
+
+func empty() State { return State{Version: Version, Keys: []Key{}} }
 
 func Load(home string) (State, error) {
 	data, err := os.ReadFile(filepath.Join(Directory(home), "state.json"))
 	if os.IsNotExist(err) {
-		return State{Version: 2, Keys: []Key{}, Hosts: []Host{}, Registrations: []Registration{}}, nil
+		return empty(), nil
 	}
 	if err != nil {
 		return State{}, fmt.Errorf("read state.json: %w", err)
@@ -168,22 +79,155 @@ func decode(data []byte) (State, error) {
 	if err := uniqueJSON(json.NewDecoder(bytes.NewReader(data))); err != nil {
 		return State{}, fmt.Errorf("invalid state.json: %w", err)
 	}
+	var header struct {
+		Version *int `json:"version"`
+	}
+	if err := json.Unmarshal(data, &header); err != nil || header.Version == nil {
+		return State{}, fmt.Errorf("invalid state.json; restore a verified backup: missing or invalid version")
+	}
+	switch *header.Version {
+	case Version:
+	case 1, 2:
+		return decodeLegacy(data)
+	default:
+		return State{}, fmt.Errorf("unsupported state.json schema version %d; updates stopped", *header.Version)
+	}
 	var document State
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&document); err != nil {
-		return State{}, fmt.Errorf("invalid state.json; restore a verified backup: %w", err)
-	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		return State{}, fmt.Errorf("invalid state.json: trailing content")
-	}
-	if (document.Version != 1 && document.Version != 2) || document.Keys == nil || document.Hosts == nil || document.Registrations == nil {
-		return State{}, fmt.Errorf("unsupported or incomplete state.json schema/version; updates stopped")
+	if err := strictDecode(data, &document); err != nil {
+		return State{}, err
 	}
 	if err := document.Validate(); err != nil {
 		return State{}, fmt.Errorf("invalid state.json: %w", err)
 	}
+	return document, nil
+}
+
+func strictDecode(data []byte, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return fmt.Errorf("invalid state.json; restore a verified backup: %w", err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		return fmt.Errorf("invalid state.json: trailing content")
+	}
+	return nil
+}
+
+// Notice explains, before any change, what the next save does to an older
+// state file. Every changing command and keys list show it.
+func (migration *Migration) Notice() string {
+	note := fmt.Sprintf("state.json uses schema v%d. The next change copies it to %s next to state.json and saves schema v%d with local key pairs and unfinished creations only.", migration.FromVersion, ArchivePattern, Version)
+	if len(migration.Dropped) > 0 {
+		note += " Not carried over: " + strings.Join(migration.Dropped, "; ") + "."
+	}
+	return note
+}
+
+// legacyKey is a v1/v2 key; connection_check is accepted and dropped.
+type legacyKey struct {
+	Key
+	ConnectionCheck string `json:"connection_check"`
+}
+
+// decodeLegacy converts schema v1/v2 in memory. Unknown fields and wrongly
+// typed arrays are rejected as before. Only local key pairs and unfinished
+// creations are carried over; every other non-empty record type is listed in
+// Migration.Dropped, and the original file is archived on the first save.
+func decodeLegacy(data []byte) (State, error) {
+	var legacy struct {
+		Version       int               `json:"version"`
+		Keys          []legacyKey       `json:"keys"`
+		Hosts         []json.RawMessage `json:"hosts"`
+		Registrations []json.RawMessage `json:"registrations"`
+		Creations     []Creation        `json:"creations"`
+		Associations  []json.RawMessage `json:"associations"`
+		RemovedKeys   []json.RawMessage `json:"removed_keys"`
+		RemovedHosts  []json.RawMessage `json:"removed_hosts"`
+		DeletedKeys   []json.RawMessage `json:"deleted_keys"`
+		Deletions     []json.RawMessage `json:"deletions"`
+		Onboardings   []json.RawMessage `json:"onboardings"`
+		History       []json.RawMessage `json:"history"`
+		Configs       []json.RawMessage `json:"configs"`
+		ConfigEdits   []json.RawMessage `json:"config_edits"`
+	}
+	if err := strictDecode(data, &legacy); err != nil {
+		return State{}, err
+	}
+	if legacy.Keys == nil || legacy.Hosts == nil || legacy.Registrations == nil {
+		return State{}, fmt.Errorf("unsupported or incomplete state.json schema/version; updates stopped")
+	}
+	pendingDeletion := map[string]bool{}
+	for _, raw := range legacy.Deletions {
+		var deletion struct {
+			KeyID string `json:"key_id"`
+			Stage string `json:"stage"`
+		}
+		if err := json.Unmarshal(raw, &deletion); err != nil {
+			return State{}, fmt.Errorf("invalid state.json; restore a verified backup: deletions: %w", err)
+		}
+		if deletion.Stage != "complete" {
+			pendingDeletion[deletion.KeyID] = true
+		}
+	}
+	document := empty()
+	migration := &Migration{FromVersion: legacy.Version}
+	drop := func(format string, arguments ...any) {
+		migration.Dropped = append(migration.Dropped, fmt.Sprintf(format, arguments...))
+	}
+	for _, raw := range legacy.ConfigEdits {
+		var edit struct {
+			Path     string `json:"path"`
+			Complete bool   `json:"complete"`
+		}
+		if err := json.Unmarshal(raw, &edit); err != nil {
+			return State{}, fmt.Errorf("invalid state.json; restore a verified backup: config_edits: %w", err)
+		}
+		if !edit.Complete {
+			drop("an unfinished SSH config edit of %q (check that file manually)", edit.Path)
+		}
+	}
+	for _, legacyKey := range legacy.Keys {
+		key := legacyKey.Key
+		switch {
+		case key.PrivatePath == "":
+			drop("public-only key %q [%s]", key.Name, key.ID)
+		case pendingDeletion[key.ID]:
+			drop("key %q [%s] with an unfinished legacy deletion", key.Name, key.ID)
+		default:
+			document.Keys = append(document.Keys, key)
+		}
+	}
+	for _, creation := range legacy.Creations {
+		if creation.Stage != "complete" {
+			document.Creations = append(document.Creations, creation)
+		}
+	}
+	for _, records := range []struct {
+		items []json.RawMessage
+		label string
+	}{
+		{legacy.Hosts, "destination(s)"},
+		{legacy.Associations, "association(s)"},
+		{legacy.RemovedKeys, "archived removed key record(s)"},
+		{legacy.RemovedHosts, "archived removed destination record(s)"},
+		{legacy.DeletedKeys, "deleted key record(s)"},
+		{legacy.Deletions, "local key deletion record(s)"},
+		{legacy.Registrations, "registration record(s)"},
+		{legacy.History, "registration history event(s)"},
+		{legacy.Onboardings, "onboarding record(s)"},
+		{legacy.Configs, "SSH config record(s)"},
+		{legacy.ConfigEdits, "SSH config edit record(s)"},
+	} {
+		if len(records.items) > 0 {
+			drop("%d %s", len(records.items), records.label)
+		}
+	}
+	if err := document.Validate(); err != nil {
+		return State{}, fmt.Errorf("invalid legacy state.json: %w", err)
+	}
+	document.Migration = migration
 	return document, nil
 }
 
@@ -218,9 +262,6 @@ func uniqueJSON(decoder *json.Decoder) error {
 }
 
 func pathIdentity(path string) string {
-	if path == "" {
-		return ""
-	}
 	cleaned := filepath.Clean(path)
 	if runtime.GOOS == "windows" {
 		return strings.ToLower(cleaned)
@@ -228,220 +269,57 @@ func pathIdentity(path string) string {
 	return cleaned
 }
 
+func validTime(value string) bool {
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	return err == nil && !parsed.IsZero()
+}
+
+func validFingerprint(value string) bool {
+	digest, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(value, "SHA256:"))
+	return strings.HasPrefix(value, "SHA256:") && err == nil && len(digest) == 32
+}
+
+func validDigest(value string) bool {
+	digest, err := hex.DecodeString(value)
+	return err == nil && len(digest) == 32
+}
+
 func (document State) Validate() error {
-	if (document.Version != 1 && document.Version != 2) || document.Keys == nil || document.Hosts == nil || document.Registrations == nil {
+	if document.Version != Version || document.Keys == nil {
 		return fmt.Errorf("unsupported or incomplete schema/version")
 	}
-	identities := map[string]bool{}
-	claim := func(identity string) bool {
-		if !clean(identity) || identities[identity] {
+	identities, fingerprints, paths := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	claim := func(set map[string]bool, value string) bool {
+		if set[value] {
 			return false
 		}
-		identities[identity] = true
+		set[value] = true
 		return true
 	}
-	keys, hosts, aliases, fingerprints, pairs, paths := map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}, map[string]bool{}
-	allKeys := append([]Key{}, document.Keys...)
-	removedKeys := map[string]bool{}
-	for _, key := range document.RemovedKeys {
-		removedKeys[key.ID] = true
-		allKeys = append(allKeys, key)
-	}
-	retired := map[string]DeletedKey{}
-	activeKeys := map[string]bool{}
 	for _, key := range document.Keys {
-		activeKeys[key.ID] = true
-	}
-	for _, deleted := range document.DeletedKeys {
-		deletedAt, err := time.Parse(time.RFC3339Nano, deleted.DeletedAt)
-		if err != nil || deletedAt.IsZero() || !clean(deleted.DeletionID) || retired[deleted.Key.ID].Key.ID != "" || activeKeys[deleted.Key.ID] {
-			return fmt.Errorf("invalid deleted key tombstone")
-		}
-		retired[deleted.Key.ID] = deleted
-		allKeys = append(allKeys, deleted.Key)
-	}
-	for _, key := range allKeys {
-		provenanceTime := key.ImportedAt
-		if key.Origin == "created" {
-			provenanceTime = key.CreatedAt
-		}
-		parsedTime, timeErr := time.Parse(time.RFC3339Nano, provenanceTime)
-		if !oneOf(key.Origin, "imported", "created") || timeErr != nil || parsedTime.IsZero() || (key.Origin == "imported" && key.CreatedAt != "") || (key.Origin == "created" && (key.ImportedAt != "" || key.PrivatePath == "")) {
+		provenance := (key.Origin == "created" && validTime(key.CreatedAt) && key.ImportedAt == "") ||
+			(key.Origin == "imported" && validTime(key.ImportedAt) && key.CreatedAt == "")
+		if !provenance {
 			return fmt.Errorf("invalid key provenance %q", key.ID)
 		}
-		digest, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(key.Fingerprint, "SHA256:"))
-		if !claim(key.ID) || !clean(key.Name) || !strings.HasPrefix(key.Fingerprint, "SHA256:") || err != nil || len(digest) != 32 || (!removedKeys[key.ID] && (fingerprints[key.Fingerprint] || paths[pathIdentity(key.PublicPath)])) || !filepath.IsAbs(key.PublicPath) || !oneOf(key.ConnectionCheck, "unverified", "verified", "failed", "unknown") {
-			return fmt.Errorf("invalid or duplicate key %q", key.ID)
+		if !clean(key.ID) || !clean(key.Name) || !validFingerprint(key.Fingerprint) || !validDigest(key.PrivateSHA256) ||
+			!filepath.IsAbs(key.PublicPath) || !filepath.IsAbs(key.PrivatePath) || pathIdentity(key.PublicPath) == pathIdentity(key.PrivatePath) {
+			return fmt.Errorf("invalid key metadata %q", key.ID)
 		}
-		if (key.PrivatePath == "") != (key.PrivateSHA256 == "") || (key.PrivatePath != "" && (!filepath.IsAbs(key.PrivatePath) || pathIdentity(key.PrivatePath) == pathIdentity(key.PublicPath) || (!removedKeys[key.ID] && paths[pathIdentity(key.PrivatePath)]) || len(key.PrivateSHA256) != 64)) {
-			return fmt.Errorf("invalid private key metadata %q", key.ID)
-		}
-		if key.PrivateSHA256 != "" {
-			if _, err := hex.DecodeString(key.PrivateSHA256); err != nil {
-				return fmt.Errorf("invalid private key digest %q", key.ID)
-			}
-		}
-		keys[key.ID] = true
-		if !removedKeys[key.ID] {
-			fingerprints[key.Fingerprint], paths[pathIdentity(key.PublicPath)] = true, true
-			if key.PrivatePath != "" {
-				paths[pathIdentity(key.PrivatePath)] = true
-			}
+		if !claim(identities, key.ID) || !claim(fingerprints, key.Fingerprint) || !claim(paths, pathIdentity(key.PublicPath)) || !claim(paths, pathIdentity(key.PrivatePath)) {
+			return fmt.Errorf("duplicate key identity, fingerprint or path %q", key.ID)
 		}
 	}
-	activeHosts := map[string]bool{}
-	for _, host := range document.Hosts {
-		activeHosts[host.ID] = true
-	}
-	allHosts := append(append([]Host{}, document.Hosts...), document.RemovedHosts...)
-	for _, host := range allHosts {
-		if !claim(host.ID) || host.Validate() != nil || (activeHosts[host.ID] && aliases[strings.ToLower(host.Alias)]) {
-			return fmt.Errorf("invalid or duplicate host %q", host.ID)
-		}
-		hosts[host.ID] = true
-		if activeHosts[host.ID] {
-			aliases[strings.ToLower(host.Alias)] = true
-		}
-	}
-	if document.Version == 1 && (len(document.Associations) > 0 || len(document.RemovedKeys) > 0 || len(document.RemovedHosts) > 0) {
-		return fmt.Errorf("associations and removed records require state version 2")
-	}
-	associations := map[string]bool{}
-	for _, association := range document.Associations {
-		pair := association.KeyID + "/" + association.HostID
-		if !activeKeys[association.KeyID] || !activeHosts[association.HostID] || associations[pair] {
-			return fmt.Errorf("invalid or duplicate key association")
-		}
-		associations[pair] = true
-	}
-	for _, registration := range document.Registrations {
-		pair := registration.KeyID + "/" + registration.HostID
-		if !claim(registration.ID) || !keys[registration.KeyID] || !hosts[registration.HostID] || pairs[pair] || !oneOf(registration.Status, "pending", "registered", "removed", "unknown", "failed") || !oneOf(registration.ConnectionCheck, "unverified", "verified", "failed", "unknown") || !oneOf(registration.Operation, "register", "unregister") || !oneOf(registration.Stage, "planned", "pending", "complete", "unknown", "failed") {
-			return fmt.Errorf("invalid registration or relationship %q", registration.ID)
-		}
-		pairs[pair] = true
-	}
-	for _, host := range allHosts {
-		if host.ConfigKeyID != "" && (!(activeKeys[host.ConfigKeyID] || removedKeys[host.ConfigKeyID]) || !pairs[host.ConfigKeyID+"/"+host.ID]) {
-			return fmt.Errorf("invalid configuration key for %q", host.ID)
-		}
-	}
-	for _, event := range document.History {
-		matched := false
-		for _, registration := range document.Registrations {
-			if registration.ID == event.RegistrationID {
-				matched = true
-			}
-		}
-		observedAt, err := time.Parse(time.RFC3339Nano, event.At)
-		if !matched || err != nil || observedAt.IsZero() || !oneOf(event.Operation, "", "register", "unregister") || !oneOf(event.Status, "pending", "registered", "removed", "unknown", "failed") || !oneOf(event.ConnectionCheck, "unverified", "verified", "failed", "unknown") || !oneOf(event.Stage, "planned", "pending", "complete", "unknown", "failed") {
-			return fmt.Errorf("invalid registration history")
-		}
-	}
-	validDigest := func(value string) bool {
-		decoded, err := hex.DecodeString(value)
-		return err == nil && len(decoded) == 32
-	}
-	deletionKeys := map[string]bool{}
-	for _, deletion := range document.Deletions {
-		createdAt, err := time.Parse(time.RFC3339Nano, deletion.CreatedAt)
-		if !claim(deletion.ID) || !keys[deletion.KeyID] || deletionKeys[deletion.KeyID] || err != nil || createdAt.IsZero() || !oneOf(deletion.Stage, "pending", "complete") || !validDigest(deletion.PublicSHA256) {
-			return fmt.Errorf("invalid local deletion intent")
-		}
-		deletionKeys[deletion.KeyID] = true
-		for _, key := range allKeys {
-			if key.ID == deletion.KeyID && (deletion.PrivateSHA256 != key.PrivateSHA256 || (key.PrivatePath == "" && !deletion.PrivateRemoved)) {
-				return fmt.Errorf("inconsistent deletion fingerprint/digest")
-			}
-		}
-		if deletion.Stage == "complete" && (!deletion.PublicRemoved || !deletion.PrivateRemoved || retired[deletion.KeyID].DeletionID != deletion.ID) {
-			return fmt.Errorf("incomplete deletion tombstone")
-		}
-		if deletion.Stage == "pending" && !activeKeys[deletion.KeyID] {
-			return fmt.Errorf("pending deletion without managed key")
-		}
-		for _, registration := range document.Registrations {
-			if registration.KeyID == deletion.KeyID && (registration.Status != "removed" || registration.Stage != "complete" || registration.Operation != "unregister") {
-				return fmt.Errorf("deletion with outstanding recorded registration")
-			}
-		}
-	}
-	for keyID := range retired {
-		if !deletionKeys[keyID] {
-			return fmt.Errorf("tombstone missing deletion history")
-		}
-	}
-	configPaths := map[string]bool{}
-	for _, config := range document.Configs {
-		if !filepath.IsAbs(config.Path) || configPaths[pathIdentity(config.Path)] || (config.SHA256 == "" && config.PendingSHA256 == "") || (config.SHA256 != "" && !validDigest(config.SHA256)) || (config.PendingSHA256 != "" && !validDigest(config.PendingSHA256)) {
-			return fmt.Errorf("invalid configuration ownership")
-		}
-		configPaths[pathIdentity(config.Path)] = true
-	}
-	for _, edit := range document.ConfigEdits {
-		if !filepath.IsAbs(edit.Path) || !validDigest(edit.BeforeSHA256) || !validDigest(edit.AfterSHA256) || (edit.BackupPath != "" && (!filepath.IsAbs(edit.BackupPath) || pathIdentity(filepath.Dir(edit.BackupPath)) != pathIdentity(filepath.Dir(edit.Path)) || pathIdentity(edit.BackupPath) == pathIdentity(edit.Path))) {
-			return fmt.Errorf("invalid configuration edit intent")
-		}
-	}
-	creationKeys := map[string]bool{}
 	for _, creation := range document.Creations {
-		createdAt, timeErr := time.Parse(time.RFC3339Nano, creation.CreatedAt)
-		if !claim(creation.ID) || !clean(creation.KeyID) || creationKeys[creation.KeyID] || !clean(creation.Name) || !filepath.IsAbs(creation.PrivatePath) || pathIdentity(creation.PublicPath) != pathIdentity(creation.PrivatePath+".pub") || timeErr != nil || createdAt.IsZero() || !oneOf(creation.Stage, "planned", "pending", "complete") {
+		if !clean(creation.ID) || !clean(creation.KeyID) || !clean(creation.Name) || !filepath.IsAbs(creation.PrivatePath) ||
+			pathIdentity(creation.PublicPath) != pathIdentity(creation.PrivatePath+".pub") || !validTime(creation.CreatedAt) ||
+			!oneOf(creation.Stage, "planned", "pending") ||
+			(creation.PrivateSHA256 != "" && !validDigest(creation.PrivateSHA256)) ||
+			(creation.Fingerprint != "" && !validFingerprint(creation.Fingerprint)) {
 			return fmt.Errorf("invalid creation intent %q", creation.ID)
 		}
-		creationKeys[creation.KeyID] = true
-		if creation.Stage == "complete" {
-			matched := false
-			for _, key := range allKeys {
-				if key.ID == creation.KeyID && key.Origin == "created" && pathIdentity(key.PrivatePath) == pathIdentity(creation.PrivatePath) && pathIdentity(key.PublicPath) == pathIdentity(creation.PublicPath) && key.CreatedAt == creation.CreatedAt && key.PrivateSHA256 == creation.PrivateSHA256 && key.Fingerprint == creation.Fingerprint {
-					matched = true
-				}
-			}
-			if !matched {
-				return fmt.Errorf("creation result missing or inconsistent %q", creation.ID)
-			}
-		} else {
-			if !claim(creation.KeyID) || paths[pathIdentity(creation.PrivatePath)] || paths[pathIdentity(creation.PublicPath)] {
-				return fmt.Errorf("creation identity/path conflict %q", creation.ID)
-			}
-			paths[pathIdentity(creation.PrivatePath)], paths[pathIdentity(creation.PublicPath)] = true, true
-		}
-		if creation.PrivateSHA256 != "" {
-			digest, err := hex.DecodeString(creation.PrivateSHA256)
-			if err != nil || len(digest) != 32 {
-				return fmt.Errorf("invalid creation digest %q", creation.ID)
-			}
-		}
-		if creation.Fingerprint != "" {
-			digest, err := base64.RawStdEncoding.DecodeString(strings.TrimPrefix(creation.Fingerprint, "SHA256:"))
-			if !strings.HasPrefix(creation.Fingerprint, "SHA256:") || err != nil || len(digest) != 32 {
-				return fmt.Errorf("invalid creation fingerprint %q", creation.ID)
-			}
-		}
-	}
-	onboardingHosts := map[string]bool{}
-	for _, onboarding := range document.Onboardings {
-		createdAt, timeErr := time.Parse(time.RFC3339Nano, onboarding.CreatedAt)
-		if !claim(onboarding.ID) || !hosts[onboarding.HostID] || onboardingHosts[onboarding.HostID] || !oneOf(onboarding.Stage, "key_pending", "planned", "manual") || timeErr != nil || createdAt.IsZero() {
-			return fmt.Errorf("invalid onboarding %q", onboarding.ID)
-		}
-		onboardingHosts[onboarding.HostID] = true
-		if onboarding.CreationID != "" {
-			found := false
-			for _, creation := range document.Creations {
-				if creation.ID == onboarding.CreationID && creation.KeyID == onboarding.KeyID {
-					found = true
-				}
-			}
-			if !found {
-				return fmt.Errorf("invalid onboarding creation %q", onboarding.ID)
-			}
-		}
-		if !keys[onboarding.KeyID] && !(onboarding.Stage == "key_pending" && creationKeys[onboarding.KeyID] && onboarding.CreationID != "") {
-			return fmt.Errorf("invalid onboarding key %q", onboarding.ID)
-		}
-		if onboarding.Stage == "manual" && !pairs[onboarding.KeyID+"/"+onboarding.HostID] {
-			return fmt.Errorf("missing onboarding registration %q", onboarding.ID)
+		if !claim(identities, creation.ID) || !claim(identities, creation.KeyID) || !claim(paths, pathIdentity(creation.PrivatePath)) || !claim(paths, pathIdentity(creation.PublicPath)) {
+			return fmt.Errorf("creation identity/path conflict %q", creation.ID)
 		}
 	}
 	return nil
@@ -450,6 +328,7 @@ func (document State) Validate() error {
 func clean(value string) bool {
 	return strings.TrimSpace(value) != "" && !strings.ContainsAny(value, "\x00\r\n")
 }
+
 func oneOf(value string, allowed ...string) bool {
 	for _, candidate := range allowed {
 		if value == candidate {
@@ -507,53 +386,87 @@ func (store *LockedStore) Load() (State, error) {
 	return Load(store.home)
 }
 
-func Update(home string, change func(*State) error) error {
-	return WithLock(home, func(store *LockedStore) error {
-		document, err := store.Load()
-		if err != nil {
-			return err
-		}
-		if err := change(&document); err != nil {
-			return err
-		}
-		return store.Save(document)
-	})
-}
-
+// Save validates and atomically replaces state.json. The previous valid bytes
+// go to state.json.bak. An older-schema file is first copied to a new, never
+// overwritten state.v<N>-<UTC time>.json archive.
 func (store *LockedStore) Save(document State) error {
 	if !store.active {
 		return fmt.Errorf("operation lock is no longer held")
 	}
-	if document.Version != 1 && document.Version != 2 {
-		return fmt.Errorf("unsupported schema/version")
-	}
-	document.Version = 2
+	document.Migration = nil
 	if err := document.Validate(); err != nil {
-		return err
-	}
-	directory := Directory(store.home)
-	_, err := store.Load()
-	if err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(document, "", "  ")
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(directory, "state.json")
+	path := filepath.Join(Directory(store.home), "state.json")
 	previous, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if err == nil {
-		if _, err := decode(previous); err != nil {
+		current, err := decode(previous)
+		if err != nil {
 			return err
+		}
+		if current.Migration != nil {
+			if _, err := archive(path, current.Migration.FromVersion, previous); err != nil {
+				return fmt.Errorf("archive of schema v%d state failed; state unchanged: %w", current.Migration.FromVersion, err)
+			}
 		}
 		if err := atomicWrite(path+".bak", previous); err != nil {
 			return fmt.Errorf("backup failed; state unchanged: %w", err)
 		}
 	}
 	return atomicWrite(path, append(data, '\n'))
+}
+
+// ArchivePattern matches files written by archive, for documentation and tests.
+const ArchivePattern = "state.v*-*.json"
+
+// now is replaced in tests to make archive names predictable.
+var now = time.Now
+
+// archive writes data to a new state.v<N>-<UTC>.json. If an earlier attempt
+// already archived the same bytes (its save then failed), that file is reused
+// so retries do not pile up identical archives.
+func archive(statePath string, version int, data []byte) (string, error) {
+	directory := filepath.Dir(statePath)
+	existing, err := filepath.Glob(filepath.Join(directory, fmt.Sprintf("state.v%d-*.json", version)))
+	if err != nil {
+		return "", err
+	}
+	for _, candidate := range existing {
+		if previous, err := os.ReadFile(candidate); err == nil && bytes.Equal(previous, data) {
+			return candidate, nil
+		}
+	}
+	base := filepath.Join(directory, fmt.Sprintf("state.v%d-%s", version, now().UTC().Format("20060102T150405Z")))
+	for suffix := 0; suffix < 100; suffix++ {
+		candidate := base + ".json"
+		if suffix > 0 {
+			candidate = fmt.Sprintf("%s_%d.json", base, suffix)
+		}
+		file, err := os.OpenFile(candidate, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if os.IsExist(err) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+		_, writeErr := file.Write(data)
+		syncErr := file.Sync()
+		closeErr := file.Close()
+		for _, err := range []error{writeErr, syncErr, closeErr} {
+			if err != nil {
+				return "", err
+			}
+		}
+		return candidate, nil
+	}
+	return "", fmt.Errorf("no free archive name for %s", base)
 }
 
 func atomicWrite(path string, data []byte) error {

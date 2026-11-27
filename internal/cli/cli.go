@@ -22,7 +22,6 @@ type Options struct {
 	Output  io.Writer
 	Error   io.Writer
 	Runner  app.Runner
-	RunTUI  func(context.Context, app.Options) error
 }
 
 // Run is the CLI entry point. It returns the process exit status.
@@ -40,16 +39,11 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 		options.Version = "dev"
 	}
 	root := &cobra.Command{
-		Use: "ssh-keyflow", Short: "Manage local SSH keys and copy-paste destination setup",
+		Use: "ssh-keyflow", Short: "Manage this machine's SSH key pairs",
 		Version:       options.Version,
 		Args:          cobra.NoArgs,
 		SilenceErrors: true, SilenceUsage: true,
-		RunE: func(command *cobra.Command, _ []string) error {
-			if terminal(options.Input) && terminalWriter(options.Output) {
-				return openTUI(command.Context(), options)
-			}
-			return command.Help()
-		},
+		RunE: func(command *cobra.Command, _ []string) error { return command.Help() },
 	}
 	root.SetVersionTemplate("SSH KeyFlow {{.Version}}\n")
 	root.CompletionOptions.DisableDefaultCmd = true
@@ -57,110 +51,39 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 	root.SetIn(options.Input)
 	root.SetOut(options.Output)
 	root.SetErr(options.Error)
-	for _, category := range []string{"hosts", "keys"} {
-		parent := &cobra.Command{
-			Use: category, Short: "Manage " + category, Args: cobra.NoArgs,
-			RunE: func(command *cobra.Command, _ []string) error { return command.Help() },
-		}
-		asJSON := false
-		list := &cobra.Command{
-			Use: "list", Short: "List saved " + category, Args: cobra.NoArgs,
-			RunE: func(command *cobra.Command, _ []string) error {
-				home, err := userHome(options)
-				if err != nil {
-					return executionError{err}
-				}
-				view, err := app.Snapshot(app.Options{Home: home})
-				if err != nil {
-					return executionError{err}
-				}
-				if view.Review != "" {
-					fmt.Fprintln(options.Error, view.Review)
-				}
-				var pins map[string][]app.PinSummary
-				if category == "hosts" {
-					// An unreadable pin file is reported, never guessed at or repaired.
-					if pins, err = app.PinSummaries(home, view.State.Hosts); err != nil {
-						fmt.Fprintf(options.Error, "Host key pins: unknown: %v\n", err)
-					}
-				}
-				if asJSON {
-					return asExecutionError(json.NewEncoder(options.Output).Encode(records(category, view, pins)))
-				}
-				return asExecutionError(printRecords(options.Output, category, view, pins))
-			},
-		}
-		list.Flags().BoolVar(&asJSON, "json", false, "Write machine-readable JSON; diagnostics go to stderr")
-		parent.AddCommand(list)
-		switch category {
-		case "keys":
-			createRequest := &app.Request{Operation: "create"}
-			create := operationCommand("create", "Create an Ed25519 key", createRequest, options)
-			create.Flags().StringVar(&createRequest.Name, "name", "", "Management name (required)")
-			create.MarkFlagRequired("name")
-			importRequest := &app.Request{Operation: "import"}
-			importKey := operationCommand("import", "Explicitly import an existing key pair or public key", importRequest, options)
-			importKey.Flags().StringVar(&importRequest.Name, "name", "", "Management name (required)")
-			importKey.Flags().StringVar(&importRequest.PublicPath, "public", "", "Existing public key path (required)")
-			importKey.Flags().StringVar(&importRequest.PrivatePath, "private", "", "Existing private key path; omitted for public-only import")
-			importKey.MarkFlagRequired("name")
-			importKey.MarkFlagRequired("public")
-			publicRequest := &app.Request{Operation: "public"}
-			public := readCommand("public", "Print a managed public key for copying", publicRequest, options)
-			public.Flags().StringVar(&publicRequest.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
-			public.MarkFlagRequired("key")
-			removeRequest := &app.Request{Operation: "remove-key"}
-			remove := operationCommand("remove", "Remove a managed key and its local associations; preserve key files", removeRequest, options)
-			remove.Flags().StringVar(&removeRequest.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
-			remove.MarkFlagRequired("key")
-			parent.AddCommand(create, importKey, public, remove)
-		case "hosts":
-			request := &app.Request{Operation: "add"}
-			add := operationCommand("add", "Save a destination associated with an existing key; no remote changes", request, options)
-			add.Flags().StringVar(&request.Destination.Alias, "alias", "", "Destination alias (required)")
-			add.Flags().StringVar(&request.Destination.Hostname, "hostname", "", "Hostname, Tailscale name or IP (required)")
-			add.Flags().StringVar(&request.Destination.User, "user", "", "Login user (required)")
-			add.Flags().IntVar(&request.Destination.Port, "port", 22, "SSH port")
-			add.Flags().StringVar(&request.Destination.OS, "os", "", "Destination OS: linux, macos, windows (required)")
-			add.Flags().StringVar(&request.Destination.WindowsAccount, "windows-account", "", "Windows account: standard or administrator (required for Windows)")
-			add.Flags().StringVar(&request.Key, "key", "", "Existing managed key fixed ID or unambiguous name (required)")
-			for _, flag := range []string{"alias", "hostname", "user", "os", "key"} {
-				add.MarkFlagRequired(flag)
-			}
-			associateRequest := &app.Request{Operation: "associate"}
-			associate := operationCommand("associate", "Save a key association; remote registration is not verified", associateRequest, options)
-			dissociateRequest := &app.Request{Operation: "dissociate"}
-			dissociate := operationCommand("dissociate", "Disconnect a local key association; preserve keys, destination and SSH access", dissociateRequest, options)
-			removeRequest := &app.Request{Operation: "remove-host"}
-			remove := operationCommand("remove", "Remove a destination and its local associations; preserve SSH access", removeRequest, options)
-			remove.Flags().StringVar(&removeRequest.Host, "host", "", "Destination fixed ID or alias (required)")
-			remove.MarkFlagRequired("host")
-			guideRequest := &app.Request{Operation: "guide"}
-			guide := readCommand("guide", "Print copy-paste setup and removal instructions without changing files", guideRequest, options)
-			guide.Flags().StringVar(&guideRequest.GuideOptions.LocalOS, "local-os", "", "Local terminal OS: linux, macos, windows (default: running app OS)")
-			guide.Flags().StringVar(&guideRequest.GuideOptions.RemoteOS, "remote-os", "", "Destination OS: linux, macos, windows (default: saved destination)")
-			guide.Flags().StringVar(&guideRequest.GuideOptions.WindowsAccount, "windows-account", "", "Destination Windows account: standard or administrator (default: saved account)")
-			guide.Flags().StringVar(&guideRequest.GuideOptions.IdentityFile, "identity-file", "", "Matching private-key path in the local terminal (required when local OS differs)")
-			for command, request := range map[*cobra.Command]*app.Request{associate: associateRequest, dissociate: dissociateRequest, guide: guideRequest} {
-				command.Flags().StringVar(&request.Host, "host", "", "Destination fixed ID or alias (required)")
-				command.Flags().StringVar(&request.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
-				command.MarkFlagRequired("host")
-				command.MarkFlagRequired("key")
-			}
-			parent.AddCommand(add, associate, dissociate, guide, remove, pinCommand(options), unpinCommand(options))
-		}
-		root.AddCommand(parent)
+
+	keys := &cobra.Command{
+		Use: "keys", Short: "Manage local key pairs", Args: cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error { return command.Help() },
 	}
+	keys.AddCommand(listCommand(options), publicCommand(options))
+
+	createRequest := &app.Request{Operation: "create"}
+	create := operationCommand("create", "Create an Ed25519 key pair", createRequest, options)
+	create.Flags().StringVar(&createRequest.Name, "name", "", "Management name (required)")
+	create.MarkFlagRequired("name")
+
+	importRequest := &app.Request{Operation: "import"}
+	importKey := operationCommand("import", "Adopt an existing local key pair; files stay in place", importRequest, options)
+	importKey.Flags().StringVar(&importRequest.Name, "name", "", "Management name (required)")
+	importKey.Flags().StringVar(&importRequest.PublicPath, "public", "", "Existing public key path (required)")
+	importKey.Flags().StringVar(&importRequest.PrivatePath, "private", "", "Matching private key path (required)")
+	for _, flag := range []string{"name", "public", "private"} {
+		importKey.MarkFlagRequired(flag)
+	}
+
+	removeRequest := &app.Request{Operation: "remove"}
+	remove := operationCommand("remove", "Stop managing a key pair; key files are preserved", removeRequest, options)
+	remove.Flags().StringVar(&removeRequest.Key, "key", "", "Managed key fixed ID or unambiguous name (required)")
+	remove.MarkFlagRequired("key")
+	keys.AddCommand(create, importKey, remove)
+
 	resumeRequest := &app.Request{Operation: "resume"}
 	resume := operationCommand("resume", "Resume an unfinished local key creation", resumeRequest, options)
 	resume.Flags().StringVar(&resumeRequest.Resume, "id", "", "Unfinished local creation fixed ID shown by keys list (required)")
 	resume.MarkFlagRequired("id")
-	root.AddCommand(resume, &cobra.Command{
-		Use: "tui", Short: "Open the terminal user interface", Args: cobra.NoArgs,
-		RunE: func(command *cobra.Command, _ []string) error {
-			return openTUI(command.Context(), options)
-		},
-	})
+	root.AddCommand(keys, resume)
+
 	if command, err := root.ExecuteContextC(ctx); err != nil {
 		fmt.Fprintln(options.Error, err)
 		var failure executionError
@@ -195,16 +118,40 @@ func userHome(options Options) (string, error) {
 	return os.UserHomeDir()
 }
 
-func records(category string, view app.View, pins map[string][]app.PinSummary) map[string]any {
-	if category == "hosts" {
-		result := map[string]any{"hosts": array(view.State.Hosts), "associations": array(view.State.Associations)}
-		// Absent when the pin file cannot be read: pinned status is then unknown.
-		if pins != nil {
-			result["host_key_pins"] = pins
-		}
-		return result
+func listCommand(options Options) *cobra.Command {
+	asJSON := false
+	command := &cobra.Command{
+		Use: "list", Short: "List managed key pairs and unfinished creations", Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			home, err := userHome(options)
+			if err != nil {
+				return executionError{err}
+			}
+			view, err := app.Snapshot(app.Options{Home: home})
+			if err != nil {
+				return executionError{err}
+			}
+			if view.Review != "" {
+				fmt.Fprintln(options.Error, view.Review)
+			}
+			if asJSON {
+				return asExecutionError(json.NewEncoder(options.Output).Encode(map[string]any{
+					"keys": array(view.State.Keys), "creations": array(view.State.Creations),
+				}))
+			}
+			table := tabwriter.NewWriter(options.Output, 0, 4, 2, ' ', 0)
+			fmt.Fprintln(table, "ID\tNAME\tFINGERPRINT\tPUBLIC PATH")
+			for _, key := range view.State.Keys {
+				fmt.Fprintf(table, "%s\t%s\t%s\t%s\n", key.ID, key.Name, key.Fingerprint, key.PublicPath)
+			}
+			for _, creation := range view.State.Creations {
+				fmt.Fprintf(table, "creation %s\t%s\tstage=%s\n", creation.ID, creation.Name, creation.Stage)
+			}
+			return asExecutionError(table.Flush())
+		},
 	}
-	return map[string]any{"keys": array(view.State.Keys), "creations": array(view.State.Creations)}
+	command.Flags().BoolVar(&asJSON, "json", false, "Write machine-readable JSON; diagnostics go to stderr")
+	return command
 }
 
 func array[T any](items []T) []T {
@@ -214,82 +161,31 @@ func array[T any](items []T) []T {
 	return items
 }
 
-func printRecords(output io.Writer, category string, view app.View, pins map[string][]app.PinSummary) error {
-	table := tabwriter.NewWriter(output, 0, 4, 2, ' ', 0)
-	switch category {
-	case "hosts":
-		fmt.Fprintln(table, "ID\tALIAS\tDESTINATION\tOS\tHOST KEYS")
-		for _, host := range view.State.Hosts {
-			status := app.PinStatus(len(pins[host.ID]), pins != nil)
-			fmt.Fprintf(table, "%s\t%s\t%s@%s:%d\t%s\t%s\n", host.ID, host.Alias, host.User, host.Hostname, host.Port, host.OS, status)
-		}
-		for _, association := range view.State.Associations {
-			fmt.Fprintf(table, "association\thost=%s\tkey=%s\n", association.HostID, association.KeyID)
-		}
-	case "keys":
-		fmt.Fprintln(table, "ID\tNAME\tFINGERPRINT\tPUBLIC PATH")
-		for _, key := range view.State.Keys {
-			fmt.Fprintf(table, "%s\t%s\t%s\t%s\n", key.ID, key.Name, key.Fingerprint, key.PublicPath)
-		}
-		for _, creation := range view.State.Creations {
-			if creation.Stage != "complete" {
-				fmt.Fprintf(table, "creation %s\t%s\tstage=%s\n", creation.ID, creation.Name, creation.Stage)
+func publicCommand(options Options) *cobra.Command {
+	var reference string
+	command := &cobra.Command{
+		Use: "public", Short: "Print a managed public key for copying", Args: cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			home, err := userHome(options)
+			if err != nil {
+				return executionError{err}
 			}
-		}
+			text, err := app.PublicKey(home, reference)
+			if err != nil {
+				return asExecutionError(err)
+			}
+			_, err = fmt.Fprintln(options.Output, text)
+			return asExecutionError(err)
+		},
 	}
-	return table.Flush()
+	command.Flags().StringVar(&reference, "key", "", "Managed key fixed ID or unambiguous name (required)")
+	command.MarkFlagRequired("key")
+	return command
 }
 
 func terminal(input io.Reader) bool {
 	file, ok := input.(*os.File)
 	return ok && term.IsTerminal(file.Fd())
-}
-
-func openTUI(ctx context.Context, options Options) error {
-	if !terminal(options.Input) || !terminalWriter(options.Output) {
-		return fmt.Errorf("tui requires terminal input and output")
-	}
-	if options.RunTUI == nil {
-		return executionError{fmt.Errorf("TUI entry point is unavailable")}
-	}
-	home, err := userHome(options)
-	if err != nil {
-		return executionError{err}
-	}
-	return asExecutionError(options.RunTUI(ctx, app.Options{Home: home, Input: options.Input, Output: options.Output, Runner: options.Runner}))
-}
-
-func terminalWriter(output io.Writer) bool {
-	file, ok := output.(*os.File)
-	return ok && term.IsTerminal(file.Fd())
-}
-
-func readCommand(name, description string, request *app.Request, options Options) *cobra.Command {
-	return &cobra.Command{
-		Use: name, Short: description, Args: cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := request.Validate(); err != nil {
-				return err
-			}
-			home, err := userHome(options)
-			if err != nil {
-				return executionError{err}
-			}
-			var text string
-			if request.Operation == "public" {
-				text, err = app.PublicKey(home, request.Key)
-			} else {
-				var guide app.SetupGuide
-				guide, err = app.PrepareGuideWithOptions(home, request.Host, request.Key, request.GuideOptions)
-				text = guide.Text
-			}
-			if err != nil {
-				return asExecutionError(err)
-			}
-			_, err = fmt.Fprint(options.Output, text)
-			return asExecutionError(err)
-		},
-	}
 }
 
 func operationCommand(name, description string, request *app.Request, options Options) *cobra.Command {
@@ -312,78 +208,4 @@ func operationCommand(name, description string, request *app.Request, options Op
 			}))
 		},
 	}
-}
-
-// maxHostKeyInput reads one byte past the parser limit so oversize input is refused.
-const maxHostKeyInput = 64<<10 + 1
-
-func pinCommand(options Options) *cobra.Command {
-	request := &app.Request{Operation: "pin-host"}
-	var file string
-	var yes bool
-	command := &cobra.Command{
-		Use: "pin", Short: "Pin a destination's host public keys pasted from the destination itself; no network",
-		Args: cobra.NoArgs,
-		RunE: func(command *cobra.Command, _ []string) error {
-			if err := request.Validate(); err != nil {
-				return err
-			}
-			interactive := terminal(options.Input)
-			if !interactive && !yes {
-				return executionError{fmt.Errorf("non-terminal input requires --yes; review the fingerprints with ssh-keygen -lf first")}
-			}
-			if !interactive && request.Replace {
-				return executionError{fmt.Errorf("replacing pinned host keys requires typed confirmation in a real terminal")}
-			}
-			home, err := userHome(options)
-			if err != nil {
-				return executionError{err}
-			}
-			var source io.Reader
-			if file != "" {
-				opened, err := os.Open(file)
-				if err != nil {
-					return executionError{err}
-				}
-				defer opened.Close()
-				source = opened
-			} else if !interactive {
-				source = options.Input
-			}
-			if source != nil {
-				data, err := io.ReadAll(io.LimitReader(source, maxHostKeyInput))
-				if err != nil {
-					return executionError{err}
-				}
-				if len(data) == 0 {
-					return executionError{fmt.Errorf("no host key input")}
-				}
-				request.HostKeys = string(data)
-			}
-			return asExecutionError(app.Run(command.Context(), app.Options{
-				Home: home, Input: options.Input, Output: options.Output, Runner: options.Runner, Request: request,
-				Confirm: func(string) (bool, error) {
-					// --yes never approves a replacement.
-					if yes && !request.Replace {
-						return true, nil
-					}
-					return app.ReadConfirmation(options.Input)
-				},
-			}))
-		},
-	}
-	command.Flags().StringVar(&request.Host, "host", "", "Destination fixed ID or alias (required)")
-	command.Flags().StringVar(&file, "file", "", "Read the destination's host key output from this file instead of a paste")
-	command.Flags().BoolVar(&yes, "yes", false, "Pin without typed confirmation when no different keys are pinned (required for non-terminal input)")
-	command.Flags().BoolVar(&request.Replace, "replace", false, "Replace different pinned keys after confirming the change on the destination")
-	command.MarkFlagRequired("host")
-	return command
-}
-
-func unpinCommand(options Options) *cobra.Command {
-	request := &app.Request{Operation: "unpin-host"}
-	command := operationCommand("unpin", "Remove a destination's pinned host keys; SSH access is unchanged", request, options)
-	command.Flags().StringVar(&request.Host, "host", "", "Destination fixed ID or alias (required)")
-	command.MarkFlagRequired("host")
-	return command
 }

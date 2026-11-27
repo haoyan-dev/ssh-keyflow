@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -25,10 +26,9 @@ func newID(prefix string) (string, error) {
 }
 
 func createKey(ctx context.Context, options Options, store *state.LockedStore, document *state.State, name string) (state.Key, error) {
-	for _, creation := range document.Creations {
-		if creation.Stage != "complete" {
-			return state.Key{}, fmt.Errorf("unfinished creation %s at %s; resume this saved operation before allocating another pair", creation.ID, creation.PrivatePath)
-		}
+	if len(document.Creations) > 0 {
+		creation := document.Creations[0]
+		return state.Key{}, fmt.Errorf("unfinished creation %s at %s; resume this saved operation before allocating another pair", creation.ID, creation.PrivatePath)
 	}
 	if strings.TrimSpace(name) == "" || strings.ContainsAny(name, "\x00\r\n") {
 		return state.Key{}, fmt.Errorf("invalid management name")
@@ -104,23 +104,14 @@ func createKey(ctx context.Context, options Options, store *state.LockedStore, d
 		}
 	}
 	document.Creations = append(document.Creations, state.Creation{ID: creationID, KeyID: keyID, Name: name, PrivatePath: privatePath, PublicPath: privatePath + ".pub", CreatedAt: createdAt.Format(time.RFC3339Nano), Stage: "planned"})
-	options.target = ReportTarget{KeyID: keyID, CreationID: creationID}
-	if err := options.saveReport(store, *document, Report{Kind: ReportCreation, Outcome: OutcomePending, Stage: "planned", Path: privatePath}); err != nil {
+	if err := store.Save(*document); err != nil {
 		return state.Key{}, err
 	}
 	return finishCreation(ctx, options, store, document, len(document.Creations)-1)
 }
 
-func finishCreation(ctx context.Context, options Options, store *state.LockedStore, document *state.State, creationIndex int) (result state.Key, err error) {
+func finishCreation(ctx context.Context, options Options, store *state.LockedStore, document *state.State, creationIndex int) (state.Key, error) {
 	creation := &document.Creations[creationIndex]
-	options.target = ReportTarget{KeyID: creation.KeyID, CreationID: creation.ID}
-	options.report(Report{Kind: ReportResolvedTarget, Outcome: OutcomeResolved})
-	fact := Report{Kind: ReportCreation, Outcome: OutcomeRequiresReview, Path: creation.PrivatePath}
-	defer func() {
-		if err != nil {
-			options.report(fact)
-		}
-	}()
 	if err := integrity(*document); err != nil {
 		return state.Key{}, err
 	}
@@ -131,8 +122,7 @@ func finishCreation(ctx context.Context, options Options, store *state.LockedSto
 		return state.Key{}, err
 	}
 	creation.Stage = "pending"
-	fact.Outcome = OutcomeUnknown
-	if err := options.saveReport(store, *document, Report{Kind: ReportCreation, Outcome: OutcomePending, Stage: creation.Stage, Path: creation.PrivatePath}); err != nil {
+	if err := store.Save(*document); err != nil {
 		return state.Key{}, err
 	}
 	if creation.PrivateSHA256 == "" && creation.Fingerprint != "" {
@@ -143,7 +133,7 @@ func finishCreation(ctx context.Context, options Options, store *state.LockedSto
 		if err := observeCreation(creation); err != nil {
 			return state.Key{}, err
 		}
-		if err := options.saveReport(store, *document, Report{Kind: ReportCreation, Outcome: OutcomePending, Stage: creation.Stage, Path: creation.PrivatePath}); err != nil {
+		if err := store.Save(*document); err != nil {
 			return state.Key{}, err
 		}
 		if generationErr != nil {
@@ -188,17 +178,18 @@ func finishCreation(ctx context.Context, options Options, store *state.LockedSto
 	if err := observeCreation(creation); err != nil {
 		return state.Key{}, err
 	}
-	creation.Stage = "complete"
 	if err := integrity(*document); err != nil {
 		return state.Key{}, err
 	}
-	key := state.Key{ID: creation.KeyID, Name: creation.Name, PublicPath: creation.PublicPath, PrivatePath: creation.PrivatePath, PrivateSHA256: creation.PrivateSHA256, Fingerprint: creation.Fingerprint, Origin: "created", CreatedAt: creation.CreatedAt, ConnectionCheck: "unverified"}
+	key := state.Key{ID: creation.KeyID, Name: creation.Name, PublicPath: creation.PublicPath, PrivatePath: creation.PrivatePath, PrivateSHA256: creation.PrivateSHA256, Fingerprint: creation.Fingerprint, Origin: "created", CreatedAt: creation.CreatedAt}
+	// The finished creation is replaced by its key in one atomic save.
+	document.Creations = slices.Delete(document.Creations, creationIndex, creationIndex+1)
 	document.Keys = append(document.Keys, key)
-	if err := options.saveReport(store, *document, Report{Kind: ReportCreation, Outcome: OutcomeApplied, Stage: creation.Stage, Path: creation.PrivatePath}); err != nil {
+	if err := store.Save(*document); err != nil {
 		return state.Key{}, err
 	}
-	fmt.Fprintln(options.Output, "Created", key.Name, key.Fingerprint, "connection=unverified")
-	return key, nil
+	_, err = fmt.Fprintln(options.Output, "Created", key.Name, key.Fingerprint)
+	return key, err
 }
 
 func creationLocation(home string, creation state.Creation) error {

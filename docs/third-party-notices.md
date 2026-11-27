@@ -11,3 +11,5 @@ Goランタイム・標準ライブラリと、直接・間接の依存モジュ
 依存やGoツールチェーンを更新するときは、6対象の実行用パッケージ、関連する著作権・追加ライセンス注記と同梱本文を再照合する。
 
 2026-11-08の必須機能への縮小では、`go mod tidy` により未使用となった `github.com/sahilm/fuzzy v0.1.3` を除去し、同梱本文と取得元一覧から対応する項目を外した。残る依存の版とライセンス本文は変更していない。上記のモジュール数はv0.2.0時点の記録である。
+
+2026-11-28の端末UI廃止では、Go 1.26.2、`CGO_ENABLED=0` と6対象の `go list -buildvcs=false -deps` で実行ファイルのモジュールを再取得した。和集合は `github.com/charmbracelet/x/term v0.2.2`、`github.com/inconshreveable/mousetrap v1.1.0`（Windowsのみ）、`github.com/spf13/cobra v1.10.2`、`github.com/spf13/pflag v1.0.9`、`golang.org/x/sys v0.47.0` の5モジュールとなった。これに含まれない17モジュール（bubbles、bubbletea、lipgloss、uniseg、x/syncなど）の本文と取得元項目を外した。Unicodeライセンスは、Go標準ライブラリの `unicode` テーブルが参照するため残し、見出しをその用途に合わせた。残る本文と元ファイルのハッシュは変更していない。
