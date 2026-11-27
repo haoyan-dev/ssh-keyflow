@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: 02
 
 # 03: Audit v0.11.0 and integrate the evidence
@@ -14,3 +14,5 @@ Complete spec criteria 5–6. Record:
 ## Comments
 
 - 2026-11-28: Publication and audit integration are distinct completion gates.
+- 2026-11-28: Audit checks passed; recorded in `docs/verification.md` and
+  `published-assets.json`. Audit PR pending.

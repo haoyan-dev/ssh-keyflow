@@ -2308,3 +2308,97 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   - Migration was tested with fixtures, not with real user state.
   - One intermittent local `test_installers.py` error has an unknown cause.
   - Published-asset checks follow publication in a separate audit PR.
+
+## 2026-11-28: v0.11.0 publication audit
+
+- [Preparation PR #40](https://github.com/haoyan-dev/ssh-keyflow/pull/40)
+  merged before tagging. Final candidate and tagged source:
+  `848c5f286a02dc05e7fddff0893cff35b3fae547`.
+  - Its tree (`59580f8`) equals preparation head
+    `d50a2600c0d77a5787005f2ae42d85a4a19edb3d`. That head's branch and PR CI
+    runs, 46045920790 and 46045954604, passed all checks.
+  - Only the preparation notes and records differ from the tested source
+    `f718b817527bec8ef4b6a6d27fe56aee33cc931e`. Unchanged-input evidence was
+    reused, the documentation checks reran on the clean candidate, and main CI
+    run 46046637084 passed on the candidate.
+- Annotated tag object `4bf4ad6632adc16e46532d6469a063488abd83ad` is identical
+  locally and remotely, and peels to the candidate. Only `refs/tags/v0.11.0`
+  was pushed. The annotation records the version rationale, the previous
+  release, the tested source, the final source and the comparison.
+- [Release workflow 46046728413](https://github.com/haoyan-dev/ssh-keyflow/actions/runs/46046728413)
+  ran on the exact candidate. It passed verification, documentation checks,
+  the six-target crossbuild and publication, and built the release binaries
+  with the v0.11.0 version injection.
+- [v0.11.0](https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.11.0) is
+  published, stable, neither draft nor prerelease, and returned by
+  `releases/latest`, replacing v0.10.0. MINOR rationale: 0.x breaking changes
+  since v0.10.0 (ADR 0007).
+- Release published 2026-11-27T18:11:18Z; workflow run 2026-11-27T18:04:53Z
+  to 18:11:22Z (UTC).
+- The generated notes were replaced with the body published from tracked
+  `.scratch/release-v0.11.0/release-notes.md`, whose "Verification and limits"
+  placeholder was replaced by the final source and evidence comparison. The
+  published notes and the tag annotation both cite main CI run 46046637084
+  and preparation runs 46045920790 and 46045954604. The live body matches that
+  composed text once both are normalized to LF and trimmed. All seven asset
+  IDs, digests and sizes were unchanged by the edit.
+- All seven assets were downloaded into a new, empty directory.
+  - `SHA256SUMS` has exactly six unique archive entries, in the format SHA256,
+    two spaces, file name, LF.
+  - Every archive hash matches, and so do all seven GitHub asset digests and
+    sizes.
+  - Asset identities, binary hashes and installer evidence are in
+    [published-assets.json](../.scratch/release-v0.11.0/published-assets.json).
+- Each archive contains only its executable and `THIRD_PARTY_NOTICES.txt`.
+  - Tar members are regular files with modes 0755/0644 and uid/gid 0. Zip
+    members are regular files.
+  - Every notice matches the tagged source byte for byte.
+  - All six binaries have the expected GOOS/GOARCH, CGO_ENABLED=0, trimpath,
+    no VCS stamping, Go 1.26.0 build metadata and one embedded v0.11.0 tag
+    string.
+- Smoke test of the published Windows amd64 executable with an empty temporary
+  home:
+  - `--version` printed `SSH KeyFlow v0.11.0`.
+  - `keys list --json` printed `{"creations":[],"keys":[]}` and exited 0.
+  - No arguments printed help and exited 0.
+  - `hosts list`, `hosts guide`, `tui`, `keys import` with only `--public`,
+    and `keys public` without `--key` each exited 2.
+  - The home stayed empty.
+- With a temporary home holding a minimal schema v2 `state.json`, `keys list`
+  printed the migration notice on stderr ("schema v2 … Not carried over:
+  1 destination(s).") and exited 0. The file stayed byte-identical, and no
+  archive or backup was written.
+- Audit tools: Windows amd64, Go 1.26.2, Python 3.12.13, PowerShell 7.6.10.
+- Source-hosted `install.sh` and `install.ps1` were fetched from `main`.
+  - They match commit `848c5f286a02dc05e7fddff0893cff35b3fae547` exactly and
+    are byte-identical to v0.10.0's. Their SHA256 values are in the JSON
+    evidence.
+  - The production PowerShell installer passed three runs, each with an
+    isolated install directory and a temporary seeded profile:
+    - latest install with `-AddToPath`;
+    - exact `-Version v0.11.0` update;
+    - uninstall.
+  - The installed binary matches the release asset, and the installed notice
+    matches the tag.
+  - The profile gained the PATH stanza and was restored byte for byte on
+    uninstall. The install directory was left empty, and the persistent user
+    PATH was unchanged.
+- Standards review and specification review of this audit ran separately.
+  - Standards: no hard violations. The JSON evidence was reshaped to the
+    v0.10.0 key set, the cited CI runs were named, and the spec and issue
+    status lines were aligned with the precedent.
+  - Specification: every live claim (tag, trees, workflow runs, release
+    status, asset IDs and digests, installer identity) matched. The notes
+    comparison wording, the review status line and the publication times were
+    corrected, and the JSON evidence is tracked with this record.
+- Status: publication complete. Audit integration (criterion 6) is pending
+  until the audit PR merges.
+- Limits:
+  - No native execution on the other five targets.
+  - No production run of the POSIX installer.
+  - No live SSH server or live interactive confirmation.
+  - The migration smoke test used a minimal fixture, not real user state.
+  - Crossbuild and embedded-tag evidence do not verify runtime on every
+    target.
+  - This audit changes records only. It needs no new version and does not move
+    the immutable tag.

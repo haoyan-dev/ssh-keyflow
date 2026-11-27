@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: none
 
 # 01: Prepare and integrate v0.11.0
@@ -17,3 +17,5 @@ Reuse evidence only when the inputs and conditions support it.
   JSON change description, archive and downgrade wording, precedent details)
   are fixed and recorded. The user authorized merging after CI, then the tag
   and release.
+- 2026-11-28: Preparation integrated by PR #40 as `848c5f2`; required CI
+  passed.

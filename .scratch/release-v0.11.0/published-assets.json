@@ -1,0 +1,110 @@
+{
+  "tag": "v0.11.0",
+  "candidate": "848c5f286a02dc05e7fddff0893cff35b3fae547",
+  "release_url": "https://github.com/haoyan-dev/ssh-keyflow/releases/tag/v0.11.0",
+  "release_id": 460929077,
+  "published_at": "2026-11-27T18:11:18Z",
+  "workflow": {
+    "conclusion": "success",
+    "databaseId": 46046728413,
+    "headBranch": "v0.11.0",
+    "headSha": "848c5f286a02dc05e7fddff0893cff35b3fae547",
+    "status": "completed",
+    "createdAt": "2026-11-27T18:04:53Z",
+    "updatedAt": "2026-11-27T18:11:22Z"
+  },
+  "latest": "v0.11.0",
+  "assets": [
+    {
+      "digest": "sha256:faea1e5831d5f698e4b4ca16fef77a63b96a9c27313f6e29f805a9576be667e0",
+      "id": 801536107,
+      "name": "SHA256SUMS",
+      "size": 630
+    },
+    {
+      "digest": "sha256:bd661ffa91ec85a9c54b7415b7fcf89b74e540bc510ad52ff889372e6d89ea03",
+      "id": 801536110,
+      "name": "ssh-keyflow_v0.11.0_darwin_amd64.tar.gz",
+      "size": 1912316
+    },
+    {
+      "digest": "sha256:af0062edd7c3f616530dfc787dc72d8c3242237eae9b93fb65e6fe019b6e74c9",
+      "id": 801536112,
+      "name": "ssh-keyflow_v0.11.0_darwin_arm64.tar.gz",
+      "size": 1768312
+    },
+    {
+      "digest": "sha256:8e7546b21c66339c87f21581e8c5cec9c4e07f9e7f5da753fd3a8a68076133a0",
+      "id": 801536111,
+      "name": "ssh-keyflow_v0.11.0_linux_amd64.tar.gz",
+      "size": 1887428
+    },
+    {
+      "digest": "sha256:ee0bb7edac5104490a5c79d900489f7799e88aaedf9d9eb1903bdb1208c2965d",
+      "id": 801536109,
+      "name": "ssh-keyflow_v0.11.0_linux_arm64.tar.gz",
+      "size": 1705082
+    },
+    {
+      "digest": "sha256:f8387ef313b85150e04d86100abecd2c8b78899b8c67dc84b9ccb5fbfde3fea2",
+      "id": 801536139,
+      "name": "ssh-keyflow_v0.11.0_windows_amd64.zip",
+      "size": 1983348
+    },
+    {
+      "digest": "sha256:a25a73234052ea97991f1ddf7bc4e0b5e7858256ae7ec6bb6edfecb6d95b8c89",
+      "id": 801536150,
+      "name": "ssh-keyflow_v0.11.0_windows_arm64.zip",
+      "size": 1767933
+    }
+  ],
+  "binaries": [
+    {
+      "target": "darwin_amd64",
+      "sha256": "100b6e9243738874efa37d337f0353dfc3c072e3499f691bf109c36cf62f9a9a",
+      "embedded_version_tag": "v0.11.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "darwin_arm64",
+      "sha256": "cabf0d616cae27c6fb45dc6bac11c73234c0f5a28fa0953e8cb52ca2313f06be",
+      "embedded_version_tag": "v0.11.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "linux_amd64",
+      "sha256": "f29c6f305dcb02ef61411aee6bf14d40680ed33251d84f1c06ba496edebd1023",
+      "embedded_version_tag": "v0.11.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "linux_arm64",
+      "sha256": "08ad620301010204cef0cdefef7e01a3409e3768ad407e5aee64e3e9a2d836f0",
+      "embedded_version_tag": "v0.11.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "windows_amd64",
+      "sha256": "52ba0bf07691d591cc32d5634ff88f86cee3dd4183e443ae28ac0569d98bb879",
+      "embedded_version_tag": "v0.11.0",
+      "go_toolchain": "go1.26.0"
+    },
+    {
+      "target": "windows_arm64",
+      "sha256": "b44804fbec1f611c48ece0df2c9d03caadf59a0aaef54d16c30439efc9906910",
+      "embedded_version_tag": "v0.11.0",
+      "go_toolchain": "go1.26.0"
+    }
+  ],
+  "installer_main": "848c5f286a02dc05e7fddff0893cff35b3fae547",
+  "installer_sha256": {
+    "install.sh": "b5b9e46bcee1f36deb9df80e65c671afd192a9ac09817277fbaf33be896d0e2f",
+    "install.ps1": "88e76aca2e2d04dd41cb0a77fd8a896587240469386e5baac1b2c4f7a038a27f"
+  },
+  "version_evidence": "All six binaries contain the tag once; workflow injects main.version; runtime version checked on Windows amd64. Linker flags are absent from build metadata.",
+  "native_smoke": "Windows amd64 version, empty keys list JSON, help without arguments, retired commands/flags exit 2, schema v2 migration notice without writes, zero home writes",
+  "powershell_version": "7.6.10",
+  "installer_smoke": "PowerShell 7 production latest install with -AddToPath, exact-version update, uninstall; isolated install dir, temporary profile and home; installed binary/notice match the release; profile restored byte-identical; persistent user PATH unchanged; installers byte-identical to v0.10.0",
+  "limits": "No native execution on other five targets, live SSH, live interactive confirmation, real user state migration, or POSIX installer production run",
+  "tag_object": "4bf4ad6632adc16e46532d6469a063488abd83ad"
+}
