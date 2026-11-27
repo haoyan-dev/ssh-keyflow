@@ -2203,3 +2203,108 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
     a real terminal.
   - macOS and Linux runtime behaviour weren't run locally.
   - Translations were model-written.
+
+## 2026-11-28: v0.11.0 release preparation
+
+- Proposed version: **v0.11.0**. The previous highest published stable release
+  is **v0.10.0** (tag `v0.10.0`,
+  `0af26316c9589203402c46fa6f4f97871f46c414`, Latest).
+  - Remote branches, tags and the release list were refreshed before choosing
+    the version.
+  - v0.11.0 was unreserved locally and remotely.
+- Version rationale: since v0.10.0 the release makes breaking changes to the
+  public contract (ADR 0007, PR #39).
+  - Every `hosts` command, the copy-paste guide, pin/unpin, the TUI with its
+    `tui` command, and public-only import are retired. They now exit with
+    code 2.
+  - `keys list --json` key objects drop `connection_check`, omit `imported_at`
+    for created keys, and always include `private_path` and `private_sha256`.
+  - State moves to schema v3 through an archived, one-way migration.
+
+  In 0.x development a breaking change increments MINOR and resets PATCH. This
+  is not a 1.0.0 readiness decision. The documentation changes from PR #37 and
+  PR #38 are included as well.
+- Full tested source: `f718b817527bec8ef4b6a6d27fe56aee33cc931e`, the
+  integrated `main` after PR #39.
+  - The checks ran on a clean checkout of that commit, before the preparation
+    files existed. Its only untracked path was `.scratch/fleet-sync/`, which
+    holds unrelated design notes that no build or test reads.
+  - This preparation adds only tracker files and this record.
+  - The release notes are tracked in
+    [.scratch/release-v0.11.0/release-notes.md](../.scratch/release-v0.11.0/release-notes.md).
+    They cover changes since v0.10.0, breaking changes and migration,
+    downgrade, installation and update, and limits.
+- Environment: Windows 11 Pro amd64, Go 1.26.2, Python 3.12.13 (via
+  `uv run --no-project`).
+- Fresh local checks on that tree all exited 0:
+  - `go test -count=1 ./...` and `go vet ./...`;
+  - `scripts/test_portable.py` (5), `scripts/test_release.py` (17) and
+    `scripts/test_installer_profiles.py` (30);
+  - `scripts/test_docs.py` (26) and `scripts/check_docs.py` (49 pages, 24
+    complete translations, 0 stale);
+  - `scripts/package_release.py --version v0.0.0-check`, which built six
+    archives plus `SHA256SUMS` into a temporary directory; nothing was
+    published.
+- `scripts/test_installers.py` (50) reported one error on its first run. The
+  details of that failure were not captured.
+  - Two later runs on the same tree passed all 50 tests. The second wrote a
+    full `-v` log to a session scratch file, which is not kept in the
+    repository.
+  - The error is treated as intermittent; its cause is unknown.
+  - `install.sh`, `install.ps1` and the installer tests are unchanged since
+    v0.10.0.
+  - CI on `b3d7235` (runs `46040944986` and `46040968812`) passed the
+    installer tests on ubuntu, macos and windows.
+- Since v0.10.0:
+  - `go.mod`, `go.sum` and `THIRD_PARTY_NOTICES.txt` lost the TUI modules.
+  - `scripts/check_docs.py` and `scripts/test_docs.py` gained locale checks.
+  - `scripts/test_portable.py` changed one line.
+  - `.github/`, the installers, `scripts/package_release.py` and
+    `scripts/test_release.py` are unchanged.
+
+  The tag workflow builds its own six-target matrix, so it is not duplicated
+  beyond the local packaging check.
+- Required CI for PR #39 passed on `b3d7235`: test on ubuntu-latest,
+  windows-latest and macos-latest, crossbuild and docs. Merge commit
+  `f718b81` has the same tree as `b3d7235` (`a1800fa`).
+- Reviews of the release content: the standards and spec reviews of the
+  retirement ran separately before PR #39, and all findings were resolved. See
+  "2026-11-28: Retire non-essential functions (dev, not a release record)".
+- Standards review of this preparation, run separately (AGENTS.md, the
+  tracker conventions and the v0.10.0 precedent). No hard violations. Fixed:
+  - the full SHA of the previous release;
+  - "No open scope questions" in the spec;
+  - dated tracker comments;
+  - lines over 80 characters;
+  - the exact heading of the cited section;
+  - contractions in this record;
+  - the review results recorded here instead of only in the PR;
+  - the installer error added to the limits;
+  - which tree "only untracked path" describes.
+- Spec review of this preparation, run separately, checking every notes claim
+  against the code at `f718b81` and `v0.10.0`. All step-1 items were present
+  and v0.11.0 was confirmed. Fixed in the notes:
+  - `keys public` takes `--key` and no positional argument;
+  - the `keys list --json` change is inside the key objects; the top-level
+    `keys` and `creations` were unchanged;
+  - archive wording: an identical archive is reused on retry, and no existing
+    archive is overwritten;
+  - the retired `tui` command is now named;
+  - keys with an unfinished legacy deletion are listed as not carried over;
+  - the backup before updating and the `state.json.bak` limit for downgrade;
+  - a destination in the `ssh` example, and the Windows `authorized_keys`
+    locations;
+  - why `charmbracelet/x/term` remains.
+- After this preparation merges, refresh `main` and compare its candidate with
+  the tested source. Preparation-only records and notes may reuse unchanged
+  check inputs. Rerun the documentation checks and require passing candidate
+  CI. Record the exact candidate and the comparison in the annotated tag, the
+  published notes and the audit.
+- Limits:
+  - Confirmation prompts were covered by tests with scripted input, not a live
+    terminal.
+  - No native runs were done on macOS, Linux or arm64. CI ran the tests on
+    three OSes, and cross-builds are not native runs.
+  - Migration was tested with fixtures, not with real user state.
+  - One intermittent local `test_installers.py` error has an unknown cause.
+  - Published-asset checks follow publication in a separate audit PR.
