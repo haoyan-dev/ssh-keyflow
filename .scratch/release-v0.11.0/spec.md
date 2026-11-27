@@ -1,6 +1,8 @@
 # Release v0.11.0
 
-Status: ready-for-agent
+Status: ready-for-human
+Published: v0.11.0 at `848c5f286a02dc05e7fddff0893cff35b3fae547`; audit PR
+pending
 Previous release: v0.10.0 (tag `v0.10.0`,
 `0af26316c9589203402c46fa6f4f97871f46c414`)
 Tested source: `f718b817527bec8ef4b6a6d27fe56aee33cc931e`
@@ -14,8 +16,8 @@ it once CI passes, then tag and release". Together these authorize:
 - the preparation branch and PR, and merging it after CI passes;
 - the annotated tag, pushing it, and the automatic release.
 
-The publication-audit PR follows AGENTS.md step 4. Merging it still needs the
-user's approval, because it was not explicitly authorized.
+On 2026-11-28 the user then said "also merge the audit PR when it's ready", which authorizes
+merging the publication-audit PR after its checks and reviews pass.
 
 Select v0.11.0. Since v0.10.0 the release contains breaking changes:
 - commands and flags are retired (every `hosts` command, the guide, pin/unpin,
