@@ -4,16 +4,16 @@
 
 [ドキュメント一覧](../README.md)
 
-鍵を1つ作成し、接続先と関連付け、手動設定ガイドを表示します。最後のSSH接続は自分で実行して確認します。アプリ内に保存した関連付けだけでは、接続先の設定は変わりません。
+鍵を1つ用意し、その公開鍵を接続先へ自分で配置して、SSH接続を確認します。SSH KeyFlowが行うのは鍵の作成・取り込みと公開鍵の表示までで、接続先の設定やSSH接続は行いません。
 
 ## 事前に用意するもの
 
 - [インストール済みのSSH KeyFlow](../guides/installation.md)と対話端末。
 - ローカル端末の `ssh` と `ssh-keygen`。
 - SSHサーバーが利用可能で、自分が設定してよい接続先。公開鍵をまだ登録していない場合も、その端末へ別の方法でログインできること。
-- 接続先のホスト名・ユーザー名・OS。以下の `server.example` と `alice` は、自分の接続先に置き換えます。
+- 接続先のホスト名とユーザー名。以下の `server.example` と `alice` は、自分の接続先に置き換えます。
 
-旧版から利用している場合は、変更操作の前に[状態の保管と移行](../guides/data-and-recovery.md)を確認してください。
+旧版から利用している場合は、変更操作の前に[状態の移行](../guides/data-and-recovery.md#v0100以前からの移行)を確認してください。
 
 ## 1. 起動を確認する
 
@@ -36,52 +36,58 @@ ssh-keyflow keys create --name laptop
 
 表示された内容を確認し、確認要求に `yes` を入力します。パスフレーズはOSの `ssh-keygen` へ直接入力します。既存パスは上書きしません。
 
-既存鍵を使う場合は、代わりに次を実行します。2つのパスを自分の鍵ペアの絶対パスに置き換えてください。Windowsでは `C:\Users\alice\.ssh\id_ed25519` などを使います。
+既存の鍵ペアを使う場合は、代わりに次を実行します。2つのパスを自分の鍵ペアの絶対パスに置き換えてください。Windowsでは `C:\Users\alice\.ssh\id_ed25519` などを使います。
 
 ```sh
 ssh-keyflow keys import --name laptop --public /absolute/path/id_ed25519.pub --private /absolute/path/id_ed25519
 ```
 
-取り込みは元の鍵ファイルを移動・書き換えません。`--private` を省略すると公開鍵のみとなります。この場合、ガイドは公開鍵ファイルを `IdentityFile` にし、対応する秘密鍵をSSHエージェント（FIDO鍵等）から使います。
+取り込みは元の鍵ファイルを移動・書き換えません。
 
 ```sh
 ssh-keyflow keys list
+```
+
+管理名 `laptop`、指紋、公開鍵のパスを確認します。秘密鍵のパスは `keys list --json` の `private_path` で確認できます。作成が中断した場合は[復旧ガイド](../guides/troubleshooting.md#鍵作成が中断した)へ進みます。
+
+## 3. 公開鍵を接続先へ配置する
+
+ローカル端末で公開鍵を表示し、1行のままコピーします。
+
+```sh
 ssh-keyflow keys public --key laptop
 ```
 
-管理名 `laptop` と公開鍵を確認します。同じ管理名が複数ある場合は一覧にある固定IDを使ってください。作成が中断した場合は[復旧ガイド](../guides/troubleshooting.md#鍵作成が中断した)へ進みます。
-
-## 3. 接続先を保存する
-
-以下はLinux接続先の例です。`my-server` は自分で選ぶ別名です。既存のSSH configと重複しない名前を選びます。
+**接続先の端末**（別の方法でログインした端末）で、ログインユーザーの `authorized_keys` に追記します。Linux / macOSの接続先では次のとおりです。`<公開鍵>` をコピーした1行に置き換えます。
 
 ```sh
-ssh-keyflow hosts add --alias my-server --hostname server.example --user alice --os linux --key laptop
-ssh-keyflow hosts list
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+printf '%s\n' '<公開鍵>' >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
 ```
 
-確認後、接続先と鍵の関連付けがローカルに保存されます。既定のSSHポートは22です。別のポートは `--port`、macOS接続先は `--os macos` を指定します。Windows接続先には `--os windows --windows-account standard`、または管理者アカウント用の `--windows-account administrator` が必要です。
+Windowsの接続先では、標準アカウントは `%USERPROFILE%\.ssh\authorized_keys`、管理者アカウントは `%ProgramData%\ssh\administrators_authorized_keys` に追記します。管理者用のファイルは書き込み権限をSYSTEMとAdministratorsに限定する必要があります。既存の行は消さないでください。
 
-## 4. 手動設定ガイドを開く
+## 4. 接続する
+
+ローカル端末で、秘密鍵を指定して接続します。`<秘密鍵パス>` は手順2で確認したパスです。
 
 ```sh
-ssh-keyflow hosts guide --host my-server --key laptop
+ssh -i <秘密鍵パス> -o IdentitiesOnly=yes alice@server.example
 ```
 
-出力には、各ステップを実行する端末とスクリプトが示されます。表示だけでは設定を変更しません。
+初回接続では、接続先のホスト鍵の指紋を信頼できる方法で照合してから `yes` を入力してください。毎回の指定を省くには、`~/.ssh/config` に次のようなHostブロックを自分で追加します。既存のHost / Include / Matchと重複しないか確認してください。
 
-1. **接続先の端末**で、公開鍵配置ステップを確認して実行します。
-2. 初回接続のホスト鍵確認を省くには、続く2ステップを行います。**接続先の端末**でホスト公開鍵を表示し（Windowsは管理者PowerShell）、**ローカルの端末**で `ssh-keyflow hosts pin --host <ID>` に出力を貼り付けます。指紋を確認して `yes` を入力したら、ガイドを再度開きます。config追記ステップに固定用の3行が加わり、表示・固定のステップは消えます。これらのステップと3行は、ガイドのローカルOSがアプリを実行しているOSと同じ場合だけ表示されます。
-3. **ローカルの端末**で、既存のHost / Include / Match / ワイルドカードと優先順位を確認した後、config追記ステップを実行します。同じ明示的な別名があると追記は停止します。
-4. パスフレーズ付き、または判定できない鍵では、**ローカルの端末**向けのssh-agentステップを読み、必要な設定を行います。Windowsのサービス設定には管理者PowerShellが必要です。Linuxではagentの選択・設定を自分で行います。
-5. **ローカルの端末**で、最後の接続ステップを実行します。この例では `ssh my-server` です。ホスト鍵を固定していない場合、初回接続では接続先のホスト鍵を信頼できる方法で照合してください。
-
-アプリ実行元とは別のOSへ貼り付ける場合は、[CLIのガイド用OS指定](../guides/cli.md)を先に確認してください。アプリは鍵を別端末へ転送せず、パスの対応も推測しません。
+```text
+Host my-server
+  HostName server.example
+  User alice
+  IdentityFile <秘密鍵パス>
+  IdentitiesOnly yes
+```
 
 ## 5. 結果と次の操作
 
 自分のSSH端末で接続できたことを確認します。SSH KeyFlowは接続を検証せず、成功の記録操作も提供しません。接続できない場合は[トラブルシューティング](../guides/troubleshooting.md)を参照してください。
 
-TUIで同じ管理を行う場合は `ssh-keyflow` を起動し、[TUIの操作](../guides/terminal-ui.md)を参照してください。ガイドでは表示中のステップだけを `y` でコピーできます。
-
-関連付けの解除や管理からの削除は[CLIガイド](../guides/cli.md)を参照してください。どちらもSSHアクセスを失効させません。接続先から公開鍵を外す場合は、手動設定ガイドの解除案内を読み、別のログイン手段を確保したうえで作業してください。
+管理からの削除は[CLIガイド](../guides/cli.md#管理からの削除)を参照してください。SSHアクセスは失効しません。接続先から公開鍵を外す場合は、別のログイン手段を確保したうえで、`authorized_keys` から該当する1行を自分で取り除いてください。

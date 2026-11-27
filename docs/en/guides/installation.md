@@ -57,7 +57,7 @@ The Windows example above sets the execution policy for that process only. To ma
 
 ## Getting and running the Portable release
 
-Archives are provided for amd64 (x64) / arm64 on Windows / Linux / macOS. Windows uses zip; Linux/macOS use tar.gz. Neither Go nor an installer is required; the OS `ssh` and `ssh-keygen` are required. Use the TUI in an interactive terminal.
+Archives are provided for amd64 (x64) / arm64 on Windows / Linux / macOS. Windows uses zip; Linux/macOS use tar.gz. Neither Go nor an installer is required; the OS `ssh` and `ssh-keygen` are required. Use an interactive terminal to confirm changing operations.
 
 Downloads are on [GitHub Releases](https://github.com/haoyan-dev/ssh-keyflow/releases). Of the six archives and `SHA256SUMS` for the target tag, download the archive for your OS / CPU and the manifest.
 

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -41,7 +40,7 @@ func (r localRunner) LookPath(name string) (string, error) {
 }
 func (r localRunner) Run(_ context.Context, command app.Command) error {
 	if command.Name != "ssh-keygen" {
-		r.t.Fatalf("remote process attempted: %s", command.Name)
+		r.t.Fatalf("unexpected process: %s", command.Name)
 	}
 	if _, err := os.Stat(filepath.Join(state.Directory(r.home), "state.lock")); err != nil {
 		r.t.Fatal("native validation/generation not locked", err)
@@ -138,30 +137,27 @@ func run(t *testing.T, home string, request app.Request, customize ...func(*app.
 	err := app.Run(context.Background(), options)
 	return out.String(), err
 }
-func imported(t *testing.T, home, name, public string, private bool) state.Key {
+
+// imported adopts a key pair whose private half derives to public.
+func imported(t *testing.T, home, name, public string) state.Key {
 	t.Helper()
 	path := filepath.Join(home, name+".pub")
 	write(t, path, public)
-	request := app.Request{Operation: "import", Name: name, PublicPath: path}
-	if private {
-		request.PrivatePath = strings.TrimSuffix(path, ".pub")
-		write(t, request.PrivatePath, "private fixture")
-	}
-	if out, err := run(t, home, request); err != nil {
+	request := app.Request{Operation: "import", Name: name, PublicPath: path, PrivatePath: strings.TrimSuffix(path, ".pub")}
+	write(t, request.PrivatePath, "private fixture "+name)
+	if out, err := run(t, home, request, func(o *app.Options) {
+		o.Runner = localRunner{t: t, home: home, input: o.Input, derived: public}
+	}); err != nil {
 		t.Fatalf("import: %v %s", err, out)
 	}
 	doc := load(t, home)
 	return doc.Keys[len(doc.Keys)-1]
 }
-func destination(alias, system, account string) state.Host {
-	return state.Host{Alias: alias, Hostname: "server.example", User: "alice", Port: 2222, OS: system, WindowsAccount: account}
-}
 
-func TestReadOnlyAndRemovedOperationsNeverInitializeStorage(t *testing.T) {
-	for _, operation := range []string{"list", "register", "unregister", "delete"} {
+func TestReadOnlyAndRetiredOperationsNeverInitializeStorage(t *testing.T) {
+	for _, operation := range []string{"list", "add", "guide", "pin-host", "register", "delete"} {
 		home := tempHome(t)
-		_, err := run(t, home, app.Request{Operation: operation})
-		if (operation == "list") != (err == nil) {
+		if _, err := run(t, home, app.Request{Operation: operation}); !errors.Is(err, app.ErrInvalidInput) {
 			t.Fatalf("%s: %v", operation, err)
 		}
 		if _, err := os.Stat(filepath.Join(home, ".ssh")); !os.IsNotExist(err) {
@@ -170,9 +166,6 @@ func TestReadOnlyAndRemovedOperationsNeverInitializeStorage(t *testing.T) {
 	}
 	home := tempHome(t)
 	if _, err := app.PublicKey(home, "missing"); !errors.Is(err, app.ErrInvalidInput) {
-		t.Fatal(err)
-	}
-	if _, err := app.Guide(home, "missing", "missing"); !errors.Is(err, app.ErrInvalidInput) {
 		t.Fatal(err)
 	}
 	if _, err := app.Snapshot(app.Options{Home: home}); err != nil {
@@ -184,16 +177,16 @@ func TestReadOnlyAndRemovedOperationsNeverInitializeStorage(t *testing.T) {
 }
 
 func TestImportPairValidationAndConfirmationPreserveSources(t *testing.T) {
-	for _, mode := range []string{"public-only", "pair", "mismatch", "declined", "missing-confirmation", "source-changed", "private-changed"} {
+	for _, mode := range []string{"pair", "public-only", "mismatch", "declined", "missing-confirmation", "source-changed", "private-changed"} {
 		t.Run(mode, func(t *testing.T) {
 			home := tempHome(t)
 			pub := filepath.Join(home, "source.pub")
 			priv := filepath.Join(home, "source")
 			write(t, pub, publicKey)
 			write(t, priv, "private fixture")
-			request := app.Request{Operation: "import", Name: "source", PublicPath: pub}
-			if mode == "pair" || mode == "mismatch" || mode == "private-changed" {
-				request.PrivatePath = priv
+			request := app.Request{Operation: "import", Name: "source", PublicPath: pub, PrivatePath: priv}
+			if mode == "public-only" {
+				request.PrivatePath = ""
 			}
 			_, err := run(t, home, request, func(o *app.Options) {
 				r := localRunner{t: t, home: home, input: o.Input}
@@ -218,13 +211,15 @@ func TestImportPairValidationAndConfirmationPreserveSources(t *testing.T) {
 					o.Confirm = func(string) (bool, error) { write(t, pub, otherPublicKey); return true, nil }
 				}
 			})
-			success := mode == "public-only" || mode == "pair"
-			if success != (err == nil) {
+			if mode == "public-only" && !errors.Is(err, app.ErrInvalidInput) {
+				t.Fatalf("public-only import not rejected as input: %v", err)
+			}
+			if (mode == "pair") != (err == nil) {
 				t.Fatalf("result: %v", err)
 			}
 			doc := load(t, home)
-			if success {
-				if len(doc.Keys) != 1 || doc.Keys[0].Origin != "imported" || doc.Keys[0].ConnectionCheck != "unverified" {
+			if mode == "pair" {
+				if len(doc.Keys) != 1 || doc.Keys[0].Origin != "imported" || doc.Keys[0].PrivatePath != priv {
 					t.Fatal("invalid import metadata", doc)
 				}
 				if string(read(t, pub)) != publicKey || string(read(t, priv)) != "private fixture" {
@@ -262,6 +257,9 @@ func TestInterruptedCreationResumesSameFilesWithoutOverwrite(t *testing.T) {
 			if len(doc.Keys) != 0 || creation.PrivatePath != original || filepath.Dir(original) != filepath.Join(state.Directory(home), "keys") {
 				t.Fatal("creation intent lost")
 			}
+			if _, err := run(t, home, app.Request{Operation: "create", Name: "second"}); err == nil || !strings.Contains(err.Error(), "unfinished creation") {
+				t.Fatal("second creation allocated while one is unfinished", err)
+			}
 			request := app.Request{Operation: "resume", Resume: creation.ID}
 			_, err = run(t, home, request, func(o *app.Options) {
 				o.Runner = localRunner{t: t, home: home, input: o.Input, generate: func(path string) error {
@@ -286,11 +284,8 @@ func TestInterruptedCreationResumesSameFilesWithoutOverwrite(t *testing.T) {
 				t.Fatal(err)
 			}
 			doc = load(t, home)
-			if len(doc.Keys) != 1 || doc.Keys[0].PrivatePath != original || doc.Creations[0].Stage != "complete" || doc.Keys[0].ConnectionCheck != "unverified" {
-				t.Fatal(doc)
-			}
-			if request.Operation != "resume" || request.Resume != creation.ID {
-				t.Fatal("request mutated")
+			if len(doc.Keys) != 1 || doc.Keys[0].PrivatePath != original || doc.Keys[0].ID != creation.KeyID || len(doc.Creations) != 0 {
+				t.Fatal("completed creation not replaced by its key", doc)
 			}
 			if _, err := run(t, home, request); !errors.Is(err, app.ErrInvalidInput) {
 				t.Fatal("completed creation resumed", err)
@@ -303,16 +298,11 @@ func TestCreationProtectsFilesAppearingDuringConfirmation(t *testing.T) {
 	home := tempHome(t)
 	_, err := run(t, home, app.Request{Operation: "create", Name: "safe"}, func(o *app.Options) {
 		o.Confirm = func(string) (bool, error) {
-			dir := filepath.Join(state.Directory(home), "keys")
-			// The preview contains the exact automatic path; create its public half.
 			text := o.Output.(*bytes.Buffer).String()
 			for _, line := range strings.Split(text, "\n") {
 				if strings.HasPrefix(line, "Public: ") {
 					write(t, strings.TrimPrefix(line, "Public: "), "occupied")
 				}
-			}
-			if _, e := os.Stat(dir); e != nil {
-				t.Fatal(e)
 			}
 			return true, nil
 		}
@@ -325,207 +315,131 @@ func TestCreationProtectsFilesAppearingDuringConfirmation(t *testing.T) {
 	}
 }
 
-func TestGuidanceForEveryOSIsReadOnlyAndDoesNotImplySuccess(t *testing.T) {
-	for _, target := range []struct{ os, account, path string }{
-		{"linux", "", "~/.ssh/authorized_keys"}, {"macos", "", "~/.ssh/authorized_keys"},
-		{"windows", "standard", `%USERPROFILE%\.ssh\authorized_keys`},
-		{"windows", "administrator", `%ProgramData%\ssh\administrators_authorized_keys`},
-	} {
-		t.Run(target.os+target.account, func(t *testing.T) {
-			home := tempHome(t)
-			key := imported(t, home, "key", publicKey, true)
-			h := destination("server", target.os, target.account)
-			if _, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: h}); err != nil {
-				t.Fatal(err)
-			}
-			path := filepath.Join(state.Directory(home), "state.json")
-			before := read(t, path)
-			guide, err := app.Guide(home, "SERVER", key.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, want := range []string{target.path, "not checked", "Manual removal", "Host server", "IdentityFile", "connect (POSIX shell / PowerShell)", "local config step", "\nssh server\n"} {
-				if !strings.Contains(guide, want) {
-					t.Fatalf("missing %q: %s", want, guide)
-				}
-			}
-			for _, unwanted := range []string{"BEGIN REGISTRATION SCRIPT", "apt install", "Start-Service sshd", "Start-Service -Name sshd", "Set-Service -Name sshd", "New-NetFirewallRule"} {
-				if strings.Contains(guide, unwanted) {
-					t.Fatalf("automation retained: %s", guide)
-				}
-			}
-			if !bytes.Equal(before, read(t, path)) {
-				t.Fatal("guide changed state")
-			}
-			doc := load(t, home)
-			if len(doc.Registrations) != 0 || len(doc.History) != 0 || len(doc.Onboardings) != 0 || len(doc.Associations) != 1 {
-				t.Fatal("association fabricated remote state", doc)
-			}
-			public, err := app.PublicKey(home, key.ID)
-			if err != nil || public != strings.Join(strings.Fields(publicKey)[:2], " ") {
-				t.Fatal(public, err)
-			}
-		})
-	}
-}
-
-func TestPublicOnlyGuidanceSelectsTheAgentKeyByPublicFile(t *testing.T) {
+func TestRemoveKeyKeepsFilesAndOnlyDropsMetadata(t *testing.T) {
 	home := tempHome(t)
-	key := imported(t, home, "public-only", publicKey, false)
-	if _, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: destination("server", "linux", "")}); err != nil {
+	first := imported(t, home, "first", publicKey)
+	second := imported(t, home, "second", otherPublicKey)
+	if _, err := run(t, home, app.Request{Operation: "remove", Key: first.ID}, func(o *app.Options) {
+		o.Confirm = func(string) (bool, error) { return false, nil }
+	}); !errors.Is(err, app.ErrCancelled) || len(load(t, home).Keys) != 2 {
+		t.Fatal("declined removal changed state", err)
+	}
+	if _, err := run(t, home, app.Request{Operation: "remove", Key: "first"}); err != nil {
 		t.Fatal(err)
 	}
-	text, err := app.Guide(home, "server", key.ID)
-	want := `IdentityFile "` + filepath.ToSlash(key.PublicPath) + "\"\n    IdentitiesOnly yes\n"
-	if err != nil || !strings.Contains(text, "Public-only") || !strings.Contains(text, want) || !strings.Contains(text, "\nssh server\n") || strings.Contains(text, "AddKeysToAgent") {
-		t.Fatal(text, err)
-	}
-}
-
-func TestAssociationsValidateTargetsAndRecheckAfterConfirmation(t *testing.T) {
-	home := tempHome(t)
-	key := imported(t, home, "key", publicKey, false)
-	host := destination("server", "linux", "")
-	request := app.Request{Operation: "add", Key: key.ID, Destination: host}
-	_, err := run(t, home, request, func(o *app.Options) {
-		o.Confirm = func(string) (bool, error) { write(t, key.PublicPath, otherPublicKey); return true, nil }
-	})
-	if err == nil || len(load(t, home).Hosts) != 0 {
-		t.Fatal("changed key associated")
-	}
-	write(t, key.PublicPath, publicKey)
-	if _, err := run(t, home, request); err != nil {
-		t.Fatal(err)
-	}
-	before := read(t, filepath.Join(state.Directory(home), "state.json"))
-	if _, err := run(t, home, request); !errors.Is(err, app.ErrInvalidInput) {
-		t.Fatal("duplicate host accepted", err)
-	}
-	if _, err := run(t, home, app.Request{Operation: "associate", Host: "server", Key: key.ID}); !errors.Is(err, app.ErrInvalidInput) {
-		t.Fatal("duplicate association accepted", err)
-	}
-	if !bytes.Equal(before, read(t, filepath.Join(state.Directory(home), "state.json"))) {
-		t.Fatal("rejected association changed state")
-	}
-	second := imported(t, home, "second", otherPublicKey, false)
-	if _, err := run(t, home, app.Request{Operation: "associate", Host: "server", Key: second.ID}); err != nil {
-		t.Fatal(err)
-	}
-	if len(load(t, home).Associations) != 2 {
-		t.Fatal("second association missing")
-	}
-}
-
-func TestLegacyStateMigratesWithoutChangingHistoryOrSSHFiles(t *testing.T) {
-	home := tempHome(t)
-	key := imported(t, home, "key", publicKey, false)
 	doc := load(t, home)
-	doc.Version = 1
-	doc.Hosts = []state.Host{{ID: "host-old", Alias: "old", Hostname: "old.example", User: "me", Port: 22, OS: "linux", ConfigKeyID: key.ID}}
-	doc.Registrations = []state.Registration{{ID: "reg-old", KeyID: key.ID, HostID: "host-old", Status: "unknown", ConnectionCheck: "unknown", Operation: "register", Stage: "unknown"}}
-	doc.Onboardings = []state.Onboarding{{ID: "onboarding-old", HostID: "host-old", KeyID: key.ID, Stage: "manual", CreatedAt: timestamp}}
-	doc.History = []state.RegistrationEvent{{RegistrationID: "reg-old", At: timestamp, Status: "unknown", ConnectionCheck: "unknown", Operation: "register", Stage: "unknown"}}
-	config := filepath.Join(state.Directory(home), "config")
-	main := filepath.Join(home, ".ssh", "config")
-	backup := main + ".backup"
-	for _, path := range []string{config, main, backup} {
-		write(t, path, "existing SSH configuration bytes\r\n")
+	if len(doc.Keys) != 1 || doc.Keys[0].ID != second.ID {
+		t.Fatal("wrong key removed", doc)
 	}
-	digest := sha256.Sum256(read(t, config))
-	hash := hex.EncodeToString(digest[:])
-	doc.Configs = []state.Config{{Path: config, SHA256: hash}}
-	doc.ConfigEdits = []state.ConfigEdit{{Path: main, BeforeSHA256: hash, AfterSHA256: hash, BackupPath: backup, Complete: false}}
-	before := saveFixture(t, home, doc)
-	if _, err := app.Snapshot(app.Options{Home: home}); err != nil {
-		t.Fatal(err)
+	if string(read(t, first.PublicPath)) != publicKey || string(read(t, first.PrivatePath)) != "private fixture first" {
+		t.Fatal("removal changed key files")
 	}
-	if !bytes.Equal(before, read(t, filepath.Join(state.Directory(home), "state.json"))) {
-		t.Fatal("read migrated v1")
-	}
-	if _, err := run(t, home, app.Request{Operation: "associate", Host: "old", Key: key.ID}); err != nil {
-		t.Fatal(err)
-	}
-	after := load(t, home)
-	if after.Version != 2 || len(after.Associations) != 1 {
-		t.Fatal("migration missing")
-	}
-	after.Version = 1
-	after.Associations = nil
-	if !reflect.DeepEqual(doc, after) {
-		t.Fatalf("legacy records changed\nbefore=%+v\nafter=%+v", doc, after)
-	}
-	if !bytes.Equal(before, read(t, filepath.Join(state.Directory(home), "state.json.bak"))) {
-		t.Fatal("previous state backup not exact")
-	}
-	for _, path := range []string{config, main, backup} {
-		if string(read(t, path)) != "existing SSH configuration bytes\r\n" {
-			t.Fatal("configuration changed", path)
-		}
-	}
-	for _, id := range []string{"reg-old", "onboarding-old"} {
-		if _, err := run(t, home, app.Request{Operation: "resume", Resume: id}); !errors.Is(err, app.ErrInvalidInput) {
-			t.Fatal("legacy workflow resumed", err)
-		}
+	// Removing metadata only: a removed pair can be adopted again with a new ID.
+	again := imported(t, home, "first", publicKey)
+	if again.ID == first.ID {
+		t.Fatal("removed ID reused")
 	}
 }
 
-func TestLegacyPendingDeletionIsQuarantinedWithoutBlockingOtherKeys(t *testing.T) {
+func TestLegacyStateIsArchivedAndReducedOnFirstChange(t *testing.T) {
 	home := tempHome(t)
-	old := imported(t, home, "old", publicKey, false)
-	doc := load(t, home)
-	doc.Version = 1
-	digest := sha256.Sum256(read(t, old.PublicPath))
-	doc.Deletions = []state.LocalDeletion{{ID: "deletion-old", KeyID: old.ID, CreatedAt: timestamp, Stage: "pending", PublicSHA256: hex.EncodeToString(digest[:]), PrivateRemoved: true, PublicRemoved: true}}
-	saveFixture(t, home, doc)
-	if err := os.Remove(old.PublicPath); err != nil {
+	keep := filepath.Join(home, "keep")
+	write(t, keep, "private keep")
+	write(t, keep+".pub", publicKey)
+	write(t, filepath.Join(home, "agent.pub"), otherPublicKey)
+	privateDigest := sha256.Sum256([]byte("private keep"))
+	keepKey := map[string]any{
+		"id": "key-keep", "name": "keep", "fingerprint": "SHA256:" + strings.Repeat("A", 43), "public_path": keep + ".pub",
+		"private_path": keep, "private_sha256": hex.EncodeToString(privateDigest[:]), "connection_check": "unverified",
+		"origin": "imported", "imported_at": timestamp,
+	}
+	legacy := map[string]any{
+		"version": 2,
+		"keys": []any{keepKey, map[string]any{
+			"id": "key-agent", "name": "agent", "fingerprint": "SHA256:" + strings.Repeat("B", 43), "public_path": filepath.Join(home, "agent.pub"),
+			"connection_check": "unverified", "origin": "imported", "imported_at": timestamp,
+		}},
+		"hosts":         []any{map[string]any{"id": "host-1", "alias": "server", "hostname": "server.example", "user": "alice", "port": 22, "os": "linux"}},
+		"registrations": []any{},
+		"associations":  []any{map[string]any{"host_id": "host-1", "key_id": "key-keep"}},
+		"creations": []any{map[string]any{
+			"id": "creation-done", "key_id": "key-keep", "name": "keep", "private_path": keep, "public_path": keep + ".pub",
+			"created_at": timestamp, "stage": "complete",
+		}},
+	}
+	data, err := json.MarshalIndent(legacy, "", "  ")
+	if err != nil {
 		t.Fatal(err)
 	}
+	path := filepath.Join(state.Directory(home), "state.json")
+	write(t, path, string(data))
+
 	view, err := app.Snapshot(app.Options{Home: home})
-	if err != nil || !strings.Contains(view.Review, "manual review") {
-		t.Fatal(view, err)
-	}
-	if _, err := app.PublicKey(home, old.ID); err == nil {
-		t.Fatal("quarantined key used")
-	}
-	if _, err := run(t, home, app.Request{Operation: "remove-key", Key: old.ID}); err == nil || !strings.Contains(err.Error(), "manual review") {
-		t.Fatal("quarantined key removed", err)
-	}
-	second := imported(t, home, "healthy", otherPublicKey, false)
-	if _, err := run(t, home, app.Request{Operation: "add", Key: second.ID, Destination: destination("server", "linux", "")}); err != nil {
+	if err != nil {
 		t.Fatal(err)
+	}
+	for _, want := range []string{"schema v2", "public-only key \"agent\"", "1 destination"} {
+		if !strings.Contains(view.Review, want) {
+			t.Fatalf("migration notice lacks %q: %s", want, view.Review)
+		}
+	}
+	if len(view.State.Keys) != 1 || view.State.Keys[0].ID != "key-keep" || len(view.State.Creations) != 0 {
+		t.Fatal("legacy conversion kept wrong records", view.State)
+	}
+	if !bytes.Equal(data, read(t, path)) {
+		t.Fatal("reading migrated the file")
+	}
+	if matches, _ := filepath.Glob(filepath.Join(state.Directory(home), state.ArchivePattern)); len(matches) != 0 {
+		t.Fatal("reading archived the file")
+	}
+
+	// The fingerprint in the fixture is synthetic, so remove (no file checks) is the first change.
+	output, err := run(t, home, app.Request{Operation: "remove", Key: "key-keep"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	notice, preview := strings.Index(output, "1 destination"), strings.Index(output, "Remove managed key")
+	if notice < 0 || preview < 0 || notice > preview {
+		t.Fatalf("migration notice must precede the confirmed preview: %s", output)
+	}
+	matches, err := filepath.Glob(filepath.Join(state.Directory(home), state.ArchivePattern))
+	if err != nil || len(matches) != 1 || !strings.Contains(filepath.Base(matches[0]), "state.v2-") {
+		t.Fatal("legacy archive missing", matches, err)
+	}
+	if !bytes.Equal(data, read(t, matches[0])) || !bytes.Equal(data, read(t, path+".bak")) {
+		t.Fatal("archive or backup is not the exact legacy file")
 	}
 	after := load(t, home)
-	if !reflect.DeepEqual(doc.Deletions, after.Deletions) || len(after.Keys) != 2 {
-		t.Fatal("legacy deletion completed or key lost")
+	if after.Version != state.Version || after.Migration != nil || len(after.Keys) != 0 {
+		t.Fatal("state not saved as current schema", after)
 	}
-	if _, err := run(t, home, app.Request{Operation: "resume", Resume: "deletion-old"}); !errors.Is(err, app.ErrInvalidInput) {
+	if strings.Contains(string(read(t, path)), "hosts") {
+		t.Fatal("legacy fields written to the current schema")
+	}
+	// A second change must not archive again.
+	if _, err := run(t, home, app.Request{Operation: "create", Name: "next"}); err != nil {
 		t.Fatal(err)
+	}
+	if again, _ := filepath.Glob(filepath.Join(state.Directory(home), state.ArchivePattern)); len(again) != 1 {
+		t.Fatal("current schema archived again", again)
 	}
 }
 
-func TestLocksAndBackupFailurePreserveStateAndNeverReportSaved(t *testing.T) {
+func TestLocksAndBackupFailurePreserveState(t *testing.T) {
 	for _, obstacle := range []string{"lock", "backup"} {
 		t.Run(obstacle, func(t *testing.T) {
 			home := tempHome(t)
-			key := imported(t, home, "key", publicKey, false)
+			key := imported(t, home, "key", publicKey)
 			path := filepath.Join(state.Directory(home), "state.json")
 			before := read(t, path)
 			if obstacle == "lock" {
 				write(t, filepath.Join(state.Directory(home), "state.lock"), "unknown lock")
-			} else {
-				if err := os.Mkdir(path+".bak", 0700); err != nil {
-					t.Fatal(err)
-				}
+			} else if err := os.Mkdir(path+".bak", 0700); err != nil {
+				t.Fatal(err)
 			}
-			var reports []app.Report
-			out, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: destination("server", "linux", "")}, func(o *app.Options) { o.Report = func(r app.Report) { reports = append(reports, r) } })
-			if err == nil || strings.Contains(out, "Association saved") || !bytes.Equal(before, read(t, path)) {
+			out, err := run(t, home, app.Request{Operation: "remove", Key: key.ID})
+			if err == nil || strings.Contains(out, "removed") || !bytes.Equal(before, read(t, path)) {
 				t.Fatal(err, out)
-			}
-			for _, report := range reports {
-				if report.Saved {
-					t.Fatal("failed save reported committed")
-				}
 			}
 		})
 	}
@@ -533,11 +447,14 @@ func TestLocksAndBackupFailurePreserveStateAndNeverReportSaved(t *testing.T) {
 
 func TestInvalidStateIsRejectedWithoutOverwrite(t *testing.T) {
 	for _, invalid := range []string{
-		`{`, `null`, `{"version":99,"keys":[],"hosts":[],"registrations":[]}`,
-		`{"version":1,"version":1,"keys":[],"hosts":[],"registrations":[]}`,
-		`{"version":1,"Version":1,"keys":[],"hosts":[],"registrations":[]}`,
-		`{"version":2,"keys":[],"hosts":[],"registrations":[],"secret":"no"}`,
-		`{"version":2,"keys":[],"hosts":[],"registrations":[],"associations":[{"host_id":"missing","key_id":"missing"}]}`,
+		`{`, `null`, `{}`, `{"version":99,"keys":[]}`,
+		`{"version":3,"version":3,"keys":[]}`,
+		`{"version":3,"Version":3,"keys":[]}`,
+		`{"version":3,"keys":[],"secret":"no"}`,
+		`{"version":3,"keys":[],"hosts":[]}`,
+		`{"version":3}`,
+		`{"version":3,"keys":[]} {}`,
+		`{"version":2,"keys":[],"registrations":[]}`,
 		`{"version":2,"keys":[],"hosts":[],"registrations":[]} {}`,
 	} {
 		home := tempHome(t)
@@ -557,14 +474,15 @@ func TestInvalidStateIsRejectedWithoutOverwrite(t *testing.T) {
 
 func TestIdentityChangesStopCopyAndFurtherImport(t *testing.T) {
 	home := tempHome(t)
-	key := imported(t, home, "key", publicKey, true)
+	key := imported(t, home, "key", publicKey)
 	write(t, key.PrivatePath, "changed private")
 	if _, err := app.PublicKey(home, key.ID); err == nil {
 		t.Fatal("private replacement ignored")
 	}
 	path := filepath.Join(home, "second.pub")
 	write(t, path, otherPublicKey)
-	if _, err := run(t, home, app.Request{Operation: "import", Name: "second", PublicPath: path}); err == nil {
+	write(t, filepath.Join(home, "second"), "private second")
+	if _, err := run(t, home, app.Request{Operation: "import", Name: "second", PublicPath: path, PrivatePath: filepath.Join(home, "second")}); err == nil {
 		t.Fatal("integrity failure ignored")
 	}
 }
@@ -610,13 +528,12 @@ func TestResumeRejectsChangedRecordedPrivateFileWithoutGenerating(t *testing.T) 
 	}
 }
 
-func TestAmbiguousKeyAndInvalidAssociationsAreRejected(t *testing.T) {
+func TestAmbiguousKeyNameIsRejected(t *testing.T) {
 	home := tempHome(t)
-	first := imported(t, home, "first", publicKey, false)
-	second := imported(t, home, "second", otherPublicKey, false)
+	first := imported(t, home, "first", publicKey)
+	imported(t, home, "second", otherPublicKey)
 	doc := load(t, home)
 	doc.Keys[0].Name, doc.Keys[1].Name = "shared", "shared"
-	doc.Hosts = []state.Host{{ID: "host", Alias: "server", Hostname: "server.example", User: "alice", Port: 22, OS: "linux"}}
 	saveFixture(t, home, doc)
 	if _, err := app.PublicKey(home, "shared"); !errors.Is(err, app.ErrInvalidInput) {
 		t.Fatal("ambiguous name accepted", err)
@@ -624,141 +541,43 @@ func TestAmbiguousKeyAndInvalidAssociationsAreRejected(t *testing.T) {
 	if _, err := app.PublicKey(home, first.ID); err != nil {
 		t.Fatal(err)
 	}
-	for _, associations := range [][]state.Association{
-		{{HostID: "missing", KeyID: first.ID}},
-		{{HostID: "host", KeyID: "missing"}},
-		{{HostID: "host", KeyID: second.ID}, {HostID: "host", KeyID: second.ID}},
-	} {
-		doc.Associations = associations
-		if doc.Validate() == nil {
-			t.Fatal("invalid association accepted", associations)
-		}
-	}
-	doc.Version = 1
-	doc.Associations = []state.Association{{HostID: "host", KeyID: first.ID}}
-	if doc.Validate() == nil {
-		t.Fatal("v1 association accepted")
-	}
 }
 
-func TestGuideQuotesLiteralPercentAndApostropheInIdentityPath(t *testing.T) {
-	home := tempHome(t)
-	key := imported(t, home, "key%20's with spaces", publicKey, true)
-	if _, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: destination("server", "linux", "")}); err != nil {
-		t.Fatal(err)
+func TestStateValidationRejectsCorruptMetadataWithoutOverwrite(t *testing.T) {
+	creation := func(d *state.State) state.Creation {
+		dir := filepath.Dir(d.Keys[0].PublicPath)
+		return state.Creation{ID: "creation", KeyID: "key-new", Name: "new", PrivatePath: filepath.Join(dir, "new"), PublicPath: filepath.Join(dir, "new.pub"), CreatedAt: timestamp, Stage: "planned"}
 	}
-	text, err := app.Guide(home, "server", key.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"key%%20's with spaces", "local config step", "\nssh server\n"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("lost literal identity path %q: %s", want, text)
-		}
-	}
-}
-
-func TestNativeOpenSSHParsesCopiedSnippetWithoutConnection(t *testing.T) {
-	ssh, err := exec.LookPath("ssh")
-	if err != nil {
-		t.Skip("native OpenSSH unavailable")
-	}
-	home := tempHome(t)
-	key := imported(t, home, "key with spaces", publicKey, true)
-	if _, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: destination("server", "linux", "")}); err != nil {
-		t.Fatal(err)
-	}
-	text, err := app.Guide(home, "server", key.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	start := strings.Index(text, "\nHost server\n")
-	end := strings.Index(text[start:], "\n    IdentitiesOnly yes") + len("\n    IdentitiesOnly yes")
-	config := filepath.Join(home, "copied config")
-	write(t, config, text[start+1:start+end]+"\n")
-	output, err := exec.Command(ssh, "-G", "-F", config, "server").CombinedOutput()
-	if err != nil {
-		t.Fatalf("native parser: %v %s", err, output)
-	}
-	for _, want := range []string{"hostname server.example", "user alice", "port 2222", "identityfile " + filepath.ToSlash(key.PrivatePath), "identitiesonly yes"} {
-		if !strings.Contains(string(output), want) {
-			t.Fatalf("missing %q: %s", want, output)
-		}
-	}
-}
-
-func TestGuidePreservesPlacementButOmitsExpandableIdentityPath(t *testing.T) {
-	home := tempHome(t)
-	key := imported(t, home, "${KEYFLOW_MISSING_ENV_VAR}", publicKey, true)
-	if _, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: destination("server", "linux", "")}); err != nil {
-		t.Fatal(err)
-	}
-	before := read(t, filepath.Join(state.Directory(home), "state.json"))
-	text, err := app.Guide(home, "server", key.ID)
-	if err != nil || !strings.Contains(text, publicKey[:strings.LastIndex(publicKey, " ")]) || !strings.Contains(text, "~/.ssh/authorized_keys") || !strings.Contains(text, "cannot be represented literally") {
-		t.Fatal(err, text)
-	}
-	if strings.Contains(text, "\nHost server\n") || strings.Contains(text, "\nssh ") {
-		t.Fatal("expandable identity path offered as a literal", text)
-	}
-	if !bytes.Equal(before, read(t, filepath.Join(state.Directory(home), "state.json"))) {
-		t.Fatal("read-only guide changed state")
-	}
-}
-
-func TestNativeOpenSSHExpandsEscapedPercentWithoutNetwork(t *testing.T) {
-	ssh, err := exec.LookPath("ssh")
-	if err != nil {
-		t.Skip("native OpenSSH unavailable")
-	}
-	home := tempHome(t)
-	key := imported(t, home, "key%20's with spaces", publicKey, true)
-	if _, err := run(t, home, app.Request{Operation: "add", Key: key.ID, Destination: destination("server", "linux", "")}); err != nil {
-		t.Fatal(err)
-	}
-	text, err := app.Guide(home, "server", key.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	start := strings.Index(text, "\nHost server\n")
-	end := strings.Index(text[start:], "\n    IdentitiesOnly yes") + len("\n    IdentitiesOnly yes")
-	config := filepath.Join(home, "copied config")
-	write(t, config, text[start+1:start+end]+"\n")
-	// A local ssh -V proxy exits without opening a network connection.
-	output, err := exec.Command(ssh, "-vvv", "-F", config, "-o", "ProxyCommand=ssh -V", "-o", "BatchMode=yes", "server").CombinedOutput()
-	if err == nil || !strings.Contains(string(output), "identity file "+filepath.ToSlash(key.PrivatePath)+" type") || strings.Contains(string(output), "invalid environment variable expansion") {
-		t.Fatalf("native identity expansion: %v %s", err, output)
-	}
-}
-
-func TestRetainedStateValidationRejectsCorruptMetadataWithoutOverwrite(t *testing.T) {
 	for name, corrupt := range map[string]func(*state.State){
 		"nonhex-private-digest": func(d *state.State) { d.Keys[0].PrivateSHA256 = strings.Repeat("z", 64) },
+		"missing-private":       func(d *state.State) { d.Keys[0].PrivatePath, d.Keys[0].PrivateSHA256 = "", "" },
 		"invalid-origin":        func(d *state.State) { d.Keys[0].Origin = "guessed" },
 		"invalid-timestamp":     func(d *state.State) { d.Keys[0].ImportedAt = "yesterday" },
 		"mixed-provenance":      func(d *state.State) { d.Keys[0].CreatedAt = timestamp },
 		"same-normalized-path": func(d *state.State) {
 			d.Keys[0].PrivatePath = filepath.Dir(d.Keys[0].PublicPath) + string(filepath.Separator) + "." + string(filepath.Separator) + filepath.Base(d.Keys[0].PublicPath)
 		},
-		"duplicate-id": func(d *state.State) { d.Hosts[0].ID = d.Keys[0].ID },
-		"orphan-registration": func(d *state.State) {
-			d.Registrations = []state.Registration{{ID: "registration", KeyID: "missing", HostID: "host", Status: "unknown", ConnectionCheck: "unverified", Operation: "register", Stage: "unknown"}}
+		"duplicate-key": func(d *state.State) { d.Keys = append(d.Keys, d.Keys[0]) },
+		"creation-reuses-key-id": func(d *state.State) {
+			c := creation(d)
+			c.KeyID = d.Keys[0].ID
+			d.Creations = []state.Creation{c}
 		},
-		"invalid-registration-stage": func(d *state.State) {
-			d.Registrations = []state.Registration{{ID: "registration", KeyID: d.Keys[0].ID, HostID: "host", Status: "unknown", ConnectionCheck: "unverified", Operation: "register", Stage: "invented"}}
+		"completed-creation-retained": func(d *state.State) {
+			c := creation(d)
+			c.Stage = "complete"
+			d.Creations = []state.Creation{c}
 		},
-		"orphan-history": func(d *state.State) {
-			d.History = []state.RegistrationEvent{{RegistrationID: "missing", At: timestamp, Status: "unknown", ConnectionCheck: "unverified", Operation: "register", Stage: "unknown"}}
-		},
-		"invalid-creation-stage": func(d *state.State) {
-			d.Creations = []state.Creation{{ID: "creation", KeyID: "new", Name: "new", PrivatePath: filepath.Join(filepath.Dir(d.Keys[0].PublicPath), "new"), PublicPath: filepath.Join(filepath.Dir(d.Keys[0].PublicPath), "new.pub"), CreatedAt: timestamp, Stage: "invented"}}
+		"creation-path-conflict": func(d *state.State) {
+			c := creation(d)
+			c.PrivatePath, c.PublicPath = d.Keys[0].PrivatePath, d.Keys[0].PrivatePath+".pub"
+			d.Creations = []state.Creation{c}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			home := tempHome(t)
-			imported(t, home, "key", publicKey, true)
+			imported(t, home, "key", publicKey)
 			document := load(t, home)
-			document.Hosts = []state.Host{{ID: "host", Alias: "server", Hostname: "server.example", User: "alice", Port: 22, OS: "linux"}}
 			corrupt(&document)
 			data, err := json.Marshal(document)
 			if err != nil {

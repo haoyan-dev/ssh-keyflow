@@ -2147,3 +2147,59 @@ push・main統合・タグ付け・公開はこの依頼の範囲に含めない
   - Pages that are not translated (ADRs, verification and historical records,
     `docs/agents/`, `docs/third-party-notices.md`) are labeled with their
     language by hand; the checker does not verify those labels.
+
+## 2026-11-28: Retire non-essential functions (dev, not a release record)
+
+- Scope: ADR 0007 and `.scratch/retire-non-essential/spec.md`. The CLI keeps
+  only `keys list|public|create|import|remove` and `resume`. Gone: hosts
+  commands, the copy-paste guide, the ssh-agent step, pin/unpin, the TUI and
+  public-only import. The state moves to schema v3, and the first save writes
+  a migration archive.
+- Tested source: base `666d1eaad6d95e5063339e925651a2f84c17cbee` plus the
+  uncommitted working tree on `refactor/retire-non-essential`. The final commit
+  SHA isn't recorded yet. Rerun the checks on the committed tree before merging.
+- Environment: Windows 11 Pro amd64, `go1.26.2 windows/amd64`, Python 3.12 via
+  `uv run --no-project`.
+- Results:
+  - `go vet ./...` is clean, and `go test -count=1 ./...` passes for
+    cmd/ssh-keyflow, internal/app, internal/cli and internal/state.
+  - The new state tests cover:
+    - read-only v1 conversion, with every non-carried record type and each
+      unfinished SSH config edit listed;
+    - strict legacy decoding, which rejects unknown top-level and key fields, a
+      wrongly typed array, a missing `hosts` and trailing content;
+    - the collision suffix `_1`, with the existing file kept;
+    - a retry reusing the identical archive;
+    - archive failure after 100 names are taken, leaving `state.json`
+      byte-identical and no `.bak`;
+    - v1 archive bytes and the v3 save.
+  - An app test checks that the migration notice comes before the confirmed
+    remove preview.
+  - Python tests pass: release, installers, installer profiles and portable.
+  - `scripts/check_docs.py` passed (49 pages; 24 complete translations,
+    0 stale) and `scripts/test_docs.py` passed (26 tests).
+  - `gofmt -l` reports only `cmd/ssh-keyflow/main_test.go`, which has CRLF
+    endings from the working copy and is unchanged in this work.
+- Reviews:
+  - Standards and spec reviews ran separately.
+  - Standards findings:
+    - glossary wording;
+    - an ADR reference to untracked design notes;
+    - the ticket status;
+    - a duplicate resume lookup.
+    All of these were fixed. Bare-string operation names were left as they are
+    (judgement call).
+  - Spec findings:
+    - the notice appeared only in `keys list`;
+    - the list of dropped records was incomplete;
+    - legacy decoding was lenient;
+    - archives piled up on retry;
+    - archive edge cases had no tests.
+    All of these were fixed and are covered by the tests above.
+- Limits:
+  - No cross-build of the 6 targets and no packaging run; the release workflow
+    does both when a tag is pushed.
+  - The interactive confirmation was exercised through test doubles only, not
+    a real terminal.
+  - macOS and Linux runtime behaviour weren't run locally.
+  - Translations were model-written.

@@ -12,3 +12,4 @@ ADRは判断時点の理由と影響を保存します。後続ADRが過去の�
 | [0004](0004-remove-managed-records.md) | 履歴を保持した管理メタデータ削除 |
 | [0005](0005-ssh-agent-autostart-step.md) | パスフレーズ付き鍵のssh-agent設定支援 |
 | [0006](0006-host-key-pinning.md) | 接続先ホスト公開鍵のアプリ所有known_hostsへの固定 |
+| [0007](0007-key-pairs-only.md) | 鍵ペアの管理だけを残し、接続先・ガイド・TUIを廃止（0002・0003・0005・0006を廃止、0001・0004を更新） |

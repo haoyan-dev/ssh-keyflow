@@ -2,19 +2,17 @@
 
 [简体中文](README.zh-CN.md) · English · [日本語](README.md)
 
-SSH KeyFlow is a TUI / CLI written in Go that manages local SSH keys and destinations, and helps you deploy public keys and set up connections through copy and paste.
+SSH KeyFlow is a CLI written in Go that creates, imports and manages the SSH key pairs on this machine, and shows public keys in a form you can copy.
 
 [Get started](docs/en/tutorials/first-connection.md) · [Documentation](docs/en/README.md) · [Contributing](CONTRIBUTING.en.md) · [Releases](https://github.com/haoyan-dev/ssh-keyflow/releases)
 
 ## What it does
 
-- Creates Ed25519 keys, imports existing key pairs or public keys, and resumes interrupted key creation.
-- Manages keys, destinations and associations through the Keys / Destinations TUI and the CLI.
-- Shows and copies public key deployment, SSH config append and connection steps for Linux / macOS / Windows.
-- Pins host keys by pasting the host public keys displayed on the destination. This skips the first-connection confirmation and rejects other host keys.
-- Configures keys whose private key lives in an SSH agent, such as FIDO keys, by selecting them with the public key file.
+- Creates Ed25519 keys, imports existing key pairs, and resumes interrupted key creation.
+- Lists keys (as a table or JSON) and shows a public key as a single line for copying.
+- Removes keys from management while keeping the key files.
 
-The app does not open SSH connections or perform remote registration. An association is local management data and does not mean a connection succeeded. You configure the destination by running the generated scripts on the target terminal yourself. Removal from management is a separate operation from deleting key files or revoking SSH access.
+The app does not open SSH connections, perform remote registration or edit SSH config. You deploy public keys yourself. Removal from management is a separate operation from deleting key files or revoking SSH access. v0.11.0 retired destinations, the manual setup guide, host key pinning, the TUI and public-only import ([migration](docs/en/guides/data-and-recovery.md#migrating-from-v0100-and-earlier)).
 
 ## One-line install
 
@@ -40,23 +38,23 @@ Run the following in a new terminal. If you did not add SSH KeyFlow to PATH, use
 
 ```sh
 ssh-keyflow --version
-ssh-keyflow
+ssh-keyflow keys list
 ```
 
-Use the TUI in an interactive terminal. To prepare your first key and destination, see [Your first connection setup](docs/en/tutorials/first-connection.md); for key bindings see [Using the TUI](docs/en/guides/terminal-ui.md); for command examples see [Using the CLI](docs/en/guides/cli.md).
+Use an interactive terminal to confirm changing operations. To prepare your first key and connect, see [Your first connection setup](docs/en/tutorials/first-connection.md); for command examples see [Using the CLI](docs/en/guides/cli.md).
 
 ## Documentation
 
 | Goal | Page |
 | --- | --- |
-| Prepare your first key and destination | [Tutorial](docs/en/tutorials/first-connection.md) |
+| Prepare your first key and connect | [Tutorial](docs/en/tutorials/first-connection.md) |
 | Find procedures and fixes for problems | [Documentation index](docs/en/README.md) |
 | Check the promises for the CLI, JSON and saved state | [Application contract (overview)](docs/en/reference/application-contract.md) |
 | Contribute fixes or documentation improvements | [Contributing](CONTRIBUTING.en.md) |
 
 ## Safety and data
 
-Management data is stored in `~/.ssh/ssh-keyflow/state.json`, generated keys in `keys/` in the same directory, and pinned host public keys in `known_hosts`. Before migrating from an older version or downgrading, read [Data, migration and recovery](docs/en/guides/data-and-recovery.md). `state.json.bak` is a rolling backup of the previous state, not a permanent archive for returning to an older version.
+Management data is stored in `~/.ssh/ssh-keyflow/state.json`, and generated keys in `keys/` in the same directory. State from v0.10.0 and earlier is written out to `state.v<N>-<UTC time>.json` on the first change before it is migrated. Before migrating from an older version or downgrading, read [Data, migration and recovery](docs/en/guides/data-and-recovery.md). `state.json.bak` is a rolling backup of the previous state, not a permanent archive for returning to an older version.
 
 ## Getting and running the Portable release
 

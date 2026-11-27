@@ -134,7 +134,7 @@ class PortableReleaseTests(unittest.TestCase):
         shutil.copyfile(native, replacement)
         replacement.chmod(0o755)
         os.replace(replacement, binary)
-        run = subprocess.run([str(binary), 'hosts', 'list', '--json'], env=environment, capture_output=True)
+        run = subprocess.run([str(binary), 'keys', 'list', '--json'], env=environment, capture_output=True)
         self.assertEqual(run.returncode, 0, run.stderr)
         binary.unlink()
         self.assertEqual({str(p.relative_to(home)).replace(os.sep, '/'): p.read_bytes() for p in home.rglob('*') if p.is_file()}, files)

@@ -17,7 +17,7 @@ Implementation specs and tickets are managed as [local Markdown](docs/agents/iss
 - Use the Go version specified in [go.mod](go.mod).
 - The verification scripts use the Python 3.12 standard library.
 - Have `ssh` and `ssh-keygen` available to verify native key operations.
-- Do manual TUI checks in an interactive terminal.
+- Do manual checks of changing operations in an interactive terminal.
 
 ```sh
 git clone https://github.com/haoyan-dev/ssh-keyflow.git
@@ -25,7 +25,7 @@ cd ssh-keyflow
 go run ./cmd/ssh-keyflow --help
 ```
 
-Development builds report the version `dev`. When trying the TUI or changing operations, prepare a dedicated user environment that does not mix with the keys you actually use. Automated tests use a temporary home.
+Development builds report the version `dev`. When trying changing operations, prepare a dedicated user environment that does not mix with the keys you actually use. Automated tests use a temporary home.
 
 ## How to make a change
 

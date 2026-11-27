@@ -8,20 +8,23 @@
 
 打开新的终端后重试。如果拒绝了添加到 PATH，请使用安装程序显示的程序完整路径。Windows PowerShell 和 PowerShell 7 的配置文件不同。请参阅[安装位置与 PATH 的说明](installation.md)。
 
-## TUI 无法打开，或变更操作被拒绝
+## 变更操作被拒绝
 
-TUI 的输入和输出都需要交互式终端。变更操作也要求在真实终端中确认。请不要用通过管道传入的 `yes` 代替确认，而是在交互式终端中运行。在非终端环境中不带参数启动时会显示帮助。列表、公钥和指南的显示可以重定向。
+创建、导入、移除和恢复要求在真实终端中确认。请不要用通过管道传入的 `yes` 代替确认，而是在交互式终端中运行。列表和公钥的显示可以重定向。
 
-## 无法复制公钥或指南
+## 显示 `unknown command "hosts"` 等信息
 
-TUI 的复制功能需要支持 OSC52 的终端。如果终端不支持，请将以下命令的输出导入编辑器或操作系统的剪贴板。请将名称替换为你自己的管理名称、别名或固定 ID。
+`hosts`、`tui` 和 `--public-only` 已在 v0.11.0 中废弃。请参阅 [CLI 用法](cli.md#已废弃的命令)和[迁移说明](data-and-recovery.md#从-v0100-及更早版本迁移)。
+
+## 想要复制公钥
+
+将以下命令的输出导入剪贴板或编辑器。请将名称替换为你自己的管理名称或固定 ID。
 
 ```sh
 ssh-keyflow keys public --key laptop
-ssh-keyflow hosts guide --host my-server --key laptop
 ```
 
-公钥请保持为一行，不要把显示上的自动折行当作换行粘贴。指南中的步骤请按终端分别运行。
+公钥请保持为一行，不要把显示上的自动折行当作换行粘贴。
 
 ## 密钥创建中断
 
@@ -34,19 +37,17 @@ ssh-keyflow resume --id creation-example
 
 ## 出现密钥、状态或锁的错误
 
-请检查目标文件是否被移动或替换、权限是否正确，以及是否有其他进程在运行。应用不会自动修复不明的锁或无效的状态。如果有其他操作正在进行，请等待其结束。不要无条件删除锁或状态，请停止应用并参阅[数据与恢复](data-and-recovery.md)。存在未完成的旧密钥删除的密钥需要手动确认。
+请检查目标文件是否被移动或替换、权限是否正确，以及是否有其他进程在运行。应用不会自动修复不明的锁或无效的状态。如果有其他操作正在进行，请等待其结束。不要无条件删除锁或状态，请停止应用并参阅[数据与恢复](data-and-recovery.md)。
 
-## 运行指南后仍无法 SSH 连接
+## 显示 `state.json uses schema v1` / `v2`
 
-关联、显示和复制都不能证明连接成功。请确认指南指定的操作系统、Windows 账户类型、粘贴位置和私钥路径。也请确认连接目标的 SSH 服务器、网络、实际的 `AuthorizedKeysFile` / `Match` 以及现有 config 的优先级。这些都不在应用自动验证的范围内。
+这是旧版本的状态。下一次变更操作会归档原文件，并只沿用密钥对。请先确认显示的“Not carried over”内容，然后再操作。详情见[迁移说明](data-and-recovery.md#从-v0100-及更早版本迁移)。
 
-如果反复要求输入口令，请检查指南中的 ssh-agent 步骤。agent 退出后，已加载的密钥不会保留。macOS 的钥匙串、Linux 的 agent 管理和 Windows 服务请按照各操作系统的步骤操作。
+## 部署公钥后仍无法 SSH 连接
 
-## 显示 Host key verification failed
+SSH KeyFlow 不验证连接。请确认连接目标的 SSH 服务器、网络、登录用户、实际的 `AuthorizedKeysFile` / `Match`、`authorized_keys` 及其父目录的权限，以及本地 SSH config 中的 `IdentityFile`。Windows 管理员账户使用 `%ProgramData%\ssh\administrators_authorized_keys`。
 
-对于已固定主机密钥的连接目标，固定密钥以外的密钥都会被拒绝。如果重装了连接目标或更新了主机密钥，请先在连接目标自身的终端中确认新的主机公钥，然后在真实终端中运行 `ssh-keyflow hosts pin --host <ID> --replace`。原因不明的变更可能是攻击，请不要替换。解除固定后，也请删除添加到 SSH config 中的 `HostKeyAlias`、`UserKnownHostsFile` 和 `StrictHostKeyChecking` 这 3 行。如果 `hosts list` 显示 `unknown`，请检查 `~/.ssh/ssh-keyflow/known_hosts`。应用不会改写无效的固定文件。
-
-如果仅有公钥的密钥无法连接，请确认对应的私钥是否已加载到代理中。在 Windows 上，如果 `UNPROTECTED PRIVATE KEY FILE` 警告指向公钥文件（`.pub`），同样表示代理中没有该密钥：OpenSSH 在代理中找不到该密钥，于是尝试把公钥文件当作私钥读取。请不要修改公钥文件的权限，而是将私钥加载到代理中。如果警告指向私钥文件，请限制该文件的权限，使其他用户无法读取。
+如果反复要求输入口令，请将密钥加载到操作系统的 ssh-agent 中（`ssh-add <私钥路径>`）。agent 退出后，已加载的密钥不会保留。
 
 ## 安装程序拒绝更新或删除
 

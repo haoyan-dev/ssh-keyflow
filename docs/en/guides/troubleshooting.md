@@ -8,20 +8,23 @@
 
 Open a new terminal and try again. If you declined adding to PATH, use the full path of the executable that the installer printed. Windows PowerShell and PowerShell 7 use different profiles. See [install locations and PATH](installation.md).
 
-## The TUI does not open or a changing operation is refused
+## A changing operation is refused
 
-The TUI requires an interactive terminal for both input and output. Changing operations also require confirmation in a real terminal. Do not substitute a `yes` piped into the command for the confirmation; run it in an interactive terminal. Launching with no arguments outside a terminal shows help. Listing, public key and guide output can be redirected.
+Creating, importing, removing and resuming require confirmation in a real terminal. Do not substitute a `yes` piped into the command for the confirmation; run it in an interactive terminal. Listing and public key output can be redirected.
 
-## Cannot copy the public key or guide
+## `unknown command "hosts"` or a similar message is shown
 
-Copying in the TUI requires a terminal that supports OSC52. If yours does not, take the output of the following commands into an editor or the OS clipboard. Replace the names with your own managed name, alias or fixed ID.
+`hosts`, `tui` and `--public-only` were retired in v0.11.0. See [Using the CLI](cli.md#retired-commands) and the [migration notes](data-and-recovery.md#migrating-from-v0100-and-earlier).
+
+## Copying the public key
+
+Take the output of the following command into the clipboard or an editor. Replace the name with your own managed name or fixed ID.
 
 ```sh
 ssh-keyflow keys public --key laptop
-ssh-keyflow hosts guide --host my-server --key laptop
 ```
 
-Keep the public key on one line, and do not paste display wrapping as line breaks. Run the guide's steps separately on the terminal each one is meant for.
+Keep the public key on one line, and do not paste display wrapping as line breaks.
 
 ## Key creation was interrupted
 
@@ -34,19 +37,17 @@ Replace `creation-example` with the unfinished creation ID from the list. Resumi
 
 ## Key, state or lock errors
 
-Check whether the target files were moved or replaced, their permissions, and whether another process is running. The app does not repair unknown locks or invalid state automatically. If another operation is in progress, wait for it to finish. Do not delete locks or state unconditionally; stop the app and read [Data and recovery](data-and-recovery.md). A key with an unfinished legacy key deletion requires manual review.
+Check whether the target files were moved or replaced, their permissions, and whether another process is running. The app does not repair unknown locks or invalid state automatically. If another operation is in progress, wait for it to finish. Do not delete locks or state unconditionally; stop the app and read [Data and recovery](data-and-recovery.md).
 
-## SSH still fails after running the guide
+## `state.json uses schema v1` / `v2` is shown
 
-Associating, showing and copying are not evidence of a successful connection. Check the OS, Windows account type, paste target and private key path the guide specifies. Also check the destination's SSH server, the network, the actual `AuthorizedKeysFile` / `Match`, and the precedence in your existing config. These are outside what the app verifies automatically.
+This is state from an older version. The next changing operation archives the original file and carries over only key pairs. Review what is listed under "Not carried over" before you proceed. Details are in the [migration notes](data-and-recovery.md#migrating-from-v0100-and-earlier).
 
-If you are repeatedly asked for a passphrase, check the guide's ssh-agent step. When the agent exits, loaded keys are not kept. Follow the OS-specific steps for the macOS keychain, agent management on Linux, and the Windows service.
+## SSH still fails after deploying the public key
 
-## "Host key verification failed" is shown
+SSH KeyFlow does not verify connections. Check the destination's SSH server, the network, the login user, the actual `AuthorizedKeysFile` / `Match`, the permissions of `authorized_keys` and its parent directory, and the `IdentityFile` in your local SSH config. For a Windows administrator account, `%ProgramData%\ssh\administrators_authorized_keys` is used.
 
-For a destination whose host keys are pinned, any key other than the pinned ones is rejected. If you reinstalled the destination or updated its host keys, check the new host public keys on the destination's own terminal, then run `ssh-keyflow hosts pin --host <ID> --replace` in a real terminal. If you do not know why the key changed, it may be an attack, so do not replace it. If you unpin, also delete the three lines `HostKeyAlias`, `UserKnownHostsFile` and `StrictHostKeyChecking` that you added to your SSH config. If `hosts list` shows `unknown`, check `~/.ssh/ssh-keyflow/known_hosts`. The app does not rewrite an invalid pin file.
-
-If you cannot connect with a public-key-only key, check that the matching private key is loaded into the agent. On Windows, an `UNPROTECTED PRIVATE KEY FILE` warning that names the public key file (`.pub`) also indicates that the key is not in the agent: OpenSSH could not find the key in the agent and tried to read the public key file as a private key. Do not change the public key file's permissions; load the private key into the agent. If the warning names a private key file, restrict that file's permissions so other users cannot read it.
+If you are repeatedly asked for a passphrase, load the key into the OS ssh-agent (`ssh-add <private key path>`). When the agent exits, loaded keys are not kept.
 
 ## The installer refuses to update or remove
 

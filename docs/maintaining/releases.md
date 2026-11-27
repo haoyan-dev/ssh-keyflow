@@ -8,7 +8,7 @@
 
 ## 開発とリリース契約
 
-Goは `go.mod` の指定、梱包テストはPython 3.12の標準ライブラリを使います。TUIはBubble Tea / Bubbles / Lip Gloss、CLIはCobraを使い、ローカル鍵処理と状態管理を共通化します。
+Goは `go.mod` の指定、梱包テストはPython 3.12の標準ライブラリを使います。CLIはCobraを使い、ローカル鍵処理と状態管理を共通化します。
 
 ```sh
 go test ./...

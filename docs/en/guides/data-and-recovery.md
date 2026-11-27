@@ -6,22 +6,36 @@
 
 ## Storage location and backups
 
-Management data is stored in `~/.ssh/ssh-keyflow/state.json`, generated keys in `keys/` in the same directory, and pinned host public keys in `known_hosts`. `known_hosts` is a separate file from the state schema, and older versions do not read it. Importing references the files you specify and does not move or rewrite the originals. The app verifies the public key fingerprint and the private key file digest, and stops for review on a mismatch or if a file cannot be read. Private key contents and passphrases are never saved in the state JSON or in arguments.
+Management data is stored in `~/.ssh/ssh-keyflow/state.json` and generated keys in `keys/` in the same directory. Importing references the files you specify and does not move or rewrite the originals. The app verifies the public key fingerprint and the private key file digest, and stops for review on a mismatch or if a file cannot be read. Private key contents and passphrases are never saved in the state JSON or in arguments.
 
 Before updating or migrating, exit the app and back up `~/.ssh/ssh-keyflow/` to a separate, access-restricted location. The state JSON alone cannot restore private keys. Also back up the original files of imported keys and any SSH config you set up yourself, as needed. Do not put backups that contain private keys in public repositories or shared logs.
 
-Before restoring, also move the current data aside, and check that the version you will use can read the backed-up state. Confirm that the restored paths and key fingerprints match, and reconcile keys, destinations and associations added after the migration. The app has no automatic restore, no state merging and no reverse conversion to the old schema.
+Before restoring, also move the current data aside, and check that the version you will use can read the backed-up state. Confirm that the restored paths and key fingerprints match. The app has no automatic restore and no state merging.
 
 ## Interruptions and the previous state
 
 Key creation uses the native `ssh-keygen` and never overwrites existing paths. If creation is interrupted, `resume` it with the creation ID from `keys list`. The saved paths, fingerprint and digest are checked against the files, and creation resumes without automatically deleting partial files. While an unfinished creation exists, no other key pair is newly created. State changes are protected by an exclusive lock; the verified previous state is saved to `state.json.bak` before the state is replaced atomically. Unknown locks and invalid state are not repaired automatically.
 
-## Migrating from older versions and downgrading
+## Migrating from v0.10.0 and earlier
 
-The v0.5.0 simplification is an intentional incompatible change. The former `register`, `unregister`, `registrations list` and `keys delete`, as well as `--new-key`, `--auth`, `--identity` and `--configure`, are no longer available. The old numbered menu, Tasks and recursive SSH config discovery are also removed. Before pasting a snippet, check for duplicates and precedence against existing `Host` / Include / wildcard settings yourself.
+v0.11.0 is an intentional incompatible change that narrows the app to managing key pairs only. Destinations, associations, the manual setup guide, host key pinning, the TUI and public-only import are retired.
 
-Existing v1 state is not changed when read, and becomes v2 on the first state save. The new `associations` are independent of the legacy registration history. History and interruption records of past registrations, connection checks, config edits and deletions are kept, and are not rewritten as current success or completion. Legacy remote operations are read-only and are not carried over by `resume`. A key with a legacy deletion in progress is refused because it requires manual review, but this does not block operations on other keys.
+`state.json` from v0.10.0 and earlier (schema v1 / v2) is not changed when read. `keys list` prints to standard error what the next change will not carry over. Changing operations show the same notice before asking for confirmation. An old file with unknown fields or broken values is not loaded, and nothing is changed. On the first changing operation (create, import, remove or resume), the app does the following in order.
 
-**If you might go back to an older version, exit the app and save the v1 `state.json` in a separate location before the first changing operation on v0.5.0 or later.** `state.json.bak` is a rolling backup of the previous state and does not keep v1 permanently. Even creating your first key saves the state several times, so the backup can be updated to v2 within the same operation. Older versions cannot read v2, so a downgrade requires manually restoring the saved v1 state and reviewing keys, associations and other data added after the migration. Reading alone never creates a migration copy automatically.
+1. It writes the original `state.json` as-is to `~/.ssh/ssh-keyflow/state.v<N>-<UTC time>.json`. An existing file is never overwritten. If writing fails, nothing is changed. If you retry an operation that failed partway, the archive with the same content is reused.
+2. It carries over only keys that have a private key path and unfinished key creations, and saves them with schema v3.
 
-Previously generated `~/.ssh/ssh-keyflow/config`, your normal `~/.ssh/config`, Include directives and existing backups are not changed. A remaining Include may continue to load the former settings. Review the contents yourself if needed. For past verification results, see the [verification records](../../verification.md) (Japanese); for the current specification, see the [application contract](../reference/application-contract.md) (overview) or the [authoritative contract](../../application-contract.md) (Japanese).
+What is not carried over: destinations and associations, removed records, the records and history of legacy registrations, config, SSH config edits, onboardings and deletions, public-only keys, and keys with an unfinished legacy key deletion. These remain in the archive. If an unfinished SSH config edit is listed, check that file manually. If you need a public-only key, pair it with its private key and import it again with `keys import`.
+
+`~/.ssh/ssh-keyflow/known_hosts` (the host key pinning file) created by older versions, `~/.ssh/ssh-keyflow/config`, your normal `~/.ssh/config`, Include directives and Host blocks appended from the guide are not changed. The pinning lines `HostKeyAlias`, `UserKnownHostsFile` and `StrictHostKeyChecking` keep working as long as you keep the files. Remove them yourself if you no longer need them.
+
+## Returning to an older version
+
+Older versions cannot read schema v3. To return to an older version, exit the app and then do the following.
+
+1. Back up the current `~/.ssh/ssh-keyflow/` to a separate location.
+2. Restore `state.v<N>-<UTC time>.json` under the name `state.json`.
+
+Keys created or imported after the migration are not included in the restored state. If needed, import them again with the older version. `state.json.bak` is a rolling backup of the previous state; after the migration it is v3, so it cannot be used to return to an older version.
+
+For past verification results, see the [verification records](../../verification.md) (Japanese); for the current specification, see the [application contract](../reference/application-contract.md) (overview) or the [authoritative contract](../../application-contract.md) (Japanese).

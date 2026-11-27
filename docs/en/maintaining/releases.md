@@ -8,7 +8,7 @@ This page is an overview of distribution and an entry point to the checks. [AGEN
 
 ## Development and release contract
 
-Go follows the version in `go.mod`, and the packaging tests use the Python 3.12 standard library. The TUI uses Bubble Tea / Bubbles / Lip Gloss and the CLI uses Cobra, sharing local key handling and state management.
+Go follows the version in `go.mod`, and the packaging tests use the Python 3.12 standard library. The CLI uses Cobra, sharing local key handling and state management.
 
 ```sh
 go test ./...

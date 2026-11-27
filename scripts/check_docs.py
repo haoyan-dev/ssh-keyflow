@@ -57,7 +57,6 @@ TRANSLATIONS = (
     _docs_page("README.md"),
     _docs_page("tutorials/first-connection.md"),
     _docs_page("guides/installation.md"),
-    _docs_page("guides/terminal-ui.md"),
     _docs_page("guides/cli.md"),
     _docs_page("guides/data-and-recovery.md"),
     _docs_page("guides/troubleshooting.md"),

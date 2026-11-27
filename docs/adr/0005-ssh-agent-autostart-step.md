@@ -1,6 +1,6 @@
 # ADR 0005: パスフレーズ付き鍵にssh-agentの自動起動ステップを加える
 
-- 状態: 採用
+- 状態: ADR 0007で廃止
 - 日付: 2026-11-11
 - 仕様: `.scratch/ssh-agent-autostart/spec.md`
 

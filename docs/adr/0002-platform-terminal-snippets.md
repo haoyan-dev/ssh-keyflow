@@ -1,6 +1,6 @@
 # ADR 0002: コピペ対象を端末で実行できるスクリプトにする
 
-- 状態: 採用
+- 状態: ADR 0007で廃止
 - 日付: 2026-11-09
 - 仕様: `.scratch/platform-copy-paste-snippets/spec.md`
 

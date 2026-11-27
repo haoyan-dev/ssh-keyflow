@@ -8,7 +8,7 @@
 
 ## 开发与发布契约
 
-Go 版本遵循 `go.mod` 的指定，打包测试使用 Python 3.12 的标准库。TUI 使用 Bubble Tea / Bubbles / Lip Gloss，CLI 使用 Cobra，本地密钥处理和状态管理由两者共用。
+Go 版本遵循 `go.mod` 的指定，打包测试使用 Python 3.12 的标准库。CLI 使用 Cobra，并共用本地密钥处理和状态管理。
 
 ```sh
 go test ./...

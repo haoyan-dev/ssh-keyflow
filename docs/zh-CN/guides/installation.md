@@ -57,7 +57,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
 
 ## 获取并运行 Portable 发行包
 
-提供适用于 Windows / Linux / macOS 的 amd64（x64）/ arm64 归档。Windows 为 zip，Linux/macOS 为 tar.gz。不需要 Go 或安装程序，但需要操作系统的 `ssh` 和 `ssh-keygen`。TUI 需要在交互式终端中使用。
+提供适用于 Windows / Linux / macOS 的 amd64（x64）/ arm64 归档。Windows 为 zip，Linux/macOS 为 tar.gz。不需要 Go 或安装程序，但需要操作系统的 `ssh` 和 `ssh-keygen`。变更操作的确认需要交互式终端。
 
 分发来源为 [GitHub Releases](https://github.com/haoyan-dev/ssh-keyflow/releases)。在对应标签的 6 个归档和 `SHA256SUMS` 中，请获取适用于你的操作系统 / CPU 的归档和 manifest。
 

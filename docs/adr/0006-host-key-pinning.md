@@ -1,6 +1,6 @@
 # ADR 0006: 接続先のホスト公開鍵をアプリ所有のknown_hostsに固定する
 
-- 状態: 採用
+- 状態: ADR 0007で廃止
 - 日付: 2026-11-12
 - 仕様: `.scratch/host-key-pinning/spec.md`
 - 検証: `.scratch/host-key-pinning/openssh-spike.md`

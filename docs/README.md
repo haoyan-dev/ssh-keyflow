@@ -10,19 +10,18 @@
 
 | やりたいこと | 読むページ |
 | --- | --- |
-| 最初の鍵・接続先を用意し、接続設定を進める | [はじめての接続設定](tutorials/first-connection.md) |
+| 最初の鍵を用意し、公開鍵を配置して接続する | [はじめての接続設定](tutorials/first-connection.md) |
 | インストール・更新・本体の削除を行う | [インストールガイド](guides/installation.md) |
-| TUIの操作キーやコピー先を確認する | [TUIの操作](guides/terminal-ui.md) |
-| CLIで鍵・接続先・関連付けを管理する | [CLIの使い方](guides/cli.md) |
-| 状態の保管、移行、旧版へ戻す際の注意を確認する | [データ・移行・復旧](guides/data-and-recovery.md) |
-| 起動・コピー・鍵・接続の問題を調べる | [トラブルシューティング](guides/troubleshooting.md) |
+| CLIで鍵を作成・取り込み・削除する | [CLIの使い方](guides/cli.md) |
+| 状態の保管、旧版からの移行、旧版へ戻す手順を確認する | [データ・移行・復旧](guides/data-and-recovery.md) |
+| 起動・鍵・状態・接続の問題を調べる | [トラブルシューティング](guides/troubleshooting.md) |
 
 ## 仕様と背景
 
 | 文書 | 役割 |
 | --- | --- |
 | [アプリケーション契約](application-contract.md) | CLI、JSON、終了コード、状態互換性、インストール・配布の公開契約 |
-| [用語集](../GLOSSARY.md) | 鍵、接続先、関連付け、未確認などのドメイン用語 |
+| [用語集](../GLOSSARY.md) | 鍵、取り込み、管理からの削除、移行アーカイブなどのドメイン用語 |
 | [設計判断の一覧](adr/README.md) | 採用した判断と、それを更新・置換する判断 |
 | [検証記録](verification.md) | 対象コミット・実行条件・結果・限界を含む時点ごとの証拠 |
 | [第三者ライセンスの収集方法](third-party-notices.md) | 配布物へ含めるライセンス文書と収集根拠 |

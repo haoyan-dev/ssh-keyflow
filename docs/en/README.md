@@ -10,19 +10,18 @@ This directory documents the current implementation on `main`. To find out how a
 
 | What you want to do | Page |
 | --- | --- |
-| Prepare your first key and destination and set up the connection | [Your first connection setup](tutorials/first-connection.md) |
+| Prepare your first key, deploy the public key and connect | [Your first connection setup](tutorials/first-connection.md) |
 | Install, update or remove the executable | [Installation guide](guides/installation.md) |
-| Check TUI key bindings and where copies go | [Using the TUI](guides/terminal-ui.md) |
-| Manage keys, destinations and associations with the CLI | [Using the CLI](guides/cli.md) |
-| Back up state, migrate, and check caveats for returning to an older version | [Data, migration and recovery](guides/data-and-recovery.md) |
-| Investigate launch, copy, key and connection problems | [Troubleshooting](guides/troubleshooting.md) |
+| Create, import and remove keys with the CLI | [Using the CLI](guides/cli.md) |
+| Back up state, migrate from an older version, and return to an older version | [Data, migration and recovery](guides/data-and-recovery.md) |
+| Investigate launch, key, state and connection problems | [Troubleshooting](guides/troubleshooting.md) |
 
 ## Specifications and background
 
 | Document | Role |
 | --- | --- |
 | [Application contract (overview)](reference/application-contract.md) | Public contract for the CLI, JSON, exit codes, state compatibility, installation and distribution |
-| [Glossary (overview)](reference/glossary.md) | Domain terms such as key, destination, association and unverified |
+| [Glossary (overview)](reference/glossary.md) | Domain terms such as key, import, removal from management and migration archive |
 | [Index of design decisions](../adr/README.md) (Japanese) | Adopted decisions and the decisions that update or supersede them |
 | [Verification records](../verification.md) (Japanese) | Point-in-time evidence including target commits, conditions, results and limits |
 | [How third-party licenses are collected](../third-party-notices.md) (Japanese) | License documents included in distributions and the basis for collecting them |

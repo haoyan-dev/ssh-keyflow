@@ -2,19 +2,17 @@
 
 [简体中文](README.zh-CN.md) · [English](README.en.md) · 日本語
 
-ローカルのSSH鍵と接続先を管理し、公開鍵の配置と接続設定をコピペで支援するGo製のTUI / CLIです。
+この端末のSSH鍵ペアを作成・取り込み・管理し、公開鍵をコピーできる形で表示するGo製のCLIです。
 
 [はじめて使う](docs/tutorials/first-connection.md) · [ドキュメント](docs/README.md) · [コントリビューション](CONTRIBUTING.md) · [リリース](https://github.com/haoyan-dev/ssh-keyflow/releases)
 
 ## できること
 
-- Ed25519鍵の作成、既存の鍵ペア・公開鍵の取り込み、中断した鍵作成の再開。
-- Keys / DestinationsのTUIとCLIによる鍵・接続先・関連付けの管理。
-- Linux / macOS / Windows向けの公開鍵配置、SSH config追記、接続手順の表示・コピー。
-- 接続先で表示したホスト公開鍵の貼り付けによる固定。初回接続の確認を省き、他のホスト鍵を拒否します。
-- FIDO鍵等、SSHエージェントにある秘密鍵を公開鍵ファイルで選んで使う設定。
+- Ed25519鍵の作成、既存の鍵ペアの取り込み、中断した鍵作成の再開。
+- 鍵の一覧（表形式・JSON）と、コピー用の公開鍵1行の表示。
+- 鍵ファイルを残したままの管理からの削除。
 
-アプリはSSH接続やリモート登録を実行しません。関連付けはローカルの管理情報で、接続成功を意味しません。生成したスクリプトを利用者が対象端末で実行して設定します。管理からの削除は鍵ファイルの削除・SSHアクセスの失効とは別の操作です。
+アプリはSSH接続、リモート登録、SSH configの編集を行いません。公開鍵の配置は利用者が行います。管理からの削除は鍵ファイルの削除・SSHアクセスの失効とは別の操作です。v0.11.0で接続先・手動設定ガイド・ホスト鍵の固定・TUI・公開鍵のみの取り込みを廃止しました（[移行](docs/guides/data-and-recovery.md#v0100以前からの移行)）。
 
 ## 1行でインストール
 
@@ -40,23 +38,23 @@ irm https://raw.githubusercontent.com/haoyan-dev/ssh-keyflow/main/install.ps1 | 
 
 ```sh
 ssh-keyflow --version
-ssh-keyflow
+ssh-keyflow keys list
 ```
 
-TUIは対話端末で使います。最初の鍵と接続先を用意する手順は[はじめての接続設定](docs/tutorials/first-connection.md)、操作キーは[TUIの操作](docs/guides/terminal-ui.md)、コマンド例は[CLIの使い方](docs/guides/cli.md)にあります。
+変更操作の確認には対話端末を使います。最初の鍵を用意して接続する手順は[はじめての接続設定](docs/tutorials/first-connection.md)、コマンド例は[CLIの使い方](docs/guides/cli.md)にあります。
 
 ## ドキュメント
 
 | 目的 | 読むページ |
 | --- | --- |
-| 最初の鍵と接続先を用意する | [チュートリアル](docs/tutorials/first-connection.md) |
+| 最初の鍵を用意して接続する | [チュートリアル](docs/tutorials/first-connection.md) |
 | 手順・困ったときの対処を探す | [ドキュメント一覧](docs/README.md) |
 | CLI・JSON・保存状態の約束を確認する | [アプリケーション契約](docs/application-contract.md) |
 | 修正や文書の改善に参加する | [コントリビューション](CONTRIBUTING.md) |
 
 ## 安全条件とデータ
 
-管理情報は `~/.ssh/ssh-keyflow/state.json`、生成鍵は同ディレクトリの `keys/`、固定したホスト公開鍵は `known_hosts` に保存します。旧版からの移行・ダウングレード前には[データ・移行・復旧](docs/guides/data-and-recovery.md)を確認してください。`state.json.bak` は直前状態の更新式バックアップで、旧版へ戻すための恒久保管ではありません。
+管理情報は `~/.ssh/ssh-keyflow/state.json`、生成鍵は同ディレクトリの `keys/` に保存します。v0.10.0以前の状態は最初の変更時に `state.v<N>-<UTC時刻>.json` へ書き出してから移行します。旧版からの移行・ダウングレード前には[データ・移行・復旧](docs/guides/data-and-recovery.md)を確認してください。`state.json.bak` は直前状態の更新式バックアップで、旧版へ戻すための恒久保管ではありません。
 
 ## Portable配布の取得と実行
 
