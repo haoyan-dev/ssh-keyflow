@@ -13,6 +13,7 @@ This directory documents the current implementation on `main`. To find out how a
 | Prepare your first key, deploy the public key and connect | [Your first connection setup](tutorials/first-connection.md) |
 | Install, update or remove the executable | [Installation guide](guides/installation.md) |
 | Create, import and remove keys with the CLI | [Using the CLI](guides/cli.md) |
+| Create, distribute and accept a fleet roster (unreleased feature on `main`) | [Creating and accepting a fleet roster](guides/fleet.md) |
 | Back up state, migrate from an older version, and return to an older version | [Data, migration and recovery](guides/data-and-recovery.md) |
 | Investigate launch, key, state and connection problems | [Troubleshooting](guides/troubleshooting.md) |
 

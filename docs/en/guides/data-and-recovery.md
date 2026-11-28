@@ -38,4 +38,12 @@ Older versions cannot read schema v3. To return to an older version, exit the ap
 
 Keys created or imported after the migration are not included in the restored state. If needed, import them again with the older version. `state.json.bak` is a rolling backup of the previous state; after the migration it is v3, so it cannot be used to return to an older version.
 
+## Migrating to schema v4 (unreleased)
+
+The fleet commands on `main` save the state with schema v4. This is not in any published version yet. A v3 `state.json` is not changed when read. On the first changing operation, the original file is written to `state.v3-<UTC time>.json` and the state is then saved as v4. All v3 records are carried over. v0.11.0 and earlier cannot read v4.
+
+To return to v0.11.0, exit the app, back up the current `~/.ssh/ssh-keyflow/` to a separate location, and restore `state.v3-<UTC time>.json` under the name `state.json`. The node description, fleet and accepted roster, and keys created or imported after the migration, are not included. `state.json.bak` is v3 right after the migration, but the next change replaces it with v4, so use the archive to go back. The root key files in `fleet/` are no longer referenced by the restored state; running `fleet init` again with them left in place is refused because the files exist.
+
+The admin node's fleet root key (`~/.ssh/ssh-keyflow/fleet/root_ed25519`) cannot be recreated; if it is lost, rosters for the same fleet can no longer be signed. Keep it together with the state in a separate, access-restricted location. For the steps, see [Creating and accepting a fleet roster](fleet.md).
+
 For past verification results, see the [verification records](../../verification.md) (Japanese); for the current specification, see the [application contract](../reference/application-contract.md) (overview) or the [authoritative contract](../../application-contract.md) (Japanese).

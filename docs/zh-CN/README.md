@@ -13,6 +13,7 @@
 | 准备第一个密钥，部署公钥并完成连接 | [首次连接设置](tutorials/first-connection.md) |
 | 安装、更新或删除程序 | [安装指南](guides/installation.md) |
 | 用 CLI 创建、导入或移除密钥 | [CLI 用法](guides/cli.md) |
+| 创建、分发和接受机群名册（`main` 上尚未发布的功能） | [创建和接受机群名册](guides/fleet.md) |
 | 了解状态的备份保存、从旧版本迁移以及回退到旧版本的步骤 | [数据、迁移与恢复](guides/data-and-recovery.md) |
 | 排查启动、密钥、状态和连接问题 | [故障排除](guides/troubleshooting.md) |
 

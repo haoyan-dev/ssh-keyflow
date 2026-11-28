@@ -53,7 +53,21 @@ ssh-keyflow keys remove --key existing
 
 確認後に鍵を管理対象から外します。鍵ファイル・SSH設定・接続先の公開鍵登録は変更せず、SSHアクセスを失効させません。ファイルが見つからない鍵も管理から削除できます。同じ鍵ペアは `keys import` で再び管理できます（新しいIDになります）。
 
+`main` では、ノード記述の接続元鍵に使っている鍵は削除できません。先に `node set` で別の鍵に変更してください。
+
 鍵は固定IDまたは一意の管理名で指定します。曖昧な名前を自動選択しません。変更操作（create / import / remove / resume）には確認用の実端末が必要です。パスフレーズはOSの `ssh-keygen` に直接入力します。`keys list` と `keys public` はリダイレクトでき、読み取りだけで保存領域を作成・移行しません。
+
+## フリートのコマンド（未リリース）
+
+`main` には、署名した名簿をノード間でファイルとして受け渡す `node` / `fleet` コマンドがあります。公開済みの版にはありません。
+
+```sh
+ssh-keyflow node set --name laptop --roles client --key laptop
+ssh-keyflow node show --json
+ssh-keyflow fleet show --json
+```
+
+手順は[フリートの名簿を作成・受け入れる](fleet.md)を参照してください。
 
 ## 廃止したコマンド
 
@@ -61,6 +75,6 @@ v0.11.0で `hosts`（add / list / remove / associate / dissociate / guide / pin 
 
 ## JSONと終了コード
 
-JSONは標準出力、診断は標準エラーへ分けます。`keys list --json` は `keys` と `creations` だけを返します。終了コードは成功0、実行失敗・取消1、引数・使用法エラー2です。
+JSONは標準出力、診断は標準エラーへ分けます。`keys list --json` は `keys` と `creations` だけを返します。`main` の `node show --json` は `node` と `is_admin`、`fleet show --json` は `fleet` を返します。終了コードは成功0、実行失敗・取消1、引数・使用法エラー2です。
 
 正確な入力・出力仕様は[アプリケーション契約](../application-contract.md#cli)を参照してください。

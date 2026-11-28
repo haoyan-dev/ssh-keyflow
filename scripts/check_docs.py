@@ -58,6 +58,7 @@ TRANSLATIONS = (
     _docs_page("tutorials/first-connection.md"),
     _docs_page("guides/installation.md"),
     _docs_page("guides/cli.md"),
+    _docs_page("guides/fleet.md"),
     _docs_page("guides/data-and-recovery.md"),
     _docs_page("guides/troubleshooting.md"),
     _docs_page("maintaining/documentation.md"),
