@@ -134,8 +134,14 @@ func execute(ctx context.Context, options Options) error {
 func (request Request) checkTargets(document state.State) error {
 	switch request.Operation {
 	case "remove":
-		_, err := keyIndex(document, request.Key)
-		return err
+		index, err := keyIndex(document, request.Key)
+		if err != nil {
+			return err
+		}
+		if document.Node != nil && slices.Contains(document.Node.ClientKeyIDs, document.Keys[index].ID) {
+			return fmt.Errorf("managed key %q is this node's client key; change it with node set first", document.Keys[index].Name)
+		}
+		return nil
 	case "resume":
 		if slices.ContainsFunc(document.Creations, func(creation state.Creation) bool { return creation.ID == request.Resume }) {
 			return nil
