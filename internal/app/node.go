@@ -200,10 +200,8 @@ func SetNode(options NodeOptions) error {
 		return err
 	}
 	if options.Request.DryRun {
-		if document.Migration != nil {
-			if _, err := fmt.Fprintln(options.Error, document.Migration.Notice()); err != nil {
-				return err
-			}
+		if err := migrationNotice(options.Error, document); err != nil {
+			return err
 		}
 		plan, err := request.plan(options.Home, document)
 		if err != nil {
@@ -226,10 +224,8 @@ func SetNode(options NodeOptions) error {
 		if err != nil {
 			return err
 		}
-		if document.Migration != nil {
-			if _, err := fmt.Fprintln(options.Output, document.Migration.Notice()); err != nil {
-				return err
-			}
+		if err := migrationNotice(options.Output, document); err != nil {
+			return err
 		}
 		plan, err := request.plan(options.Home, document)
 		if err != nil {

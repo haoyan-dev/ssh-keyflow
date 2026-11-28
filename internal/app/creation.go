@@ -200,19 +200,23 @@ func creationLocation(home string, creation state.Creation) error {
 	if filepath.Dir(creation.PrivatePath) != directory || creation.PublicPath != creation.PrivatePath+".pub" || !strings.HasPrefix(filepath.Base(creation.PrivatePath), "id_ed25519_") {
 		return fmt.Errorf("requires review: creation path outside managed keys")
 	}
+	return plainDirectory(directory)
+}
+
+// plainDirectory refuses a directory that is, or sits under, a link.
+func plainDirectory(directory string) error {
 	for current := directory; ; current = filepath.Dir(current) {
 		info, err := os.Lstat(current)
 		if err != nil {
 			return err
 		}
 		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-			return fmt.Errorf("requires review: linked or invalid creation directory %s", current)
+			return fmt.Errorf("requires review: linked or invalid directory %s", current)
 		}
 		if filepath.Dir(current) == current {
-			break
+			return nil
 		}
 	}
-	return nil
 }
 
 func observeCreation(creation *state.Creation) error {

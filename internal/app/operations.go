@@ -213,6 +213,10 @@ func PublicKey(home, reference string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return publicKeyText(document, reference)
+}
+
+func publicKeyText(document state.State, reference string) (string, error) {
 	key, err := usableKey(document, reference)
 	if err != nil {
 		return "", err

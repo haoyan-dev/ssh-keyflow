@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"ssh-keyflow/internal/roster"
 )
 
 func ed25519Key(seed byte) string {
@@ -99,8 +101,8 @@ func validV4(t *testing.T, home string) State {
 	if err := json.Unmarshal([]byte(v3Key(home)), &key); err != nil {
 		t.Fatal(err)
 	}
-	roster := "{}\n"
-	digest := sha256.Sum256([]byte(roster))
+	text := testRoster(t, 1)
+	digest := sha256.Sum256([]byte(text))
 	root := ed25519Key(9)
 	return State{
 		Version: Version, Keys: []Key{key},
@@ -108,8 +110,28 @@ func validV4(t *testing.T, home string) State {
 			Port: 2222, ClientKeyIDs: []string{key.ID}, HostKeys: []string{ed25519Key(1), ed25519Key(2)}, SSHDConfig: filepath.Join(home, "sshd_config"), UpdatedAt: stamp},
 		Fleet: &Fleet{ID: "fleet-" + strings.Repeat("cd", 16), Roots: []Root{{PublicKey: root, Fingerprint: fingerprintOf(root), PinnedAt: stamp}},
 			RootKey:  &RootKey{Fingerprint: fingerprintOf(root), PublicPath: filepath.Join(home, "root.pub"), PrivatePath: filepath.Join(home, "root")},
-			Accepted: &Accepted{Version: 1, SHA256: hex.EncodeToString(digest[:]), Roster: roster, AcceptedAt: stamp}},
+			Accepted: &Accepted{Version: 1, SHA256: hex.EncodeToString(digest[:]), Roster: text, Signature: testSignature, AcceptedAt: stamp}},
 	}
+}
+
+const testFleetID = "fleet-cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+
+// testSignature has the armor and SSHSIG magic; state does not verify it.
+var testSignature = "-----BEGIN SSH SIGNATURE-----\n" + base64.StdEncoding.EncodeToString([]byte("SSHSIG\x00\x00\x00\x01")) + "\n-----END SSH SIGNATURE-----\n"
+
+func testRoster(t *testing.T, version int64) string {
+	t.Helper()
+	data, err := (roster.Roster{Format: roster.Format, Schema: roster.Schema, FleetID: testFleetID, Version: version, CreatedAt: stamp, LoginAccount: "admin",
+		Nodes: []roster.Node{{ID: "node-" + strings.Repeat("ab", 16), Name: "laptop", Roles: []string{"client"}, ClientKeys: []string{ed25519Key(3)}}}}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func setRoster(s *State, text string) {
+	digest := sha256.Sum256([]byte(text))
+	s.Fleet.Accepted.Roster, s.Fleet.Accepted.SHA256 = text, hex.EncodeToString(digest[:])
 }
 
 func TestV4RoundTripAndValidation(t *testing.T) {
@@ -122,7 +144,7 @@ func TestV4RoundTripAndValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	loaded, err := Load(home)
-	if err != nil || loaded.Node == nil || loaded.Fleet == nil || loaded.Node.Port != 2222 || loaded.Fleet.Accepted.Roster != "{}\n" {
+	if err != nil || loaded.Node == nil || loaded.Fleet == nil || loaded.Node.Port != 2222 || loaded.Fleet.Accepted.Roster != document.Fleet.Accepted.Roster || loaded.Fleet.Accepted.Signature != testSignature {
 		t.Fatal("v4 round trip failed", loaded, err)
 	}
 	if err := (State{Version: Version, Keys: []Key{}}).Validate(); err != nil {
@@ -148,8 +170,16 @@ func TestV4RoundTripAndValidation(t *testing.T) {
 		},
 		"root fingerprint":  func(s *State) { s.Fleet.Roots[0].Fingerprint = fingerprintOf(ed25519Key(8)) },
 		"unpinned root key": func(s *State) { s.Fleet.RootKey.Fingerprint = fingerprintOf(ed25519Key(8)) },
-		"roster digest":     func(s *State) { s.Fleet.Accepted.Roster = "{}" },
+		"roster digest":     func(s *State) { s.Fleet.Accepted.Roster = strings.TrimSuffix(s.Fleet.Accepted.Roster, "\n") },
 		"version zero":      func(s *State) { s.Fleet.Accepted.Version = 0 },
+		"version mismatch":  func(s *State) { s.Fleet.Accepted.Version = 2 },
+		"fleet id mismatch": func(s *State) { s.Fleet.ID = "fleet-" + strings.Repeat("ef", 16) },
+		"no signature":      func(s *State) { s.Fleet.Accepted.Signature = "" },
+		"crlf signature":    func(s *State) { s.Fleet.Accepted.Signature = strings.ReplaceAll(testSignature, "\n", "\r\n") },
+		"non-canonical roster": func(s *State) {
+			setRoster(s, strings.Replace(s.Fleet.Accepted.Roster, "  ", "\t", 1))
+		},
+		"empty roster": func(s *State) { setRoster(s, "{}\n") },
 	} {
 		t.Run(name, func(t *testing.T) {
 			broken := validV4(t, home)
