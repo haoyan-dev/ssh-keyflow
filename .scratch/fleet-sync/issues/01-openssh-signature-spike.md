@@ -1,6 +1,6 @@
 # 01 — Spike `ssh-keygen -Y` signing across platforms
 
-Status: ready-for-agent
+Status: ready-for-human
 Blocked by: none
 
 Criterion 1. Research only: throwaway scripts, no product code. Check
@@ -16,3 +16,6 @@ findings in `.scratch/fleet-sync/openssh-spike.md`.
 - 2026-11-28: Windows 11 (OpenSSH 9.5p2) and Ubuntu 24.04 via WSL (9.6p1) pass
   all cases; see `openssh-spike.md`. macOS and the CI runners are still pending,
   as are agent signing on Windows and a real-terminal prompt.
+- 2026-11-28: CI run 46111885878 passed on ubuntu (10.2p1), macOS (10.5p1,
+  including agent signing) and windows-latest (10.6p1, Git for Windows' build).
+  Remaining gaps are listed in `openssh-spike.md`; ready for review.
