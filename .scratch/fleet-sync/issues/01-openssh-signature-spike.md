@@ -19,3 +19,7 @@ findings in `.scratch/fleet-sync/openssh-spike.md`.
 - 2026-11-28: CI run 46111885878 passed on ubuntu (10.2p1), macOS (10.5p1,
   including agent signing) and windows-latest (10.6p1, Git for Windows' build).
   Remaining gaps are listed in `openssh-spike.md`; ready for review.
+- 2026-11-28: Standards and spec reviews found no hard violations. Fixed the
+  case counts (18 on Unix, 15 on Windows), marked the -1 exit code as
+  local-only evidence, and labelled the minimum version (8.4) and design
+  consequences as proposals for ticket 02.
