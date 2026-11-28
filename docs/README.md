@@ -13,6 +13,7 @@
 | 最初の鍵を用意し、公開鍵を配置して接続する | [はじめての接続設定](tutorials/first-connection.md) |
 | インストール・更新・本体の削除を行う | [インストールガイド](guides/installation.md) |
 | CLIで鍵を作成・取り込み・削除する | [CLIの使い方](guides/cli.md) |
+| フリートの名簿を作成・配布・受け入れる（`main` の未リリース機能） | [フリートの名簿を作成・受け入れる](guides/fleet.md) |
 | 状態の保管、旧版からの移行、旧版へ戻す手順を確認する | [データ・移行・復旧](guides/data-and-recovery.md) |
 | 起動・鍵・状態・接続の問題を調べる | [トラブルシューティング](guides/troubleshooting.md) |
 

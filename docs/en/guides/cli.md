@@ -53,7 +53,21 @@ ssh-keyflow keys remove --key existing
 
 After confirmation, the key is removed from management. Key files, SSH configuration and public key registrations on destinations are not changed, and SSH access is not revoked. Keys whose files cannot be found can also be removed from management. You can manage the same key pair again with `keys import` (it gets a new ID).
 
+On `main`, a key used as the client key of the node description cannot be removed. Change it to another key with `node set` first.
+
 Specify a key by fixed ID or unique managed name. Ambiguous names are never selected automatically. Changing operations (create / import / remove / resume) require a real terminal for confirmation. You enter passphrases directly into the OS `ssh-keygen`. `keys list` and `keys public` can be redirected, and reading alone does not create or migrate the storage area.
+
+## Fleet commands (unreleased)
+
+`main` has `node` / `fleet` commands that pass a signed roster between nodes as files. They are not in any published version.
+
+```sh
+ssh-keyflow node set --name laptop --roles client --key laptop
+ssh-keyflow node show --json
+ssh-keyflow fleet show --json
+```
+
+For the steps, see [Creating and accepting a fleet roster](fleet.md).
 
 ## Retired commands
 
@@ -61,6 +75,6 @@ v0.11.0 retired `hosts` (add / list / remove / associate / dissociate / guide / 
 
 ## JSON and exit codes
 
-JSON goes to standard output and diagnostics to standard error. `keys list --json` returns only `keys` and `creations`. Exit codes are 0 for success, 1 for execution failure or cancellation, and 2 for argument or usage errors.
+JSON goes to standard output and diagnostics to standard error. `keys list --json` returns only `keys` and `creations`. On `main`, `node show --json` returns `node` and `is_admin`, and `fleet show --json` returns `fleet`. Exit codes are 0 for success, 1 for execution failure or cancellation, and 2 for argument or usage errors.
 
 For the exact input and output specification, see the [application contract](../reference/application-contract.md#cli) (overview) or its [authoritative CLI section](../../application-contract.md#cli) (Japanese).

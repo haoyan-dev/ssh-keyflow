@@ -53,7 +53,21 @@ ssh-keyflow keys remove --key existing
 
 确认后将密钥从受管对象中去掉。不更改密钥文件、SSH 设置或连接目标上的公钥注册，也不会吊销 SSH 访问。找不到文件的密钥也可以从管理中移除。同一密钥对可以用 `keys import` 重新纳入管理（会分配新的 ID）。
 
+在 `main` 上，用作节点描述中连接源密钥的密钥无法移除。请先用 `node set` 改为其他密钥。
+
 密钥用固定 ID 或唯一的管理名称指定。不会自动选择含糊的名称。变更操作（create / import / remove / resume）需要可用于确认的真实终端。口令直接输入到操作系统的 `ssh-keygen` 中。`keys list` 和 `keys public` 可以重定向，并且只做读取，不会创建或迁移存储区域。
+
+## 机群命令（尚未发布）
+
+`main` 上有 `node` / `fleet` 命令，用于在节点之间以文件形式传递已签名的名册。已发布的版本中没有这些命令。
+
+```sh
+ssh-keyflow node set --name laptop --roles client --key laptop
+ssh-keyflow node show --json
+ssh-keyflow fleet show --json
+```
+
+步骤请参阅[创建和接受机群名册](fleet.md)。
 
 ## 已废弃的命令
 
@@ -61,6 +75,6 @@ v0.11.0 已废弃 `hosts`（add / list / remove / associate / dissociate / guide
 
 ## JSON 与退出码
 
-JSON 输出到标准输出，诊断信息输出到标准错误。`keys list --json` 只返回 `keys` 和 `creations`。退出码：成功为 0，执行失败或取消为 1，参数或用法错误为 2。
+JSON 输出到标准输出，诊断信息输出到标准错误。`keys list --json` 只返回 `keys` 和 `creations`。`main` 上的 `node show --json` 返回 `node` 和 `is_admin`，`fleet show --json` 返回 `fleet`。退出码：成功为 0，执行失败或取消为 1，参数或用法错误为 2。
 
 准确的输入、输出规格请参阅[应用契约（中文概要）](../reference/application-contract.md#cli)，以及作为正本的[应用契约的 CLI 一节](../../application-contract.md#cli)（日语）。
