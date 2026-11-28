@@ -12,3 +12,7 @@ passphrase prompts behave without a TTY. Record the minimum OpenSSH version and
 findings in `.scratch/fleet-sync/openssh-spike.md`.
 
 ## Comments
+
+- 2026-11-28: Windows 11 (OpenSSH 9.5p2) and Ubuntu 24.04 via WSL (9.6p1) pass
+  all cases; see `openssh-spike.md`. macOS and the CI runners are still pending,
+  as are agent signing on Windows and a real-terminal prompt.
