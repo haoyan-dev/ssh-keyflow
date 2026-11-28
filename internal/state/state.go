@@ -2,6 +2,7 @@ package state
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -10,12 +11,17 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
+
+	"ssh-keyflow/internal/roster"
 )
 
-// Version is the only schema this binary writes.
-const Version = 3
+// Version is the only schema this binary writes. v4 adds this machine's
+// node description and fleet data (ADR 0008); it is unreleased until fleet
+// sync phase 1 ships, so its layout may still change before then.
+const Version = 4
 
 // Key is a managed local key pair. Private key contents are never stored;
 // PrivateSHA256 only detects replacement of the recorded file.
@@ -45,10 +51,58 @@ type Creation struct {
 	Fingerprint   string `json:"fingerprint,omitempty"`
 }
 
+// Node is this machine's node description. ClientKeyIDs refer to managed
+// keys; HostKeys hold the sshd host public keys as "<type> <base64>", read
+// from SSHDConfig when the description was last set.
+type Node struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Roles        []string `json:"roles"`
+	LoginAccount string   `json:"login_account,omitempty"`
+	Addresses    []string `json:"addresses,omitempty"`
+	Port         int      `json:"port,omitempty"`
+	ClientKeyIDs []string `json:"client_key_ids,omitempty"`
+	HostKeys     []string `json:"host_keys,omitempty"`
+	SSHDConfig   string   `json:"sshd_config,omitempty"`
+	UpdatedAt    string   `json:"updated_at"`
+}
+
+// Fleet is the fleet this node belongs to. Roots are the pinned fleet root
+// public keys; RootKey is set only on an admin node, which holds the private
+// key at RootKey.PrivatePath (never its contents). Accepted is the highest
+// accepted roster, kept as its exact signed text.
+type Fleet struct {
+	ID       string    `json:"id"`
+	Roots    []Root    `json:"roots"`
+	RootKey  *RootKey  `json:"root_key,omitempty"`
+	Accepted *Accepted `json:"accepted,omitempty"`
+}
+
+type Root struct {
+	PublicKey   string `json:"public_key"`
+	Fingerprint string `json:"fingerprint"`
+	PinnedAt    string `json:"pinned_at"`
+}
+
+type RootKey struct {
+	Fingerprint string `json:"fingerprint"`
+	PublicPath  string `json:"public_path"`
+	PrivatePath string `json:"private_path"`
+}
+
+type Accepted struct {
+	Version    int64  `json:"version"`
+	SHA256     string `json:"sha256"`
+	Roster     string `json:"roster"`
+	AcceptedAt string `json:"accepted_at"`
+}
+
 type State struct {
 	Version   int        `json:"version"`
 	Keys      []Key      `json:"keys"`
 	Creations []Creation `json:"creations,omitempty"`
+	Node      *Node      `json:"node,omitempty"`
+	Fleet     *Fleet     `json:"fleet,omitempty"`
 	// Migration is set when the file on disk uses an older schema. It is never saved.
 	Migration *Migration `json:"-"`
 }
@@ -87,6 +141,8 @@ func decode(data []byte) (State, error) {
 	}
 	switch *header.Version {
 	case Version:
+	case 3:
+		return decodeV3(data)
 	case 1, 2:
 		return decodeLegacy(data)
 	default:
@@ -118,11 +174,34 @@ func strictDecode(data []byte, target any) error {
 // Notice explains, before any change, what the next save does to an older
 // state file. Every changing command and keys list show it.
 func (migration *Migration) Notice() string {
-	note := fmt.Sprintf("state.json uses schema v%d. The next change copies it to %s next to state.json and saves schema v%d with local key pairs and unfinished creations only.", migration.FromVersion, ArchivePattern, Version)
+	note := fmt.Sprintf("state.json uses schema v%d. The next change copies it to %s next to state.json and saves schema v%d", migration.FromVersion, ArchivePattern, Version)
+	if migration.FromVersion < 3 {
+		note += " with local key pairs and unfinished creations only"
+	}
+	note += ". SSH KeyFlow v0.11.0 and earlier cannot read schema v" + fmt.Sprint(Version) + "."
 	if len(migration.Dropped) > 0 {
 		note += " Not carried over: " + strings.Join(migration.Dropped, "; ") + "."
 	}
 	return note
+}
+
+// decodeV3 converts schema v3 in memory, with v3's strict rules. Every v3
+// record carries over; the original file is archived on the first save.
+func decodeV3(data []byte) (State, error) {
+	var v3 struct {
+		Version   int        `json:"version"`
+		Keys      []Key      `json:"keys"`
+		Creations []Creation `json:"creations,omitempty"`
+	}
+	if err := strictDecode(data, &v3); err != nil {
+		return State{}, err
+	}
+	document := State{Version: Version, Keys: v3.Keys, Creations: v3.Creations}
+	if err := document.Validate(); err != nil {
+		return State{}, fmt.Errorf("invalid state.json: %w", err)
+	}
+	document.Migration = &Migration{FromVersion: 3}
+	return document, nil
 }
 
 // legacyKey is a v1/v2 key; connection_check is accepted and dropped.
@@ -320,6 +399,103 @@ func (document State) Validate() error {
 		}
 		if !claim(identities, creation.ID) || !claim(identities, creation.KeyID) || !claim(paths, pathIdentity(creation.PrivatePath)) || !claim(paths, pathIdentity(creation.PublicPath)) {
 			return fmt.Errorf("creation identity/path conflict %q", creation.ID)
+		}
+	}
+	if document.Node != nil {
+		if err := document.validateNode(); err != nil {
+			return fmt.Errorf("invalid node: %w", err)
+		}
+	}
+	if document.Fleet != nil {
+		if err := document.Fleet.validate(); err != nil {
+			return fmt.Errorf("invalid fleet: %w", err)
+		}
+	}
+	return nil
+}
+
+func validID(prefix, value string) bool {
+	digest, err := hex.DecodeString(strings.TrimPrefix(value, prefix+"-"))
+	return strings.HasPrefix(value, prefix+"-") && err == nil && len(digest) == 16 && strings.ToLower(value) == value
+}
+
+// uniqueSorted reports whether values are strictly increasing in byte order,
+// which also rules out duplicates.
+func uniqueSorted(values []string) bool {
+	return slices.IsSorted(values) && len(slices.Compact(slices.Clone(values))) == len(values)
+}
+
+func (document State) validateNode() error {
+	node := document.Node
+	if !validID("node", node.ID) || !roster.ValidName(node.Name) || !validTime(node.UpdatedAt) {
+		return fmt.Errorf("invalid id, name or time")
+	}
+	roles, err := roster.Roles(node.Roles)
+	if err != nil || !slices.Equal(roles, node.Roles) {
+		return fmt.Errorf("roles must be client, remote or both, in that order")
+	}
+	client, remote := slices.Contains(roles, roster.RoleClient), slices.Contains(roles, roster.RoleRemote)
+	if client != (len(node.ClientKeyIDs) > 0) || len(node.ClientKeyIDs) > roster.MaxKeys || !uniqueSorted(node.ClientKeyIDs) {
+		return fmt.Errorf("a client needs 1 to %d managed keys, and only a client has them", roster.MaxKeys)
+	}
+	for _, id := range node.ClientKeyIDs {
+		if !slices.ContainsFunc(document.Keys, func(key Key) bool { return key.ID == id }) {
+			return fmt.Errorf("client key %q is not managed", id)
+		}
+	}
+	if !remote {
+		if node.LoginAccount != "" || node.Addresses != nil || node.Port != 0 || node.HostKeys != nil || node.SSHDConfig != "" {
+			return fmt.Errorf("only a remote has login_account, addresses, port, host_keys and sshd_config")
+		}
+		return nil
+	}
+	if node.LoginAccount != "" && !roster.ValidAccount(node.LoginAccount) {
+		return fmt.Errorf("invalid login_account")
+	}
+	if len(node.Addresses) == 0 || len(node.Addresses) > roster.MaxAddresses || !uniqueSorted(node.Addresses) ||
+		slices.ContainsFunc(node.Addresses, func(address string) bool { return !roster.ValidAddress(address) }) {
+		return fmt.Errorf("a remote needs 1 to %d valid, sorted, unique addresses", roster.MaxAddresses)
+	}
+	if node.Port == roster.DefaultPort || node.Port < 0 || node.Port > 65535 {
+		return fmt.Errorf("port must be 1-65535 and is omitted when 22")
+	}
+	if len(node.HostKeys) == 0 || len(node.HostKeys) > roster.MaxKeys || !uniqueSorted(node.HostKeys) {
+		return fmt.Errorf("a remote needs 1 to %d sorted, unique host keys", roster.MaxKeys)
+	}
+	for _, text := range node.HostKeys {
+		if key, err := roster.ParsePublicKey(text, true); err != nil || key.Text != text {
+			return fmt.Errorf("invalid host key")
+		}
+	}
+	if !filepath.IsAbs(node.SSHDConfig) {
+		return fmt.Errorf("sshd_config must be an absolute path")
+	}
+	return nil
+}
+
+func (fleet Fleet) validate() error {
+	if !validID("fleet", fleet.ID) || len(fleet.Roots) == 0 {
+		return fmt.Errorf("invalid id or no pinned root")
+	}
+	pinned := map[string]bool{}
+	for _, root := range fleet.Roots {
+		key, err := roster.ParsePublicKey(root.PublicKey, false)
+		if err != nil || key.Type != "ssh-ed25519" || key.Text != root.PublicKey || key.Fingerprint != root.Fingerprint || !validTime(root.PinnedAt) || pinned[key.Text] {
+			return fmt.Errorf("invalid, non-Ed25519 or duplicate pinned root")
+		}
+		pinned[key.Text] = true
+	}
+	if root := fleet.RootKey; root != nil {
+		if !validFingerprint(root.Fingerprint) || !filepath.IsAbs(root.PublicPath) || !filepath.IsAbs(root.PrivatePath) ||
+			pathIdentity(root.PublicPath) == pathIdentity(root.PrivatePath) ||
+			!slices.ContainsFunc(fleet.Roots, func(pin Root) bool { return pin.Fingerprint == root.Fingerprint }) {
+			return fmt.Errorf("invalid fleet root key, or it is not pinned")
+		}
+	}
+	if accepted := fleet.Accepted; accepted != nil {
+		digest := sha256.Sum256([]byte(accepted.Roster))
+		if accepted.Version < 1 || accepted.Version > 1<<53-1 || accepted.SHA256 != hex.EncodeToString(digest[:]) || !validTime(accepted.AcceptedAt) {
+			return fmt.Errorf("invalid accepted roster record")
 		}
 	}
 	return nil
