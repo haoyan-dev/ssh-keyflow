@@ -153,3 +153,75 @@ func TestFleetShowJSONAndAgeWarning(test *testing.T) {
 		test.Fatal("fleet show changed files")
 	}
 }
+
+func TestFleetExchangeUsageErrorsExitTwo(test *testing.T) {
+	missing := filepath.Join(test.TempDir(), "missing")
+	for _, arguments := range [][]string{
+		{"node", "export"},
+		{"fleet", "export"},
+		{"fleet", "export", "--out", "x", "extra"},
+		{"fleet", "add"},
+		{"fleet", "add", missing},
+		{"fleet", "add", "a", "b"},
+		{"fleet", "accept"},
+		{"fleet", "accept", missing},
+		{"fleet", "accept", missing, "--dry-run"},
+		{"fleet", "accept", test.TempDir(), "--max-age", "0"},
+	} {
+		home := test.TempDir()
+		code, output, diagnostics := run(test, home, arguments...)
+		if code != 2 || output != "" || !strings.Contains(diagnostics, "Usage:") {
+			test.Fatalf("%v: exit=%d stdout=%s stderr=%s", arguments, code, output, diagnostics)
+		}
+		assertEmptyHome(test, home)
+	}
+}
+
+func TestFleetExchangeRuntimeErrorsExitOne(test *testing.T) {
+	dir := test.TempDir()
+	// fleet add needs the terminal for the passphrase before planning; fleet
+	// accept plans first, so a settled re-accept needs none.
+	for _, check := range []struct {
+		arguments []string
+		want      string
+	}{
+		{[]string{"fleet", "add", dir}, "real terminal"},
+		{[]string{"fleet", "accept", dir}, "must hold exactly"},
+	} {
+		home := test.TempDir()
+		code, _, diagnostics := run(test, home, check.arguments...)
+		if code != 1 || !strings.Contains(diagnostics, check.want) || strings.Contains(diagnostics, "Usage:") {
+			test.Fatalf("%v: exit=%d stderr=%s", check.arguments, code, diagnostics)
+		}
+		assertEmptyHome(test, home)
+	}
+	out := filepath.Join(test.TempDir(), "out")
+	for _, arguments := range [][]string{{"node", "export", "--out", out}, {"fleet", "export", "--out", out}} {
+		home := test.TempDir()
+		code, _, diagnostics := run(test, home, arguments...)
+		if code != 1 || strings.Contains(diagnostics, "Usage:") {
+			test.Fatalf("%v: exit=%d stderr=%s", arguments, code, diagnostics)
+		}
+		assertEmptyHome(test, home)
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		test.Fatal("a failed export created --out")
+	}
+}
+
+func TestFleetExportWritesTheAcceptedRoster(test *testing.T) {
+	home, text := acceptedFleet(test)
+	out := filepath.Join(test.TempDir(), "out")
+	code, output, diagnostics := run(test, home, "fleet", "export", "--out", out)
+	if code != 0 || !strings.Contains(output, "Wrote roster version 7") || diagnostics != "" {
+		test.Fatalf("exit=%d stdout=%s stderr=%s", code, output, diagnostics)
+	}
+	data, err := os.ReadFile(filepath.Join(out, "roster.json"))
+	if err != nil || string(data) != text {
+		test.Fatal("roster.json differs", err)
+	}
+	code, _, diagnostics = run(test, home, "fleet", "export", "--out", out)
+	if code != 1 || !strings.Contains(diagnostics, "absent or empty") {
+		test.Fatalf("second export: exit=%d stderr=%s", code, diagnostics)
+	}
+}
