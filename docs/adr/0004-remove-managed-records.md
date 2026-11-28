@@ -1,6 +1,6 @@
 # ADR 0004: Remove local management metadata while retaining history
 
-- Status: accepted; superseded by ADR 0007 (history retention and destination/association removal retired); ADR 0008 proposes lifting the exclusion of automatic remote revocation
+- Status: accepted; superseded by ADR 0007 (history retention and destination/association removal retired); ADR 0008 lifts the exclusion of automatic remote revocation
 - Date: 2026-11-09
 - Specification: `.scratch/remove-managed-records/spec.md`
 

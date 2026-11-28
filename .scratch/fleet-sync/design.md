@@ -1,6 +1,7 @@
 # SSH KeyFlow — Fleet sync design (proposal)
 
-Status: ready-for-human (proposal; the decision is ADR 0008, also a proposal).
+Status: ready-for-agent (background research; the decision is ADR 0008,
+accepted 2026-11-28).
 Date: 2026-11-28. Written against 666d1ea (v0.10.0); refreshed against
 `origin/main` 1938fa9 (v0.11.0, ADR 0007).
 

@@ -1,7 +1,7 @@
 # Fleet sync, phase 1: signed roster offline
 
-Status: ready-for-human (review ADR 0008 and this spec)
-Decision: ADR 0008 (`docs/adr/0008-signed-fleet-roster.md`, proposed); design
+Status: ready-for-agent
+Decision: ADR 0008 (`docs/adr/0008-signed-fleet-roster.md`, accepted 2026-11-28); design
 in `design.md`.
 Base: `origin/main` 1938fa9 (v0.11.0).
 
@@ -15,10 +15,13 @@ Base: `origin/main` 1938fa9 (v0.11.0).
   client may log into one common account on every remote, with a per-remote
   account override.
 - Start with ADR 0008, glossary terms and this spec on a docs branch.
+- Accept ADR 0008; rename the user's "host" role to client (接続元); adopt
+  the phase-1 CLI names `fleet init`, `fleet show`, `fleet export --out <dir>`,
+  `fleet accept <dir>` and `node set --roles client,remote`.
 
 ## Gates
 
-- No product code before ADR 0008 is merged and accepted. Ticket 01 is a
+- No product code before the PR recording ADR 0008 is merged. Ticket 01 is a
   research spike with throwaway scripts only, so it may run earlier.
 - Phases 2–5 in ADR 0008 are direction, not commitments; each gets its own spec.
 
@@ -72,9 +75,8 @@ UX, key rotation, the backup root key, signed installer checksums; CA mode.
 
 ## Open questions
 
-- CLI names. Proposal: `fleet init`, `fleet show`, `fleet export --out <dir>`,
-  `fleet accept <dir>`, `node set --roles client,remote`. "Import" stays
-  reserved for key-pair import (glossary). Decide in ticket 02.
+- CLI flags beyond the decided command names ("import" stays reserved for
+  key-pair import). Settle in ticket 02.
 - Default maximum roster age for the freeze warning; propose 30 days for offline
   phase 1.
 - How the admin node adds other nodes in phase 1 without `join`: proposal is

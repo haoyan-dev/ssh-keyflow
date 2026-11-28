@@ -36,7 +36,7 @@ _Avoid_: バックアップ（`state.json.bak` と区別する）
 
 ## 計画中の用語（ADR 0008、未実装）
 
-以下は[ADR 0008](docs/adr/0008-signed-fleet-roster.md)（提案）の用語で、現行の機能にはまだ含まれない。
+以下は[ADR 0008](docs/adr/0008-signed-fleet-roster.md)で決めた用語で、現行の機能にはまだ含まれない。
 
 **フリート（Fleet）**：
 同じフリートルート鍵を信頼の起点として固定した、利用者のノードの集まり。

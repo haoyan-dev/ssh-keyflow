@@ -23,7 +23,7 @@ For the exact wording of each term, see the authoritative [GLOSSARY.md](../../..
 
 ## Planned terms (ADR 0008, not implemented)
 
-These terms come from [ADR 0008](../../adr/0008-signed-fleet-roster.md) (Japanese, proposed) and are not part of the current features yet.
+These terms come from [ADR 0008](../../adr/0008-signed-fleet-roster.md) (Japanese, accepted) and are not part of the current features yet.
 
 | English term | Canonical term (GLOSSARY.md) | Meaning | Terms to avoid |
 | --- | --- | --- | --- |
