@@ -31,20 +31,29 @@ const rootComment = "ssh-keyflow-fleet-root"
 // signerPrincipal is the principal of the allowed_signers file (roster-format 2).
 const signerPrincipal = "fleet-root"
 
-// FleetOptions runs `fleet init` and `fleet sign`. Input is the terminal that
-// native ssh-keygen reads the passphrase from.
+// FleetOptions runs `fleet init`, `fleet sign`, `fleet add` and `fleet accept`.
+// Input is the terminal that native ssh-keygen reads the passphrase from when
+// signing; `fleet accept` reads only the confirmation there.
 type FleetOptions struct {
 	Home   string
 	Input  io.Reader
 	Output io.Writer
-	// Error receives the migration notice of a dry run (contract: notices of
-	// read-only paths go to stderr).
+	// Error receives the migration notice of a settled change or a dry run,
+	// and age warnings (contract: notices of read-only paths and warnings go
+	// to stderr).
 	Error   io.Writer
 	Runner  Runner
 	Confirm func(string) (bool, error)
+	// RequireTerminal, if set, runs once a change is known to need a prompt,
+	// so a settled change (accepting the same roster again) needs no terminal.
+	RequireTerminal func() error
 	// LoginAccount is the roster's common account (`fleet init` only).
 	LoginAccount string
-	DryRun       bool
+	// Dir is the `<dir>` of `fleet add` and `fleet accept`.
+	Dir string
+	// MaxAge is the `fleet accept --max-age` limit.
+	MaxAge time.Duration
+	DryRun bool
 }
 
 func (options *FleetOptions) defaults() error {
@@ -77,6 +86,55 @@ func (k keygen) String() string { return k.path + " (" + k.version + ")" }
 func (k keygen) run(ctx context.Context, command Command) error {
 	command.Name = k.path
 	return k.runner.Run(ctx, command)
+}
+
+// rosterDigest is the hex SHA-256 of roster bytes, as state keeps it.
+func rosterDigest(data []byte) string {
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:])
+}
+
+// allowedSigners writes the allowed_signers file of roster-format 2 step 3
+// and the signature into workspace, a new directory the caller removes.
+func allowedSigners(workspace, publicKey, signature string) (allowed, signaturePath string, err error) {
+	allowed, signaturePath = filepath.Join(workspace, "allowed_signers"), filepath.Join(workspace, "checked.sig")
+	if err := createFile(allowed, []byte(signerPrincipal+` namespaces="`+roster.Namespace+`" `+publicKey+"\n"), 0600); err != nil {
+		return "", "", err
+	}
+	if err := createFile(signaturePath, []byte(signature), 0600); err != nil {
+		return "", "", err
+	}
+	return allowed, signaturePath, nil
+}
+
+// verify checks signature over data against publicKey; any non-zero exit is a
+// failure. It returns ssh-keygen's output for the error message.
+func (k keygen) verify(ctx context.Context, workspace, publicKey string, data []byte, signature string) (string, error) {
+	allowed, signaturePath, err := allowedSigners(workspace, publicKey, signature)
+	if err != nil {
+		return "", err
+	}
+	var output bytes.Buffer
+	err = k.run(ctx, Command{Args: []string{"-Y", "verify", "-f", allowed, "-I", signerPrincipal, "-n", roster.Namespace, "-s", signaturePath},
+		Stdin: bytes.NewReader(data), Stdout: &output, Stderr: &output})
+	return strings.TrimSpace(output.String()), err
+}
+
+// signedByKey reports whether signature was made by publicKey, whatever it
+// covers. It only words a verification error (roster-format 2 step 3).
+func (k keygen) signedByKey(ctx context.Context, workspace, publicKey, signature string) bool {
+	directory, err := os.MkdirTemp(workspace, "principals-")
+	if err != nil {
+		return false
+	}
+	allowed, signaturePath, err := allowedSigners(directory, publicKey, signature)
+	if err != nil {
+		return false
+	}
+	var output bytes.Buffer
+	err = k.run(ctx, Command{Args: []string{"-Y", "find-principals", "-f", allowed, "-s", signaturePath},
+		Stdin: strings.NewReader(""), Stdout: &output, Stderr: io.Discard})
+	return err == nil && strings.TrimSpace(output.String()) == signerPrincipal
 }
 
 var opensshVersion = regexp.MustCompile(`OpenSSH(?:_for_Windows)?_(\d+)\.(\d+)[0-9A-Za-z.]*`)
@@ -138,8 +196,9 @@ func fleetWorkspace(home, pattern string) (string, error) {
 	return os.MkdirTemp(directory, pattern)
 }
 
-func createFile(path string, data []byte) error {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+// createFile creates path exclusively; it never replaces an existing file.
+func createFile(path string, data []byte, mode os.FileMode) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 	if err != nil {
 		return err
 	}
@@ -249,7 +308,7 @@ func sign(ctx context.Context, options FleetOptions, k keygen, store *state.Lock
 	}
 	defer os.RemoveAll(workspace)
 	file := filepath.Join(workspace, "roster.json")
-	if err := createFile(file, data); err != nil {
+	if err := createFile(file, data, 0600); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(options.Output, "Enter the fleet root key passphrase in native ssh-keygen to sign roster version %d.\n", next.Version); err != nil {
@@ -267,20 +326,10 @@ func sign(ctx context.Context, options FleetOptions, k keygen, store *state.Lock
 	if !roster.ValidSignature(signature) {
 		return fmt.Errorf("%s wrote an unreadable signature; nothing was saved", k)
 	}
-	allowed, checked := filepath.Join(workspace, "allowed_signers"), filepath.Join(workspace, "checked.sig")
-	if err := createFile(allowed, []byte(signerPrincipal+` namespaces="`+roster.Namespace+`" `+root.PublicKey+"\n")); err != nil {
-		return err
+	if output, err := k.verify(ctx, workspace, root.PublicKey, data, signature); err != nil {
+		return fmt.Errorf("%s did not verify the new signature against the pinned root %s: %w (%s); nothing was saved", k, root.Fingerprint, err, output)
 	}
-	if err := createFile(checked, []byte(signature)); err != nil {
-		return err
-	}
-	var verifyOutput bytes.Buffer
-	if err := k.run(ctx, Command{Args: []string{"-Y", "verify", "-f", allowed, "-I", signerPrincipal, "-n", roster.Namespace, "-s", checked},
-		Stdin: bytes.NewReader(data), Stdout: &verifyOutput, Stderr: &verifyOutput}); err != nil {
-		return fmt.Errorf("%s did not verify the new signature against the pinned root %s: %w (%s); nothing was saved", k, root.Fingerprint, err, strings.TrimSpace(verifyOutput.String()))
-	}
-	digest := sha256.Sum256(data)
-	fleet.Accepted = &state.Accepted{Version: next.Version, SHA256: hex.EncodeToString(digest[:]), Roster: string(data), Signature: signature,
+	fleet.Accepted = &state.Accepted{Version: next.Version, SHA256: rosterDigest(data), Roster: string(data), Signature: signature,
 		AcceptedAt: time.Now().UTC().Format(time.RFC3339Nano)}
 	if err := store.Save(*document); err != nil {
 		return err
@@ -310,11 +359,23 @@ func existingPath(paths ...string) (string, error) {
 	return "", nil
 }
 
-// fleetChange is a planned `fleet init` or `fleet sign`.
+// fleetChange is a planned `fleet init`, `fleet sign`, `fleet add` or
+// `fleet accept`.
 type fleetChange interface {
 	describe(io.Writer) error
 	label() string
 	apply(context.Context, FleetOptions, *state.LockedStore, *state.State) error
+}
+
+// settledChange is implemented by a change that may turn out to have nothing
+// to apply; such a change is described and succeeds without a prompt.
+type settledChange interface {
+	settled() bool
+}
+
+func isSettled(change fleetChange) bool {
+	settled, ok := change.(settledChange)
+	return ok && settled.settled()
 }
 
 // runFleetChange plans, describes and, after a terminal yes, applies a fleet
@@ -334,14 +395,24 @@ func runFleetChange(options FleetOptions, plan func(state.State) (fleetChange, e
 			if err != nil {
 				return err
 			}
-			if err := change.describe(options.Output); err != nil {
+			if err := change.describe(options.Output); err != nil || isSettled(change) {
 				return err
 			}
 			_, err = fmt.Fprintln(options.Output, "Dry run: no changes made.")
 			return err
 		}
-		if _, err := plan(document); err != nil {
+		if change, err := plan(document); err != nil {
 			return err
+		} else if isSettled(change) {
+			if err := migrationNotice(options.Error, document); err != nil {
+				return err
+			}
+			return change.describe(options.Output)
+		}
+		if options.RequireTerminal != nil {
+			if err := options.RequireTerminal(); err != nil {
+				return err
+			}
 		}
 		if err := state.CheckWritable(options.Home); err != nil {
 			return err
@@ -358,7 +429,7 @@ func runFleetChange(options FleetOptions, plan func(state.State) (fleetChange, e
 			if err != nil {
 				return err
 			}
-			if err := change.describe(options.Output); err != nil {
+			if err := change.describe(options.Output); err != nil || isSettled(change) {
 				return err
 			}
 			if _, err := prompt(Options{Output: options.Output, Confirm: options.Confirm}, change.label()); err != nil {
@@ -543,37 +614,41 @@ func createRoot(ctx context.Context, options FleetOptions, plan initPlan, store 
 	return err
 }
 
-// signPlan is the next roster `fleet sign` signs: the accepted roster with
-// this node's current description and version + 1.
+// signPlan is the next roster `fleet sign` or `fleet add` signs: the accepted
+// roster with one node added or replaced, and version + 1.
 type signPlan struct {
 	next     roster.Roster
 	node     roster.Node
 	previous *roster.Node
 	keygen   keygen
+	// added is set for `fleet add`, which names the node instead of "this node".
+	added bool
 }
 
-func (options FleetOptions) planSign(ctx context.Context, document state.State) (signPlan, error) {
+// adminRoster is the accepted roster of an admin node that can sign the next one.
+func adminRoster(document state.State) (roster.Roster, error) {
 	fleet := document.Fleet
 	switch {
 	case fleet == nil:
-		return signPlan{}, fmt.Errorf("no fleet; run fleet init on the admin node")
+		return roster.Roster{}, fmt.Errorf("no fleet; run fleet init on the admin node")
 	case fleet.RootKey == nil:
-		return signPlan{}, fmt.Errorf("this node has no fleet root key; only the admin node signs")
+		return roster.Roster{}, fmt.Errorf("this node has no fleet root key; only the admin node signs")
 	case fleet.Accepted == nil:
-		return signPlan{}, fmt.Errorf("fleet init is unfinished; rerun fleet init --login-account <name> to sign version 1")
+		return roster.Roster{}, fmt.Errorf("fleet init is unfinished; rerun fleet init --login-account <name> to sign version 1")
 	}
 	if err := checkRootKey(*fleet); err != nil {
-		return signPlan{}, err
+		return roster.Roster{}, err
 	}
 	current, err := roster.Parse([]byte(fleet.Accepted.Roster))
 	if err != nil {
-		return signPlan{}, fmt.Errorf("accepted roster: %w", err)
+		return roster.Roster{}, fmt.Errorf("accepted roster: %w", err)
 	}
-	node, err := rosterNode(document, current.LoginAccount)
-	if err != nil {
-		return signPlan{}, err
-	}
-	plan := signPlan{next: current, node: node}
+	return current, nil
+}
+
+// planNext adds or replaces node (by id) in current and checks version + 1.
+func (options FleetOptions) planNext(ctx context.Context, current roster.Roster, node roster.Node, added bool) (signPlan, error) {
+	plan := signPlan{next: current, node: node, added: added}
 	plan.next.Nodes = slices.Clone(current.Nodes)
 	index, found := slices.BinarySearchFunc(plan.next.Nodes, node.ID, func(entry roster.Node, id string) int { return strings.Compare(entry.ID, id) })
 	if found {
@@ -588,10 +663,30 @@ func (options FleetOptions) planSign(ctx context.Context, document state.State) 
 	if err := plan.next.Validate(); err != nil {
 		return signPlan{}, fmt.Errorf("roster version %d: %w", plan.next.Version, err)
 	}
+	var err error
 	if plan.keygen, err = resolveKeygen(ctx, options.Runner); err != nil {
 		return signPlan{}, err
 	}
 	return plan, nil
+}
+
+func (options FleetOptions) planSign(ctx context.Context, document state.State) (signPlan, error) {
+	current, err := adminRoster(document)
+	if err != nil {
+		return signPlan{}, err
+	}
+	node, err := rosterNode(document, current.LoginAccount)
+	if err != nil {
+		return signPlan{}, err
+	}
+	return options.planNext(ctx, current, node, false)
+}
+
+func (plan signPlan) subject() string {
+	if plan.added {
+		return "node " + plan.node.Name
+	}
+	return "this node"
 }
 
 func (plan signPlan) describe(output io.Writer) error {
@@ -599,14 +694,17 @@ func (plan signPlan) describe(output io.Writer) error {
 	fmt.Fprintf(&text, "Sign roster version %d of fleet %s (%d nodes)\nssh-keygen: %s\n", plan.next.Version, plan.next.FleetID, len(plan.next.Nodes), plan.keygen)
 	switch {
 	case plan.previous == nil:
-		text.WriteString("Adds this node:\n")
+		fmt.Fprintf(&text, "Adds %s:\n", plan.subject())
 		describeRosterNode(&text, "  ", plan.node)
 	case reflect.DeepEqual(*plan.previous, plan.node):
-		text.WriteString("This node's entry is unchanged; signing refreshes created_at.\n")
+		fmt.Fprintf(&text, "The entry of %s is unchanged; signing refreshes created_at.\n", plan.subject())
 	default:
-		text.WriteString("Replaces this node's entry:\n")
+		fmt.Fprintf(&text, "Replaces the entry of %s:\n", plan.subject())
 		describeRosterNode(&text, "  was: ", *plan.previous)
 		describeRosterNode(&text, "  now: ", plan.node)
+	}
+	if plan.added {
+		fmt.Fprintf(&text, "Compare the name, roles and fingerprints with node show on %s before typing yes.\n", plan.node.Name)
 	}
 	text.WriteString("No SSH file is written.\n")
 	_, err := io.WriteString(output, text.String())
@@ -614,7 +712,13 @@ func (plan signPlan) describe(output io.Writer) error {
 }
 
 func (plan signPlan) label() string {
-	return fmt.Sprintf("Type yes to sign roster version %d:", plan.next.Version)
+	switch {
+	case !plan.added:
+		return fmt.Sprintf("Type yes to sign roster version %d:", plan.next.Version)
+	case plan.previous != nil:
+		return fmt.Sprintf("Type yes to replace node %s and sign roster version %d:", plan.node.Name, plan.next.Version)
+	}
+	return fmt.Sprintf("Type yes to add node %s and sign roster version %d:", plan.node.Name, plan.next.Version)
 }
 
 func (plan signPlan) apply(ctx context.Context, options FleetOptions, store *state.LockedStore, document *state.State) error {

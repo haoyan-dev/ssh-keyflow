@@ -16,7 +16,8 @@ func nodeCommand(options Options) *cobra.Command {
 		Use: "node", Short: "Describe this machine as a fleet node", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error { return command.Help() },
 	}
-	node.AddCommand(nodeSetCommand(options), nodeShowCommand(options))
+	node.AddCommand(nodeSetCommand(options), nodeShowCommand(options),
+		exportCommand(options, "Write this node's node.json for the admin node's fleet add", app.ExportNode))
 	return node
 }
 

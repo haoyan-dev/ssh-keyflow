@@ -72,7 +72,11 @@ UX, key rotation, the backup root key, signed installer checksums; CA mode.
    read, strict parsing).
 7. Phase 1 writes no SSH file: only the state, the fleet root key and the
    roster files the user exports, all under new names in `~/.ssh/ssh-keyflow/`
-   or a user-given output directory. v0.10.0's `known_hosts` and `config` there
+   or a user-given output directory. The one exception is `fleet accept`: it
+   verifies public data only, in a new directory under the system temporary
+   directory that it removes afterwards, so its `--dry-run` initializes no
+   storage (roster-format 3.2; decided 2026-11-28 with ticket 05).
+   v0.10.0's `known_hosts` and `config` there
    are not read or reused. Commands that change state support confirmation and
    `--dry-run`.
 8. Tests cover the format, signature verification, rollback/age rejection and

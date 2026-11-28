@@ -16,10 +16,12 @@ const (
 	Format = "ssh-keyflow-roster"
 	Schema = 1
 	// Namespace is the ssh-keygen -Y namespace every roster signature uses.
-	Namespace  = "ssh-keyflow-roster"
-	MaxNodes   = 1000
-	MaxBytes   = 1 << 20
-	MaxVersion = 1<<53 - 1
+	Namespace = "ssh-keyflow-roster"
+	MaxNodes  = 1000
+	MaxBytes  = 1 << 20
+	// MaxSignatureBytes bounds an armored roster signature.
+	MaxSignatureBytes = 64 << 10
+	MaxVersion        = 1<<53 - 1
 	// TimeLayout is created_at: UTC with seconds and Z, no fraction.
 	TimeLayout = "2006-01-02T15:04:05Z"
 	// FutureSkew is how far created_at may be ahead before a warning.
@@ -188,50 +190,113 @@ func (roster Roster) Marshal() ([]byte, error) {
 // Parse reads canonical roster bytes. It never normalizes: any byte that
 // differs from the canonical form is ErrNotCanonical.
 func Parse(data []byte) (Roster, error) {
+	return parseCanonical(data, "roster", Format, Schema, ErrNotCanonical, Roster.Marshal)
+}
+
+// parseCanonical strictly decodes a document of the given format whose only
+// accepted form is marshal's output; any other byte is notCanonical.
+func parseCanonical[T any](data []byte, label, format string, schema int64, notCanonical error, marshal func(T) ([]byte, error)) (T, error) {
+	var zero T
 	if len(data) > MaxBytes {
-		return Roster{}, fmt.Errorf("roster exceeds %d bytes", MaxBytes)
+		return zero, fmt.Errorf("%s exceeds %d bytes", label, MaxBytes)
 	}
 	var header struct {
 		Format string          `json:"format"`
 		Schema json.RawMessage `json:"schema"`
 	}
 	if err := json.Unmarshal(data, &header); err != nil {
-		return Roster{}, fmt.Errorf("roster is not a JSON object: %w", err)
+		return zero, fmt.Errorf("%s is not a JSON object: %w", label, err)
 	}
-	if header.Format != Format {
-		return Roster{}, fmt.Errorf("format must be %q", Format)
+	if header.Format != format {
+		return zero, fmt.Errorf("format must be %q", format)
 	}
-	var schema int64
-	if err := json.Unmarshal(header.Schema, &schema); err != nil {
-		return Roster{}, fmt.Errorf("schema must be an integer")
+	var version int64
+	if err := json.Unmarshal(header.Schema, &version); err != nil {
+		return zero, fmt.Errorf("schema must be an integer")
 	}
-	if schema > Schema {
-		return Roster{}, ErrNewerSchema
+	if version > schema {
+		return zero, ErrNewerSchema
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	var roster Roster
-	if err := decoder.Decode(&roster); err != nil {
-		return Roster{}, fmt.Errorf("invalid roster: %w", err)
+	var document T
+	if err := decoder.Decode(&document); err != nil {
+		return zero, fmt.Errorf("invalid %s: %w", label, err)
 	}
 	if decoder.More() {
-		return Roster{}, fmt.Errorf("invalid roster: trailing data")
+		return zero, fmt.Errorf("invalid %s: trailing data", label)
 	}
-	canonical, err := roster.Marshal()
+	canonical, err := marshal(document)
 	if err != nil {
-		return Roster{}, fmt.Errorf("invalid roster: %w", err)
+		return zero, fmt.Errorf("invalid %s: %w", label, err)
 	}
 	if !bytes.Equal(canonical, data) {
-		return Roster{}, ErrNotCanonical
+		return zero, notCanonical
 	}
-	return roster, nil
+	return document, nil
+}
+
+// NodeFormat and NodeSchema identify a node description file (roster-format 3.1).
+const (
+	NodeFormat = "ssh-keyflow-node"
+	NodeSchema = 1
+)
+
+// ErrNodeNotCanonical means node.json parses but is not in canonical form.
+var ErrNodeNotCanonical = errors.New("node description file is not in canonical form")
+
+// NodeFile is the unsigned node.json a node exports for the admin node.
+type NodeFile struct {
+	Format string `json:"format"`
+	Schema int    `json:"schema"`
+	Node   Node   `json:"node"`
+}
+
+// Validate checks the node alone; its login account is compared with the
+// common account only when the admin node adds it to a roster.
+func (file NodeFile) Validate() error {
+	if file.Format != NodeFormat {
+		return fmt.Errorf("format must be %q", NodeFormat)
+	}
+	if file.Schema > NodeSchema {
+		return ErrNewerSchema
+	}
+	if file.Schema != NodeSchema {
+		return fmt.Errorf("schema must be %d", NodeSchema)
+	}
+	if err := file.Node.validate(""); err != nil {
+		return fmt.Errorf("node %s: %w", file.Node.ID, err)
+	}
+	keys := slices.Concat(file.Node.ClientKeys, file.Node.HostKeys)
+	slices.Sort(keys)
+	if len(slices.Compact(keys)) != len(file.Node.ClientKeys)+len(file.Node.HostKeys) {
+		return fmt.Errorf("node %s: a public key appears in more than one list", file.Node.ID)
+	}
+	return nil
+}
+
+// Marshal returns the canonical bytes of a valid node description file.
+func (file NodeFile) Marshal() ([]byte, error) {
+	if err := file.Validate(); err != nil {
+		return nil, err
+	}
+	data, err := json.MarshalIndent(file, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(data, '\n'), nil
+}
+
+// ParseNodeFile reads canonical node.json bytes and never normalizes them.
+func ParseNodeFile(data []byte) (NodeFile, error) {
+	return parseCanonical(data, "node description file", NodeFormat, NodeSchema, ErrNodeNotCanonical, NodeFile.Marshal)
 }
 
 // ValidSignature reports whether text is one armored SSH signature block
 // with LF line endings, as ssh-keygen -Y sign writes it.
 func ValidSignature(text string) bool {
 	const begin, end = "-----BEGIN SSH SIGNATURE-----\n", "-----END SSH SIGNATURE-----\n"
-	if !strings.HasPrefix(text, begin) || !strings.HasSuffix(text, end) || len(text) > 64<<10 {
+	if !strings.HasPrefix(text, begin) || !strings.HasSuffix(text, end) || len(text) > MaxSignatureBytes {
 		return false
 	}
 	body := strings.TrimSuffix(strings.TrimPrefix(text, begin), end)

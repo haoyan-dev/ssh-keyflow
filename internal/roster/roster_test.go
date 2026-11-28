@@ -159,3 +159,41 @@ func TestAgeWarning(t *testing.T) {
 		t.Fatal("unexpected future warning:", warning)
 	}
 }
+
+func TestNodeFileRoundTripAndStrictParse(t *testing.T) {
+	node := sample().Nodes[0]
+	node.LoginAccount = "admin" // may equal the common account; fleet add drops it
+	file := NodeFile{Format: NodeFormat, Schema: NodeSchema, Node: node}
+	data, err := file.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(data, []byte("{\n  \"format\": \"ssh-keyflow-node\",\n  \"schema\": 1,\n  \"node\": {\n    \"id\": ")) || !bytes.HasSuffix(data, []byte("}\n")) {
+		t.Fatalf("unexpected node.json bytes:\n%s", data)
+	}
+	parsed, err := ParseNodeFile(data)
+	if err != nil || parsed.Node.Name != "server" || parsed.Node.LoginAccount != "admin" {
+		t.Fatal(parsed, err)
+	}
+	for name, test := range map[string]struct {
+		data []byte
+		want error
+	}{
+		"crlf":          {bytes.ReplaceAll(data, []byte("\n"), []byte("\r\n")), ErrNodeNotCanonical},
+		"newer schema":  {bytes.Replace(data, []byte(`"schema": 1`), []byte(`"schema": 2`), 1), ErrNewerSchema},
+		"roster format": {bytes.Replace(data, []byte(NodeFormat), []byte(Format), 1), nil},
+		"unknown field": {bytes.Replace(data, []byte(`"schema": 1,`), []byte(`"schema": 1, "extra": 1,`), 1), nil},
+	} {
+		if _, err := ParseNodeFile(test.data); err == nil || test.want != nil && !errors.Is(err, test.want) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	shared := node
+	shared.HostKeys = shared.ClientKeys
+	if _, err := (NodeFile{Format: NodeFormat, Schema: NodeSchema, Node: shared}).Marshal(); err == nil || !strings.Contains(err.Error(), "more than one list") {
+		t.Fatal("a key in both lists:", err)
+	}
+	if _, err := (NodeFile{Format: NodeFormat, Schema: NodeSchema, Node: Node{ID: "node-x", Name: "x", Roles: []string{RoleClient}}}).Marshal(); err == nil {
+		t.Fatal("an invalid node marshalled")
+	}
+}

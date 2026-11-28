@@ -259,6 +259,13 @@ func TestFleetInitResumesAfterFailedSignature(t *testing.T) {
 		t.Fatal("fleet sign before version 1:", err)
 	}
 	before := read(t, statePath(home))
+	// The admin node finishes init; it never accepts a roster in its place.
+	accept, _, _ := fleetOptions(home, runner, true)
+	accept.Dir, accept.MaxAge, accept.Confirm = rosterDir(t, newSigner(t), testRoster(t, 1, now()), fleet.Roots[0].PublicKey+"\n"), 30*24*time.Hour, noPrompt(t)
+	if err := app.AcceptFleet(context.Background(), accept); err == nil || !strings.Contains(err.Error(), "fleet init is unfinished on this admin node") ||
+		!bytes.Equal(read(t, statePath(home)), before) {
+		t.Fatal("fleet accept before version 1 on the admin node:", err)
+	}
 	options, _, _ = fleetOptions(home, runner, true)
 	if err := app.InitFleet(context.Background(), options); err == nil || !bytes.Equal(read(t, statePath(home)), before) {
 		t.Fatal("a wrong passphrase changed state", err)

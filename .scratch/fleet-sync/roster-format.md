@@ -20,7 +20,7 @@ A roster travels as three files in one directory:
 | --- | --- |
 | `roster.json` | The roster, in canonical bytes (1.3) |
 | `roster.json.sig` | `ssh-keygen -Y sign -n ssh-keyflow-roster` signature over those bytes |
-| `fleet-root.pub` | The signing fleet root public key, one line `<type> <base64>`, no comment |
+| `fleet-root.pub` | The signing fleet root public key, one line `ssh-ed25519 <base64>` (phase 1 root keys are Ed25519), no comment |
 
 `fleet-root.pub` is a convenience for the first acceptance only. Trust comes
 from the fingerprint the user confirms, then from the pinned fleet root keys in
@@ -219,7 +219,10 @@ All files are under `~/.ssh/ssh-keyflow/fleet/` or a user-given `--out`:
 - temporary files for `ssh-keygen -Y`: the `allowed_signers` file of step 3,
   and a copy of the roster bytes to sign (`-Y sign` writes `<file>.sig` next
   to its input). Each is created exclusively in a new temporary directory
-  there and removed afterwards;
+  there and removed afterwards. `fleet accept` handles only public data and
+  verifies before asking, so it uses a new directory under the system
+  temporary directory instead; its `--dry-run` then initializes no storage
+  (ticket 05);
 - exports: `roster.json`, `roster.json.sig`, `fleet-root.pub` and `node.json`.
 
 No SSH file is written. Reads beyond state are the managed client public key,
