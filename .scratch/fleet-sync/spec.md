@@ -18,6 +18,12 @@ Base: `origin/main` 1938fa9 (v0.11.0).
 - Accept ADR 0008; rename the user's "host" role to client (接続元); adopt
   the phase-1 CLI names `fleet init`, `fleet show`, `fleet export --out <dir>`,
   `fleet accept <dir>` and `node set --roles client,remote`.
+- Ticket 02 (`roster-format.md`): add `node export` and `fleet add` so the
+  admin node adds nodes from an exported `node.json` (one more exported file
+  under criterion 7) after confirming fingerprints; the maximum roster age is
+  a per-run `--max-age` flag with a 30-day default; minimum OpenSSH 8.4;
+  non-canonical roster bytes are rejected, never normalized. "import" stays
+  reserved for key-pair import.
 
 ## Gates
 
@@ -75,13 +81,6 @@ UX, key rotation, the backup root key, signed installer checksums; CA mode.
 
 ## Open questions
 
-- CLI flags beyond the decided command names ("import" stays reserved for
-  key-pair import). Settle in ticket 02.
-- Default maximum roster age for the freeze warning; propose 30 days for offline
-  phase 1.
-- How the admin node adds other nodes in phase 1 without `join`: proposal is
-  accepting a node's exported public description file after confirming its
-  fingerprints.
 - For phase 4 (not phase 1): which VPS hosts the relay, and what revocation
   latency (sync interval) is acceptable.
 
