@@ -82,7 +82,7 @@ func Run(ctx context.Context, arguments []string, options Options) int {
 	resume := operationCommand("resume", "Resume an unfinished local key creation", resumeRequest, options)
 	resume.Flags().StringVar(&resumeRequest.Resume, "id", "", "Unfinished local creation fixed ID shown by keys list (required)")
 	resume.MarkFlagRequired("id")
-	root.AddCommand(keys, resume, nodeCommand(options))
+	root.AddCommand(keys, resume, nodeCommand(options), fleetCommand(options))
 
 	if command, err := root.ExecuteContextC(ctx); err != nil {
 		fmt.Fprintln(options.Error, err)

@@ -169,7 +169,7 @@ Conventions kept from v0.11.0:
 - Exit 0 success, 1 runtime failure or cancellation, 2 usage. An absent or
   ambiguous target (`--key`, `<dir>`) is a usage error with the command's
   usage on stderr. Invalid state exits 1, prints no JSON and keeps the file.
-- Commands that change state (`node set`, `fleet init`, `fleet add`,
+- Commands that change state (`node set`, `fleet init`, `fleet sign`, `fleet add`,
   `fleet accept`) ask for a terminal `yes` before any side effect and support
   `--dry-run`, which prints the plan and exits 0 without asking or writing.
   No unconditional-approval or secret-value flags.
@@ -184,8 +184,9 @@ Conventions kept from v0.11.0:
 | `node show` | `--json` | Prints this machine's node description |
 | `node export` | `--out <dir>` | Writes `node.json` (3.1) for the admin node to add |
 | `fleet init` | `--login-account <name>`, `--dry-run` | Admin only. Requires `node set` first. Creates the fleet root key with native `ssh-keygen` (refuses an empty passphrase), pins it, and signs roster version 1 holding this node |
+| `fleet sign` | `--dry-run` | Admin only. Signs the next version from the accepted roster with this node's current description; refreshes `created_at` even when nothing changed (ticket 04) |
 | `fleet add` | `<dir>`, `--dry-run` | Admin only. Adds the node in `<dir>/node.json` and signs the next version (3.1) |
-| `fleet show` | `--json`, `--max-age <days>` | Prints the accepted roster, pinned root fingerprints, version and age; warnings on stderr |
+| `fleet show` | `--json`, `--max-age <days>` (1-36500) | Prints the accepted roster, pinned root fingerprints, version and age; warnings on stderr |
 | `fleet export` | `--out <dir>` | Writes the three files of 1.1 for the current roster |
 | `fleet accept` | `<dir>`, `--max-age <days>`, `--dry-run` | Section 2 |
 

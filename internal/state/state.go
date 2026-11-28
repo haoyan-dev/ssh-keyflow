@@ -70,7 +70,8 @@ type Node struct {
 // Fleet is the fleet this node belongs to. Roots are the pinned fleet root
 // public keys; RootKey is set only on an admin node, which holds the private
 // key at RootKey.PrivatePath (never its contents). Accepted is the highest
-// accepted roster, kept as its exact signed text.
+// accepted roster, kept as its exact signed text with its signature, so an
+// admin node can export it without the passphrase.
 type Fleet struct {
 	ID       string    `json:"id"`
 	Roots    []Root    `json:"roots"`
@@ -94,6 +95,7 @@ type Accepted struct {
 	Version    int64  `json:"version"`
 	SHA256     string `json:"sha256"`
 	Roster     string `json:"roster"`
+	Signature  string `json:"signature"`
 	AcceptedAt string `json:"accepted_at"`
 }
 
@@ -414,11 +416,6 @@ func (document State) Validate() error {
 	return nil
 }
 
-func validID(prefix, value string) bool {
-	digest, err := hex.DecodeString(strings.TrimPrefix(value, prefix+"-"))
-	return strings.HasPrefix(value, prefix+"-") && err == nil && len(digest) == 16 && strings.ToLower(value) == value
-}
-
 // uniqueSorted reports whether values are strictly increasing in byte order,
 // which also rules out duplicates.
 func uniqueSorted(values []string) bool {
@@ -427,7 +424,7 @@ func uniqueSorted(values []string) bool {
 
 func (document State) validateNode() error {
 	node := document.Node
-	if !validID("node", node.ID) || !roster.ValidName(node.Name) || !validTime(node.UpdatedAt) {
+	if !roster.ValidID("node", node.ID) || !roster.ValidName(node.Name) || !validTime(node.UpdatedAt) {
 		return fmt.Errorf("invalid id, name or time")
 	}
 	roles, err := roster.Roles(node.Roles)
@@ -474,7 +471,7 @@ func (document State) validateNode() error {
 }
 
 func (fleet Fleet) validate() error {
-	if !validID("fleet", fleet.ID) || len(fleet.Roots) == 0 {
+	if !roster.ValidID("fleet", fleet.ID) || len(fleet.Roots) == 0 {
 		return fmt.Errorf("invalid id or no pinned root")
 	}
 	pinned := map[string]bool{}
@@ -494,8 +491,15 @@ func (fleet Fleet) validate() error {
 	}
 	if accepted := fleet.Accepted; accepted != nil {
 		digest := sha256.Sum256([]byte(accepted.Roster))
-		if accepted.Version < 1 || accepted.Version > 1<<53-1 || accepted.SHA256 != hex.EncodeToString(digest[:]) || !validTime(accepted.AcceptedAt) {
+		if accepted.SHA256 != hex.EncodeToString(digest[:]) || !validTime(accepted.AcceptedAt) || !roster.ValidSignature(accepted.Signature) {
 			return fmt.Errorf("invalid accepted roster record")
+		}
+		parsed, err := roster.Parse([]byte(accepted.Roster))
+		if err != nil {
+			return fmt.Errorf("accepted roster: %w", err)
+		}
+		if parsed.Version != accepted.Version || parsed.FleetID != fleet.ID {
+			return fmt.Errorf("accepted roster version or fleet_id does not match the record")
 		}
 	}
 	return nil
