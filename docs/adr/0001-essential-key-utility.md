@@ -1,6 +1,6 @@
 # ADR 0001: ローカル鍵管理とコピペ支援に機能を絞る
 
-- 状態: 採用（v0.5.0）。コピペ支援はADR 0007で廃止
+- 状態: 採用（v0.5.0）。コピペ支援はADR 0007で廃止。リモート登録・解除とSSH config / Includeの所有はADR 0008で再導入
 - 日付: 2026-11-08
 - 仕様: `.scratch/essential-key-utility/spec.md`
 
